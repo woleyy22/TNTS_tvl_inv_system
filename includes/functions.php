@@ -89,6 +89,9 @@ function nav_items(string $role): array
 {
     $all = [
         ['dashboard.php', 'Dashboard',    'home',  ['supply_officer', 'tvl_head', 'teacher']],
+        ['receiving.php', 'Receiving',    'truck', ['supply_officer', 'tvl_head']],
+        ['inventory.php', 'Inventory', 'box', ['supply_officer', 'tvl_head', 'teacher']],
+        ['ics_issue.php', 'Issue ICS', 'file', ['supply_officer']],
         ['courses.php',   'Courses',      'book',  ['supply_officer', 'tvl_head']],
         ['history.php',   'History Logs', 'clock', ['supply_officer', 'tvl_head']],
         ['accounts.php',  'Accounts',     'users', ['supply_officer']],
