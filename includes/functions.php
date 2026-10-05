@@ -88,17 +88,18 @@ function log_action(?int $userId, string $action, string $module, ?int $recordId
 function nav_items(string $role): array
 {
     $all = [
-        ['dashboard.php', 'Dashboard',    'home',  ['supply_officer', 'tvl_head', 'teacher']],
-        ['receiving.php', 'Receiving',    'truck', ['supply_officer', 'tvl_head']],
-        ['inventory.php', 'Inventory', 'box', ['supply_officer', 'tvl_head', 'teacher']],
-        ['ics_issue.php', 'Issue ICS', 'file', ['supply_officer']],
+        ['dashboard.php', 'Dashboard',    'home',   ['supply_officer', 'tvl_head', 'teacher']],
+        ['receiving.php', 'Receiving',    'truck',  ['supply_officer', 'tvl_head']],
+        ['inventory.php', 'Inventory',    'box',    ['supply_officer', 'tvl_head', 'teacher']],
+        ['ics_issue.php', 'Issue ICS',    'file',   ['supply_officer']],
         ['item_maintenance.php', 'Maintenance', 'file', ['teacher']],
-        ['borrow.php', 'Borrow & Return', 'clip', ['supply_officer', 'tvl_head', 'teacher']],
+        ['borrow.php', 'Borrow & Return', 'clip',   ['supply_officer', 'tvl_head', 'teacher']],
         ['condemnation.php', 'Condemnation', 'alert', ['supply_officer', 'tvl_head', 'teacher']],
-        ['reports.php', 'Reports & Docs', 'file', ['supply_officer', 'tvl_head', 'teacher']],
-        ['courses.php',   'Courses',      'book',  ['supply_officer', 'tvl_head']],
-        ['history.php',   'History Logs', 'clock', ['supply_officer', 'tvl_head']],
-        ['accounts.php',  'Accounts',     'users', ['supply_officer']],
+        ['transfers.php', 'Property Transfers', 'repeat', ['supply_officer', 'tvl_head']], // <-- ADDED HERE
+        ['reports.php', 'Reports & Docs', 'file',   ['supply_officer', 'tvl_head', 'teacher']],
+        ['courses.php',   'Courses',      'book',   ['supply_officer', 'tvl_head']],
+        ['history.php',   'History Logs', 'clock',  ['supply_officer', 'tvl_head']],
+        ['accounts.php',  'Accounts',     'users',  ['supply_officer']],
     ];
     $out = [];
     foreach ($all as $item) {
@@ -126,6 +127,7 @@ function icon(string $name, int $size = 20): string
         'file'    => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
         'cap'     => '<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
         'menu'    => '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
+        'repeat'  => '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>', // <-- SVG PATH ADDED HERE
     ];
     $p = isset($paths[$name]) ? $paths[$name] : '';
     return '<svg class="icon" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" '

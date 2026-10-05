@@ -253,10 +253,10 @@ $items = $stmt_items->fetchAll();
             </tbody>
         </table>
 
-        <!-- Inspection & Acceptance Signatory Footer -->
+       <!-- Inspection & Acceptance Signatory Footer -->
         <table class="footer-table">
             <tr>
-                <!-- Inspection Section -->
+                <!-- Inspection Section (Sir Ace) -->
                 <td>
                     <div><strong>INSPECTION</strong></div>
                     <div style="margin-top: 8px; font-size: 9pt;">
@@ -267,8 +267,10 @@ $items = $stmt_items->fetchAll();
                     </div>
 
                     <div class="sig-block">
-                        <span class="sig-name">INSPECTION COMMITTEE</span>
-                        <span class="sig-label">Inspection Officer / Committee Chair</span>
+                        <span class="sig-name">REYNALD ACE</span>
+                        <span class="sig-label">Signature Over Printed Name</span>
+                        <span style="font-weight: bold; display: block; margin-top: 2px;">PROPERTY CUSTODIAN</span>
+                        <span class="sig-label">Inspection Officer / Chair</span>
                         
                         <div class="sig-date">
                             <?= e(date('m/d/Y', strtotime($delivery['date_received']))) ?>
@@ -277,7 +279,7 @@ $items = $stmt_items->fetchAll();
                     </div>
                 </td>
 
-                <!-- Acceptance Section -->
+                <!-- Acceptance Section (Arnold G. Angeles) -->
                 <td>
                     <div><strong>ACCEPTANCE</strong></div>
                     <div style="margin-top: 8px; font-size: 9pt;">
@@ -292,7 +294,7 @@ $items = $stmt_items->fetchAll();
                         <span class="sig-name">ARNOLD G. ANGELES</span>
                         <span class="sig-label">Signature Over Printed Name</span>
                         <span style="font-weight: bold; display: block; margin-top: 2px;">SUPPLY OFFICER I</span>
-                        <span class="sig-label">Property Custodian</span>
+                        <span class="sig-label">Property Custodian / Supply Office</span>
                         
                         <div class="sig-date">
                             <?= e(date('m/d/Y', strtotime($delivery['date_received']))) ?>

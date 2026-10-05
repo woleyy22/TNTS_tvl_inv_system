@@ -1,0 +1,11 @@
+# Database configuration & credentials
+config.php
+
+# Uploaded files & media (keep folder structure via htaccess)
+uploads/*
+!uploads/.htaccess
+
+# System & OS artifacts
+*.log
+.DS_Store
+Thumbs.db

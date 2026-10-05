@@ -15,17 +15,17 @@ $active_user_id = $user['user_id'] ?? $user['id'];
 $view_mode = $_GET['view'] ?? 'central';
 
 // Capture filter parameters
-$filter_po = $_GET['po_number'] ?? '';
-$filter_dr = $_GET['dr_number'] ?? '';
-$filter_supplier = $_GET['supplier_name'] ?? '';
-$filter_course = $_GET['course_id'] ?? '';
-$filter_teacher = $_GET['teacher_id'] ?? '';
-$filter_date_from = $_GET['date_from'] ?? '';
-$filter_date_to = $_GET['date_to'] ?? '';
-$search_query = $_GET['search'] ?? '';
+$filter_po       = trim($_GET['po_number'] ?? '');
+$filter_dr       = trim($_GET['dr_number'] ?? '');
+$filter_supplier = trim($_GET['supplier_name'] ?? '');
+$filter_course   = trim($_GET['course_id'] ?? '');
+$filter_teacher  = trim($_GET['teacher_id'] ?? '');
+$filter_date_from= trim($_GET['date_from'] ?? '');
+$filter_date_to  = trim($_GET['date_to'] ?? '');
+$search_query    = trim($_GET['search'] ?? '');
 
 if ($role === 'teacher') {
-    // Teachers see only their assigned items with precise condition breakdowns
+    // Teachers see only their assigned items with dynamic condition breakdowns
     $stmt = db()->prepare("
         SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, c.ics_number, c.date_issued, cr.course_name,
                u.full_name as teacher_name,
@@ -55,6 +55,8 @@ if ($role === 'teacher') {
 
     if ($view_mode === 'issued') {
         // Query for Items Issued to Teachers
+        $whereClauses[] = "c.status = 'active'";
+
         if (!empty($filter_course)) {
             $whereClauses[] = "c.course_id = ?";
             $params[] = $filter_course;
@@ -77,7 +79,7 @@ if ($role === 'teacher') {
             $params[] = "%$search_query%";
         }
 
-        $whereSql = !empty($whereClauses) ? "WHERE " . implode(" AND ", $whereClauses) : "";
+        $whereSql = "WHERE " . implode(" AND ", $whereClauses);
 
         $sql = "
             SELECT ii.*, i.item_name, i.description, i.unit, c.ics_number, c.date_issued, 

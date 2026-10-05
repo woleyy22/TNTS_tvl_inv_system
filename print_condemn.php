@@ -107,7 +107,7 @@ if (!$record) {
             height: 250px;
         }
 
-        /* Footer Signatories */
+        /* Footer Signatories (3 Columns) */
         .footer-table {
             width: 100%;
             border-collapse: collapse;
@@ -115,14 +115,14 @@ if (!$record) {
         }
         .footer-table td {
             border: 1px solid #000;
-            width: 50%;
+            width: 33.33%;
             vertical-align: top;
-            padding: 10px;
-            font-size: 9.5pt;
+            padding: 8px;
+            font-size: 9pt;
         }
         .sig-block {
             text-align: center;
-            margin-top: 30px;
+            margin-top: 25px;
         }
         .sig-name {
             font-weight: bold;
@@ -131,17 +131,17 @@ if (!$record) {
             display: block;
         }
         .sig-label {
-            font-size: 8.5pt;
+            font-size: 8pt;
             display: block;
             margin-top: 2px;
         }
         .sig-date {
             border-top: 1px solid #000;
-            width: 60%;
-            margin: 15px auto 0 auto;
+            width: 70%;
+            margin: 12px auto 0 auto;
             display: block;
             padding-top: 2px;
-            font-size: 9pt;
+            font-size: 8.5pt;
         }
 
         @media print {
@@ -224,35 +224,52 @@ if (!$record) {
             </tbody>
         </table>
 
-        <!-- Signatories Footer -->
+        <!-- Signatories Footer (3 Signatories) -->
         <table class="footer-table">
             <tr>
                 <!-- Requisitioner / Teacher -->
                 <td>
-                    <div><strong>Requested & Certified Damaged by:</strong></div>
+                    <div><strong>Requested & Certified Damaged:</strong></div>
 
                     <div class="sig-block">
                         <span class="sig-name"><?= e($record['requester_name']) ?></span>
                         <span class="sig-label">Signature Over Printed Name</span>
-                        <span style="font-weight: bold; display: block; margin-top: 3px;">ACCOUNTABLE TEACHER</span>
-                        <span class="sig-label">Faculty / Requisitioner</span>
+                        <span style="font-weight: bold; display: block; margin-top: 2px;">ACCOUNTABLE TEACHER</span>
+                        <span class="sig-label">TVL Faculty</span>
                         
                         <div class="sig-date">
                             <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
                         </div>
-                        <span class="sig-label">Date</span>
+                        <span class="sig-label">Date Requested</span>
                     </div>
                 </td>
 
-                <!-- Approved by Property Custodian -->
+                <!-- Inspection Officer / Property Custodian (Sir Ace) -->
                 <td>
-                    <div><strong>Approved for Condemnation & Disposal:</strong></div>
+                    <div><strong>Verified & Inspected:</strong></div>
+
+                    <div class="sig-block">
+                        <span class="sig-name">REYNALD ACE</span>
+                        <span class="sig-label">Signature Over Printed Name</span>
+                        <span style="font-weight: bold; display: block; margin-top: 2px;">PROPERTY CUSTODIAN</span>
+                        <span class="sig-label">Inspection Officer</span>
+                        
+                        <div class="sig-date">
+                            <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
+                        </div>
+                        <span class="sig-label">Date Inspected</span>
+                    </div>
+                </td>
+
+                <!-- Approval (Arnold G. Angeles) -->
+                <td>
+                    <div><strong>Approved for Disposal:</strong></div>
 
                     <div class="sig-block">
                         <span class="sig-name">ARNOLD G. ANGELES</span>
                         <span class="sig-label">Signature Over Printed Name</span>
-                        <span style="font-weight: bold; display: block; margin-top: 3px;">SUPPLY OFFICER I</span>
-                        <span class="sig-label">Property Custodian</span>
+                        <span style="font-weight: bold; display: block; margin-top: 2px;">SUPPLY OFFICER I</span>
+                        <span class="sig-label">Supply Office / Final Approval</span>
                         
                         <div class="sig-date">
                             <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
