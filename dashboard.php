@@ -1,12 +1,20 @@
 <?php
+require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
-$user = require_login();
+require_once __DIR__ . '/includes/functions.php';
+
+$user = current_user();
+if (!$user) {
+    header('Location: login.php');
+    exit;
+}
+
 $isTeacher = ($user['role'] === 'teacher');
-$uid = (int)$user['id'];
+$uid = (int)($user['user_id'] ?? $user['id']);
 $pdo = db();
 
 $pageTitle = 'Dashboard';
-$active = 'dashboard.php';
+$active = 'dashboard';
 
 // ---------- stat cards: [label, value, small text, icon, color] ----------
 $cards = [];
@@ -41,7 +49,14 @@ if ($isTeacher) {
         "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
          WHERE i.status = 'active' AND ii.item_condition = 'damaged'");
     $pendingDeliveries = (int)db_scalar("SELECT COUNT(*) FROM deliveries WHERE status <> 'accepted'");
-    $pendingCondemn = (int)db_scalar("SELECT COUNT(*) FROM condemnations WHERE status = 'requested'");
+    
+    // Check if condemnations table exists before querying to prevent crashes
+    $pendingCondemn = 0;
+    try {
+        $pendingCondemn = (int)db_scalar("SELECT COUNT(*) FROM condemnations WHERE status = 'requested'");
+    } catch (Throwable $e) {
+        $pendingCondemn = 0;
+    }
 
     $cards[] = ['Items on record', $onRecord, $unique . ' unique items', 'box', 'red'];
     $cards[] = ['Issued to teachers', $issued, $icsCount . ' active ICS', 'check', 'green'];
@@ -74,13 +89,17 @@ if ($isTeacher) {
          GROUP BY c.course_id, c.course_name
          ORDER BY qty DESC, c.course_name ASC LIMIT 10")->fetchAll();
 
-    $borrowedTop = $pdo->query(
-        "SELECT inv.item_name, COUNT(*) AS times
-         FROM borrow_logs b
-         JOIN ics_items ii ON ii.ics_item_id = b.ics_item_id
-         JOIN inventory_items inv ON inv.item_id = ii.item_id
-         GROUP BY inv.item_id, inv.item_name
-         ORDER BY times DESC, inv.item_name ASC LIMIT 5")->fetchAll();
+    try {
+        $borrowedTop = $pdo->query(
+            "SELECT inv.item_name, COUNT(*) AS times
+             FROM borrow_logs b
+             JOIN ics_items ii ON ii.ics_item_id = b.ics_item_id
+             JOIN inventory_items inv ON inv.item_id = ii.item_id
+             GROUP BY inv.item_id, inv.item_name
+             ORDER BY times DESC, inv.item_name ASC LIMIT 5")->fetchAll();
+    } catch (Throwable $e) {
+        $borrowedTop = [];
+    }
 
     $recent = $pdo->query(
         "SELECT h.action, h.module, h.created_at, u.full_name
@@ -104,7 +123,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="page-head">
     <h1>Dashboard</h1>
-    <p>Welcome back, <?= e($user['name']) ?></p>
+    <p>Welcome back, <?= e($user['full_name'] ?? 'User') ?></p>
 </div>
 
 <div class="stats">
