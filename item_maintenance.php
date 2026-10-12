@@ -157,66 +157,66 @@ $stmt_repairs->execute([$uid]);
 $repair_logs = $stmt_repairs->fetchAll();
 
 $pageTitle = 'Item Maintenance & Quantity Tracking';
-$active = 'maintenance';
+$active = 'item_maintenance.php';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div class="content-header legacy-026">
     <div>
         <h2>Item Maintenance & Repairs</h2>
-        <p style="color: #666; margin: 0;">Review operational quantities and report equipment issues or restore repaired equipment.</p>
+        <p class="legacy-027">Review operational quantities and report equipment issues or restore repaired equipment.</p>
     </div>
-    <button onclick="openReportModal()" style="padding: 10px 18px; background: #800000; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">+ Report Issue / Log Repair</button>
+    <button onclick="openReportModal()" class="legacy-188">+ Report Issue / Log Repair</button>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; border-left: 4px solid #10b981;">
+    <div class="legacy-189">
         ✓ Maintenance action logged successfully! Condition breakdown and inventory counts have been updated.
     </div>
 <?php endif; ?>
 
 <?php if (isset($_GET['error'])): ?>
-    <div style="background: #fee2e2; color: #991b1b; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; border-left: 4px solid #dc2626;">
+    <div class="legacy-190">
         ✕ <?= e($_GET['error']) ?>
     </div>
 <?php endif; ?>
 
 <!-- Section 1: Detailed Quantity Breakdown by Condition -->
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px;">
-    <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">Accountable Inventory Quantity Breakdown</h3>
-    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+<div class="card legacy-191">
+    <h3 class="legacy-192">Accountable Inventory Quantity Breakdown</h3>
+    <table class="legacy-031">
         <thead>
-            <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                <th style="padding: 12px;">ICS No. / Course</th>
-                <th style="padding: 12px;">Item Details</th>
-                <th style="padding: 12px;">Total Issued</th>
-                <th style="padding: 12px; color: #10b981;">Serviceable</th>
-                <th style="padding: 12px; color: #d97706;">For Repair</th>
-                <th style="padding: 12px; color: #dc2626;">Damaged / Disposed</th>
+            <tr class="legacy-032">
+                <th class="legacy-033">ICS No. / Course</th>
+                <th class="legacy-033">Item Details</th>
+                <th class="legacy-033">Total Issued</th>
+                <th class="legacy-087">Serviceable</th>
+                <th class="legacy-088">For Repair</th>
+                <th class="legacy-089">Damaged / Disposed</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($items)): ?>
                 <tr>
-                    <td colspan="6" style="padding: 20px; text-align: center; color: #666;">No items assigned to your account.</td>
+                    <td colspan="6" class="legacy-035">No items assigned to your account.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($items as $item): 
                     $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty']);
                 ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px;">
+                    <tr class="legacy-036">
+                        <td class="legacy-033">
                             <strong><?= e($item['ics_number']) ?></strong><br>
-                            <small style="color: #666;"><?= e($item['course_name']) ?></small>
+                            <small class="legacy-037"><?= e($item['course_name']) ?></small>
                         </td>
-                        <td style="padding: 12px;">
+                        <td class="legacy-033">
                             <strong><?= e($item['item_name']) ?></strong><br>
-                            <small style="color: #666;"><?= e($item['description']) ?></small>
+                            <small class="legacy-037"><?= e($item['description']) ?></small>
                         </td>
-                        <td style="padding: 12px; font-weight: bold;"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td>
-                        <td style="padding: 12px; color: #10b981; font-weight: bold;"><?= $serviceable_qty ?></td>
-                        <td style="padding: 12px; color: #d97706; font-weight: bold;"><?= e($item['repair_qty']) ?></td>
-                        <td style="padding: 12px; color: #dc2626; font-weight: bold;">
+                        <td class="legacy-091"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td>
+                        <td class="legacy-092"><?= $serviceable_qty ?></td>
+                        <td class="legacy-093"><?= e($item['repair_qty']) ?></td>
+                        <td class="legacy-094">
                             <?= e($item['damaged_qty']) ?> 
                             <?php if ($item['approved_condemned'] > 0): ?>
                                 <small>(<?= e($item['approved_condemned']) ?> disposed)</small>
@@ -230,22 +230,22 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <!-- Section 2: Maintenance & Repair History Logs -->
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">Reported Maintenance & Repair History</h3>
-    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+<div class="card legacy-030">
+    <h3 class="legacy-192">Reported Maintenance & Repair History</h3>
+    <table class="legacy-031">
         <thead>
-            <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                <th style="padding: 12px;">ICS No. / Item</th>
-                <th style="padding: 12px;">Affected Qty & Status</th>
-                <th style="padding: 12px;">Reported Issue / Notes</th>
-                <th style="padding: 12px;">Action Status</th>
-                <th style="padding: 12px;">Date Reported</th>
+            <tr class="legacy-032">
+                <th class="legacy-033">ICS No. / Item</th>
+                <th class="legacy-033">Affected Qty & Status</th>
+                <th class="legacy-033">Reported Issue / Notes</th>
+                <th class="legacy-033">Action Status</th>
+                <th class="legacy-033">Date Reported</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($repair_logs)): ?>
                 <tr>
-                    <td colspan="5" style="padding: 20px; text-align: center; color: #666;">No maintenance issues reported.</td>
+                    <td colspan="5" class="legacy-035">No maintenance issues reported.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($repair_logs as $log): 
@@ -253,20 +253,20 @@ require_once __DIR__ . '/includes/header.php';
                     $isActiveRepair = ($log['condition_status'] === 'for_repair');
                     $rowBg = $isActiveRepair ? '#fef3c7' : 'transparent';
                 ?>
-                    <tr style="border-bottom: 1px solid #eee; background-color: <?= $rowBg ?>;">
-                        <td style="padding: 12px;">
+                    <tr class="legacy-193 <?= $isActiveRepair ? 'repair-active' : '' ?>">
+                        <td class="legacy-033">
                             <strong><?= e($log['item_name']) ?></strong><br>
-                            <small style="color: #666;">ICS: <?= e($log['ics_number']) ?></small>
+                            <small class="legacy-037">ICS: <?= e($log['ics_number']) ?></small>
                         </td>
-                        <td style="padding: 12px; font-weight: bold; color: <?= $log['condition_status'] === 'serviceable' || $log['condition_status'] === 'resolved' ? '#10b981' : ($log['condition_status'] === 'for_repair' ? '#b45309' : '#dc2626') ?>;">
+                        <td class="legacy-194 <?= in_array($log['condition_status'], ['serviceable','resolved'], true) ? 'text-success' : ($log['condition_status'] === 'for_repair' ? 'text-warning' : 'text-danger') ?>">
                             <?= e($log['quantity_affected']) ?> <?= e($log['unit']) ?> 
-                            <span style="font-size: 0.8em; display: block; color: #666; text-transform: uppercase;">
+                            <span class="legacy-195">
                                 <?= $isActiveRepair ? '⚠️ ACTIVE REPAIR' : e(str_replace('_', ' ', $log['condition_status'])) ?>
                             </span>
                         </td>
-                        <td style="padding: 12px;"><?= e($log['issue']) ?></td>
-                        <td style="padding: 12px;"><?= e($log['action_taken']) ?></td>
-                        <td style="padding: 12px;"><?= e(date('M d, Y', strtotime($log['date_reported']))) ?></td>
+                        <td class="legacy-033"><?= e($log['issue']) ?></td>
+                        <td class="legacy-033"><?= e($log['action_taken']) ?></td>
+                        <td class="legacy-033"><?= e(date('M d, Y', strtotime($log['date_reported']))) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -274,148 +274,128 @@ require_once __DIR__ . '/includes/header.php';
     </table>
 </div>
 
-<!-- Modal Popup -->
-<div id="reportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 9999;">
-    <div style="background: white; padding: 25px; border-radius: 8px; width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-        <h3 style="margin-top: 0; color: #800000; border-bottom: 2px solid #800000; padding-bottom: 8px;">Report Issue / Log Repair</h3>
-        
-        <form method="POST">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Select Equipment *</label>
-                <select name="ics_item_id" id="ics_select" onchange="updateLiveItemDetails()" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95em;">
-                    <option value="">-- Choose Accountable Item --</option>
-                    <?php foreach ($items as $mi): 
-                        $serv_qty = max(0, $mi['qty_issued'] - $mi['repair_qty'] - $mi['damaged_qty']);
-                    ?>
-                        <option value="<?= $mi['ics_item_id'] ?>" 
-                                data-issued="<?= $mi['qty_issued'] ?>"
-                                data-serviceable="<?= $serv_qty ?>"
-                                data-repair="<?= $mi['repair_qty'] ?>"
-                                data-damaged="<?= $mi['damaged_qty'] ?>"
-                                data-condemned="<?= $mi['approved_condemned'] ?>"
-                                data-unit="<?= e($mi['unit']) ?>">
-                            <?= e($mi['item_name']) ?> (ICS: <?= e($mi['ics_number']) ?>)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <!-- Dynamic Live Condition Breakdown Box -->
-            <div id="live_status_card" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px;">
-                <div style="font-size: 0.85em; font-weight: bold; color: #475569; margin-bottom: 8px; text-transform: uppercase;">Current Quantity Status Breakdown:</div>
-                <div style="display: flex; justify-content: space-between; text-align: center;">
-                    <div>
-                        <div style="font-size: 0.75em; color: #64748b;">Total</div>
-                        <div id="badge_total" style="font-weight: bold; font-size: 1.1em; color: #0f172a;">0</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.75em; color: #10b981; font-weight: bold;">Serviceable</div>
-                        <div id="badge_serviceable" style="font-weight: bold; font-size: 1.1em; color: #10b981;">0</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.75em; color: #d97706; font-weight: bold;">For Repair</div>
-                        <div id="badge_repair" style="font-weight: bold; font-size: 1.1em; color: #d97706;">0</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.75em; color: #dc2626; font-weight: bold;">Damaged</div>
-                        <div id="badge_damaged" style="font-weight: bold; font-size: 1.1em; color: #dc2626;">0</div>
+<!-- Guided maintenance form: existing POST names and server validation retained. -->
+<div id="reportModal" class="modal-overlay" hidden>
+    <section class="guided-modal">
+        <div class="eyebrow">Equipment maintenance</div>
+        <h3>Report an issue or record a repair</h3>
+        <p class="modal-intro">Choose your equipment, tell us what happened, and enter the number of units affected.</p>
+        <form method="POST" id="maintenanceForm">
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">1</span><h4>Choose equipment</h4></div>
+                <div class="field">
+                    <label for="ics_select">Equipment from your active ICS <span class="required-mark">*</span></label>
+                    <select name="ics_item_id" id="ics_select" onchange="updateLiveItemDetails()" required class="input" data-initial-focus aria-describedby="equipmentHelp">
+                        <option value="">Select an accountable item</option>
+                        <?php foreach ($items as $mi):
+                            // Match the existing server-side availability check for reporting issues.
+                            $serv_qty = max(0, $mi['qty_issued'] - $mi['repair_qty'] - $mi['damaged_qty'] - $mi['approved_condemned']);
+                        ?>
+                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$serv_qty ?>" data-repair="<?= (int)$mi['repair_qty'] ?>" data-damaged="<?= (int)$mi['damaged_qty'] ?>" data-condemned="<?= (int)$mi['approved_condemned'] ?>" data-unit="<?= e($mi['unit']) ?>">
+                                <?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="field-help" id="equipmentHelp">Only equipment assigned to your active custody records is listed.</small>
+                </div>
+                <?php if (!$items): ?><p class="form-notice">You have no equipment in an active ICS. Contact your Supply Officer before submitting a maintenance record.</p><?php endif; ?>
+                <div id="live_status_card" class="equipment-snapshot" hidden>
+                    <div class="snapshot-heading">Current stock <strong id="badge_total">0</strong></div>
+                    <div class="quantity-tiles">
+                        <div><span>Available</span><strong id="badge_serviceable" class="text-success">0</strong></div>
+                        <div><span>For repair</span><strong id="badge_repair" class="text-warning">0</strong></div>
+                        <div><span>Damaged</span><strong id="badge_damaged" class="text-danger">0</strong></div>
+                        <div><span>Disposed</span><strong id="badge_condemned">0</strong></div>
                     </div>
                 </div>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Condition Status *</label>
-                <select name="item_condition" id="condition_select" onchange="adjustQuantityLimits()" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="for_repair">For Repair (Under Maintenance)</option>
-                    <option value="damaged">Damaged (Auto-queue for Condemnation)</option>
-                    <option value="serviceable">Serviceable (Repaired / Working Fine)</option>
-                </select>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Quantity Affected *</label>
-                <input type="number" name="affected_qty" id="affected_qty_input" min="1" value="1" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="How many units have an issue or were fixed?">
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Issue Description / Maintenance Notes *</label>
-                <textarea name="issue_description" rows="3" required placeholder="Describe what is wrong or what repair work was done..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" onclick="closeReportModal()" style="padding: 8px 16px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
-                <button type="submit" name="report_issue" id="submit_btn" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Submit Log</button>
-            </div>
+            </section>
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">2</span><h4>What would you like to do?</h4></div>
+                <fieldset class="action-choice-set">
+                    <legend class="visually-hidden">Maintenance action</legend>
+                    <div class="action-choices">
+                        <label class="action-choice"><input type="radio" name="item_condition" value="for_repair" checked onchange="adjustQuantityLimits()"><span><strong>Needs repair</strong><small>Move working units to maintenance.</small></span></label>
+                        <label class="action-choice"><input type="radio" name="item_condition" value="damaged" onchange="adjustQuantityLimits()"><span><strong>Damaged</strong><small>Request condemnation review.</small></span></label>
+                        <label class="action-choice"><input type="radio" name="item_condition" value="serviceable" onchange="adjustQuantityLimits()"><span><strong>Repair completed</strong><small>Return repaired units to service.</small></span></label>
+                    </div>
+                </fieldset>
+                <p id="maintenanceActionHelp" class="field-help">Select equipment to see which actions are available.</p>
+                <div class="quantity-entry">
+                    <div class="field"><label for="affected_qty_input">Number of units <span class="required-mark">*</span></label><input type="number" name="affected_qty" id="affected_qty_input" min="1" step="1" value="1" required class="input" oninput="updateMaintenanceQuantity()" aria-describedby="maintenanceLimit"></div>
+                    <p id="maintenanceLimit" class="quantity-limit" aria-live="polite">Choose equipment first.</p>
+                </div>
+            </section>
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">3</span><h4>Add details</h4></div>
+                <div class="field"><label for="maintenanceNotes" id="maintenanceNotesLabel">Issue description <span class="required-mark">*</span></label><textarea id="maintenanceNotes" name="issue_description" rows="3" required class="input" placeholder="Describe the fault, when it started, and any checks you have made."></textarea></div>
+            </section>
+            <div class="form-review" id="maintenanceReview" aria-live="polite">Your record will appear in the maintenance log after submission.</div>
+            <div class="modal-actions"><button type="button" onclick="closeReportModal()" class="btn btn-outline">Cancel</button><button type="submit" name="report_issue" id="submit_btn" class="btn btn-primary" disabled>Save maintenance record</button></div>
         </form>
-    </div>
+    </section>
 </div>
-
 <script>
 function openReportModal() {
-    document.getElementById('reportModal').style.display = 'flex';
+    updateLiveItemDetails();
+    TNTSUI.open('reportModal');
 }
-
-function closeReportModal() {
-    document.getElementById('reportModal').style.display = 'none';
-}
-
+function closeReportModal() { TNTSUI.close('reportModal'); }
 function updateLiveItemDetails() {
     const select = document.getElementById('ics_select');
-    const liveCard = document.getElementById('live_status_card');
-    
-    if (!select.value) {
-        liveCard.style.display = 'none';
-        return;
+    const card = document.getElementById('live_status_card');
+    card.hidden = !select.value;
+    if (select.value) {
+        const option = select.options[select.selectedIndex];
+        document.getElementById('badge_total').textContent = option.dataset.issued + ' ' + option.dataset.unit;
+        ['serviceable', 'repair', 'damaged', 'condemned'].forEach(key => {
+            document.getElementById('badge_' + key).textContent = option.dataset[key] || '0';
+        });
     }
-
-    const selectedOption = select.options[select.selectedIndex];
-    const issued = parseInt(selectedOption.getAttribute('data-issued') || '0');
-    const serviceable = parseInt(selectedOption.getAttribute('data-serviceable') || '0');
-    const repair = parseInt(selectedOption.getAttribute('data-repair') || '0');
-    const damaged = parseInt(selectedOption.getAttribute('data-damaged') || '0');
-    const unit = selectedOption.getAttribute('data-unit');
-
-    document.getElementById('badge_total').innerText = issued + ' ' + unit;
-    document.getElementById('badge_serviceable').innerText = serviceable;
-    document.getElementById('badge_repair').innerText = repair;
-    document.getElementById('badge_damaged').innerText = damaged;
-
-    liveCard.style.display = 'block';
     adjustQuantityLimits();
 }
-
 function adjustQuantityLimits() {
     const select = document.getElementById('ics_select');
-    const conditionSelect = document.getElementById('condition_select');
-    const qtyInput = document.getElementById('affected_qty_input');
-    const serviceableOpt = conditionSelect.querySelector('option[value="serviceable"]');
-    
-    if (!select.value) return;
-
-    const selectedOption = select.options[select.selectedIndex];
-    const repair = parseInt(selectedOption.getAttribute('data-repair') || '0');
-    const serviceable = parseInt(selectedOption.getAttribute('data-serviceable') || '0');
-
-    // UI Lock: If there are NO items currently 'For Repair', completely disable the Serviceable option
-    if (repair <= 0) {
-        serviceableOpt.disabled = true;
-        serviceableOpt.innerText = "Serviceable (Locked - Nothing For Repair)";
-        if (conditionSelect.value === 'serviceable') {
-            conditionSelect.value = 'for_repair'; 
-        }
-    } else {
-        serviceableOpt.disabled = false;
-        serviceableOpt.innerText = "Serviceable (Repaired / Working Fine)";
+    const option = select.value ? select.options[select.selectedIndex] : null;
+    const actions = Array.from(document.querySelectorAll('#maintenanceForm input[name="item_condition"]'));
+    const working = option ? Number(option.dataset.serviceable) : 0;
+    const repair = option ? Number(option.dataset.repair) : 0;
+    actions.forEach(action => {
+        action.disabled = !option || (action.value === 'serviceable' ? repair : working) <= 0;
+        action.closest('label').classList.toggle('choice-disabled', action.disabled);
+    });
+    const selected = actions.find(action => action.checked);
+    if (!selected || selected.disabled) {
+        actions.forEach(action => action.checked = false);
+        const firstAvailable = actions.find(action => !action.disabled);
+        if (firstAvailable) firstAvailable.checked = true;
     }
-
-    // Set strict Max limits based on what they are trying to do
-    if (conditionSelect.value === 'serviceable') {
-        qtyInput.max = repair; // Can only restore up to how many are currently broken
-        if (parseInt(qtyInput.value) > repair) qtyInput.value = repair;
+    const active = actions.find(action => action.checked && !action.disabled);
+    const maximum = active ? (active.value === 'serviceable' ? repair : working) : 0;
+    const quantity = document.getElementById('affected_qty_input');
+    quantity.disabled = !maximum;
+    if (maximum) {
+        quantity.max = String(maximum);
+        quantity.value = String(Math.max(1, Math.min(maximum, Number(quantity.value) || 1)));
     } else {
-        qtyInput.max = serviceable; // Can only report issues on currently healthy stock
-        if (parseInt(qtyInput.value) > serviceable) qtyInput.value = serviceable;
+        quantity.removeAttribute('max'); quantity.value = '1';
     }
+    const completed = active && active.value === 'serviceable';
+    const damaged = active && active.value === 'damaged';
+    document.getElementById('maintenanceNotesLabel').innerHTML = (completed ? 'Repair work completed' : 'Issue description') + ' <span class="required-mark">*</span>';
+    document.getElementById('maintenanceNotes').placeholder = completed ? 'Describe the repair and checks performed before returning these units to service.' : 'Describe the fault, when it started, and any checks you have made.';
+    document.getElementById('maintenanceActionHelp').textContent = !option ? 'Select equipment to see which actions are available.' : !active ? 'No units are available for a new issue or repair completion.' : completed ? 'Only units currently marked for repair can be returned to service.' : damaged ? 'This action automatically queues a condemnation request for Custodian review.' : 'Only available working units can be moved to maintenance.';
+    document.getElementById('maintenanceLimit').textContent = maximum ? 'You can record up to ' + maximum + ' ' + option.dataset.unit + '.' : 'No units available for this action.';
+    updateMaintenanceQuantity();
+}
+function updateMaintenanceQuantity() {
+    const qty = document.getElementById('affected_qty_input');
+    const action = document.querySelector('#maintenanceForm input[name="item_condition"]:checked');
+    const valid = !qty.disabled && Number.isInteger(Number(qty.value)) && Number(qty.value) >= 1 && Number(qty.value) <= Number(qty.max);
+    qty.setCustomValidity(valid || qty.disabled ? '' : 'Enter a whole number from 1 to ' + qty.max + '.');
+    document.getElementById('submit_btn').disabled = !valid || !action || action.disabled;
+    const labels = { for_repair: 'Report for repair', damaged: 'Report damaged equipment', serviceable: 'Record completed repair' };
+    document.getElementById('submit_btn').textContent = action && !action.disabled ? labels[action.value] : 'Save maintenance record';
+    document.getElementById('maintenanceReview').textContent = valid && action ? Number(qty.value) + ' unit(s) will be recorded as ' + ({ for_repair: 'for repair', damaged: 'damaged, pending condemnation review', serviceable: 'repaired and returned to service' })[action.value] + '.' : 'Choose an available action and enter a valid quantity to continue.';
 }
 </script>
 

@@ -105,37 +105,37 @@ $active = 'ics';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="margin-bottom: 20px;">
+<div class="content-header legacy-050">
     <h2>Issue Inventory Custodian Slip (ICS)</h2>
-    <p style="color: #666;">Assign available inventory items to a specific teacher and course.</p>
+    <p class="legacy-037">Assign available inventory items to a specific teacher and course.</p>
 </div>
 
-<form method="POST" class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 900px;">
+<form method="POST" class="card legacy-148">
     
-    <div style="display: flex; gap: 20px; margin-bottom: 20px; background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #eee;">
-        <div style="flex: 1;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">ICS Number *</label>
-            <input type="text" name="ics_number" placeholder="e.g. ICS-2026-001" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+    <div class="legacy-149">
+        <div class="legacy-049">
+            <label class="legacy-046">ICS Number *</label>
+            <input type="text" name="ics_number" placeholder="e.g. ICS-2026-001" required class="legacy-047">
         </div>
-        <div style="flex: 1;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Date Issued *</label>
-            <input type="date" name="date_issued" value="<?= date('Y-m-d') ?>" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div class="legacy-049">
+            <label class="legacy-046">Date Issued *</label>
+            <input type="date" name="date_issued" value="<?= date('Y-m-d') ?>" required class="legacy-047">
         </div>
     </div>
 
-    <div style="display: flex; gap: 20px; margin-bottom: 30px;">
-        <div style="flex: 1;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Assign To Teacher *</label>
-            <select name="teacher_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+    <div class="legacy-150">
+        <div class="legacy-049">
+            <label class="legacy-046">Assign To Teacher *</label>
+            <select name="teacher_id" required class="legacy-047">
                 <option value="">-- Select Teacher --</option>
                 <?php foreach ($teachers as $t): ?>
                     <option value="<?= $t['user_id'] ?>"><?= e($t['full_name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <div style="flex: 1;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">For Course / Subject *</label>
-            <select name="course_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div class="legacy-049">
+            <label class="legacy-046">For Course / Subject *</label>
+            <select name="course_id" required class="legacy-047">
                 <option value="">-- Select Course --</option>
                 <?php foreach ($courses as $c): ?>
                     <option value="<?= $c['course_id'] ?>"><?= e($c['course_name']) ?></option>
@@ -144,38 +144,38 @@ require_once __DIR__ . '/includes/header.php';
         </div>
     </div>
 
-    <h3 style="border-bottom: 2px solid #eee; padding-bottom: 10px;">Available Items in Supply Office</h3>
-    <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 20px;">
-        <tr style="background: #f9fafb;">
-            <th style="padding: 10px; border-bottom: 1px solid #ddd;">Item Name</th>
-            <th style="padding: 10px; border-bottom: 1px solid #ddd;">Type</th>
-            <th style="padding: 10px; border-bottom: 1px solid #ddd;">Available Stock</th>
-            <th style="padding: 10px; border-bottom: 1px solid #ddd; width: 120px;">Qty to Issue</th>
+    <h3 class="legacy-151">Available Items in Supply Office</h3>
+    <table class="legacy-068">
+        <tr class="legacy-069">
+            <th class="legacy-070">Item Name</th>
+            <th class="legacy-070">Type</th>
+            <th class="legacy-070">Available Stock</th>
+            <th class="legacy-152">Qty to Issue</th>
         </tr>
         <?php if (empty($inventory)): ?>
-            <tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">No unissued items available in the supply office.</td></tr>
+            <tr><td colspan="4" class="legacy-035">No unissued items available in the supply office.</td></tr>
         <?php else: ?>
             <?php foreach ($inventory as $item): ?>
                 <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <td class="legacy-072">
                         <strong><?= e($item['item_name']) ?></strong><br>
-                        <small style="color: #666;">₱<?= e(number_format($item['unit_cost'], 2)) ?> / <?= e($item['unit']) ?></small>
+                        <small class="legacy-037">₱<?= e(number_format($item['unit_cost'], 2)) ?> / <?= e($item['unit']) ?></small>
                     </td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;"><?= e(ucfirst($item['item_type'])) ?></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee; color: #10b981; font-weight: bold;">
+                    <td class="legacy-072"><?= e(ucfirst($item['item_type'])) ?></td>
+                    <td class="legacy-153">
                         <?= e($item['available_qty']) ?> <?= e($item['unit']) ?>
                     </td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <td class="legacy-072">
                         <input type="number" name="issue_qty[<?= $item['item_id'] ?>]" 
                                max="<?= $item['available_qty'] ?>" min="0" value="0"
-                               style="width: 80px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                               class="legacy-073">
                     </td>
                 </tr>
             <?php endforeach; ?>
         <?php endif; ?>
     </table>
 
-    <button type="submit" style="padding: 12px 24px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">Issue ICS to Teacher</button>
+    <button type="submit" class="legacy-154">Issue ICS to Teacher</button>
 </form>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

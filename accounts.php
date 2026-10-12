@@ -246,7 +246,7 @@ include __DIR__ . '/includes/header.php';
     (function () {
         var sel = document.getElementById('role');
         var box = document.getElementById('courseBox');
-        function sync() { box.style.display = (sel.value === 'teacher') ? 'block' : 'none'; }
+        function sync() { box.hidden = sel.value !== 'teacher'; }
         sel.addEventListener('change', sync);
         sync();
     })();

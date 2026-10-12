@@ -184,79 +184,79 @@ $active = 'reports';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="margin-bottom: 20px;">
+<div class="content-header legacy-050">
     <h2>Official Reports & Document Generation</h2>
-    <p style="color: #666; margin: 0;">Generate and print government-compliant COA forms (ICS, IAR, Condemnation Forms, and Summaries).</p>
+    <p class="legacy-027">Generate and print government-compliant COA forms (ICS, IAR, Condemnation Forms, and Summaries).</p>
 </div>
 
 <!-- Tab Navigation -->
-<div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">
-    <a href="reports.php?tab=ics" style="padding: 8px 16px; background: <?= $tab === 'ics' ? '#800000' : '#f3f4f6' ?>; color: <?= $tab === 'ics' ? '#fff' : '#333' ?>; text-decoration: none; border-radius: 4px; font-weight: bold;">Inventory Custodian Slips (ICS)</a>
+<div class="legacy-120">
+    <a href="reports.php?tab=ics" class="view-tab <?= $tab === 'ics' ? 'is-active' : '' ?>">Inventory Custodian Slips (ICS)</a>
     <?php if ($role !== 'teacher'): ?>
-        <a href="reports.php?tab=iar" style="padding: 8px 16px; background: <?= $tab === 'iar' ? '#800000' : '#f3f4f6' ?>; color: <?= $tab === 'iar' ? '#fff' : '#333' ?>; text-decoration: none; border-radius: 4px; font-weight: bold;">Inspection & Acceptance Reports (IAR)</a>
+        <a href="reports.php?tab=iar" class="view-tab <?= $tab === 'iar' ? 'is-active' : '' ?>">Inspection & Acceptance Reports (IAR)</a>
     <?php endif; ?>
-    <a href="reports.php?tab=condemn" style="padding: 8px 16px; background: <?= $tab === 'condemn' ? '#800000' : '#f3f4f6' ?>; color: <?= $tab === 'condemn' ? '#fff' : '#333' ?>; text-decoration: none; border-radius: 4px; font-weight: bold;">Condemnation Forms</a>
-    <a href="reports.php?tab=summary" style="padding: 8px 16px; background: <?= $tab === 'summary' ? '#800000' : '#f3f4f6' ?>; color: <?= $tab === 'summary' ? '#fff' : '#333' ?>; text-decoration: none; border-radius: 4px; font-weight: bold;">Course Summary Report</a>
+    <a href="reports.php?tab=condemn" class="view-tab <?= $tab === 'condemn' ? 'is-active' : '' ?>">Condemnation Forms</a>
+    <a href="reports.php?tab=summary" class="view-tab <?= $tab === 'summary' ? 'is-active' : '' ?>">Course Summary Report</a>
 </div>
 
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<div class="card legacy-030">
 
     <?php if ($tab === 'ics'): ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">Inventory Custodian Slips (ICS)</h3>
+        <div class="legacy-121">
+            <h3 class="legacy-122">Inventory Custodian Slips (ICS)</h3>
         </div>
 
         <!-- Filter & Search Bar for ICS -->
-        <form method="GET" action="reports.php" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #eee;">
+        <form method="GET" action="reports.php" class="legacy-123">
             <input type="hidden" name="tab" value="ics">
-            <div style="flex: 1; min-width: 180px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Search Keyword</label>
-                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="ICS No. or Teacher Name..." style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-079">
+                <label class="legacy-124">Search Keyword</label>
+                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="ICS No. or Teacher Name..." class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 160px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Filter by Course</label>
-                <select name="course_id" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-081">
+                <label class="legacy-124">Filter by Course</label>
+                <select name="course_id" class="legacy-125">
                     <option value="0">-- All Courses --</option>
                     <?php foreach ($all_courses as $c): ?>
                         <option value="<?= $c['course_id'] ?>" <?= $filter_course_id === (int)$c['course_id'] ? 'selected' : '' ?>><?= e($c['course_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div style="flex: 1; min-width: 130px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Date Issued From</label>
-                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-082">
+                <label class="legacy-124">Date Issued From</label>
+                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 130px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Date Issued To</label>
-                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-082">
+                <label class="legacy-124">Date Issued To</label>
+                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" class="legacy-125">
             </div>
             <div>
-                <button type="submit" style="padding: 7px 14px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Filter</button>
-                <a href="reports.php?tab=ics" style="padding: 7px 12px; background: #e5e7eb; color: #333; text-decoration: none; border-radius: 4px; font-size: 0.9em; margin-left: 4px;">Reset</a>
+                <button type="submit" class="legacy-126">Filter</button>
+                <a href="reports.php?tab=ics" class="legacy-127">Reset</a>
             </div>
         </form>
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left;">
+        <table class="legacy-128">
             <thead>
-                <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                    <th style="padding: 12px;">ICS Number</th>
-                    <th style="padding: 12px;">Teacher Accountable</th>
-                    <th style="padding: 12px;">Course / Elective</th>
-                    <th style="padding: 12px;">Date Issued</th>
-                    <th style="padding: 12px; text-align: center;">Action</th>
+                <tr class="legacy-032">
+                    <th class="legacy-033">ICS Number</th>
+                    <th class="legacy-033">Teacher Accountable</th>
+                    <th class="legacy-033">Course / Elective</th>
+                    <th class="legacy-033">Date Issued</th>
+                    <th class="legacy-034">Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($records)): ?>
-                    <tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">No ICS records found.</td></tr>
+                    <tr><td colspan="5" class="legacy-035">No ICS records found.</td></tr>
                 <?php else: foreach ($records as $r): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px; font-weight: bold; color: #800000;"><?= e($r['ics_number']) ?></td>
-                        <td style="padding: 12px;"><?= e($r['teacher_name']) ?></td>
-                        <td style="padding: 12px;"><?= e($r['course_name']) ?></td>
-                        <td style="padding: 12px;"><?= e(date('M d, Y', strtotime($r['date_issued']))) ?></td>
-                        <td style="padding: 12px; text-align: center;">
-                            <a href="print_ics.php?id=<?= $r['ics_id'] ?>" target="_blank" style="padding: 6px 12px; background: #374151; color: white; text-decoration: none; border-radius: 4px; font-size: 0.85em; font-weight: bold;">🖨 Print ICS PDF</a>
+                    <tr class="legacy-036">
+                        <td class="legacy-038"><?= e($r['ics_number']) ?></td>
+                        <td class="legacy-033"><?= e($r['teacher_name']) ?></td>
+                        <td class="legacy-033"><?= e($r['course_name']) ?></td>
+                        <td class="legacy-033"><?= e(date('M d, Y', strtotime($r['date_issued']))) ?></td>
+                        <td class="legacy-034">
+                            <a href="print_ics.php?id=<?= $r['ics_id'] ?>" target="_blank" class="legacy-129">🖨 Print ICS PDF</a>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>
@@ -264,52 +264,52 @@ require_once __DIR__ . '/includes/header.php';
         </table>
 
     <?php elseif ($tab === 'iar' && $role !== 'teacher'): ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">Inspection and Acceptance Reports (IAR)</h3>
+        <div class="legacy-121">
+            <h3 class="legacy-122">Inspection and Acceptance Reports (IAR)</h3>
         </div>
 
         <!-- Filter & Search Bar for IAR -->
-        <form method="GET" action="reports.php" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #eee;">
+        <form method="GET" action="reports.php" class="legacy-123">
             <input type="hidden" name="tab" value="iar">
-            <div style="flex: 1; min-width: 200px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Search Keyword</label>
-                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Supplier, PO, or DR No..." style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-130">
+                <label class="legacy-124">Search Keyword</label>
+                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Supplier, PO, or DR No..." class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 140px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Date Received From</label>
-                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-131">
+                <label class="legacy-124">Date Received From</label>
+                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 140px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Date Received To</label>
-                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-131">
+                <label class="legacy-124">Date Received To</label>
+                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" class="legacy-125">
             </div>
             <div>
-                <button type="submit" style="padding: 7px 14px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Filter</button>
-                <a href="reports.php?tab=iar" style="padding: 7px 12px; background: #e5e7eb; color: #333; text-decoration: none; border-radius: 4px; font-size: 0.9em; margin-left: 4px;">Reset</a>
+                <button type="submit" class="legacy-126">Filter</button>
+                <a href="reports.php?tab=iar" class="legacy-127">Reset</a>
             </div>
         </form>
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left;">
+        <table class="legacy-128">
             <thead>
-                <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                    <th style="padding: 12px;">PO Number</th>
-                    <th style="padding: 12px;">DR Number</th>
-                    <th style="padding: 12px;">Supplier</th>
-                    <th style="padding: 12px;">Date Received</th>
-                    <th style="padding: 12px; text-align: center;">Action</th>
+                <tr class="legacy-032">
+                    <th class="legacy-033">PO Number</th>
+                    <th class="legacy-033">DR Number</th>
+                    <th class="legacy-033">Supplier</th>
+                    <th class="legacy-033">Date Received</th>
+                    <th class="legacy-034">Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($records)): ?>
-                    <tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">No delivery records found.</td></tr>
+                    <tr><td colspan="5" class="legacy-035">No delivery records found.</td></tr>
                 <?php else: foreach ($records as $r): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px; font-weight: bold;"><?= e($r['po_number'] ?? 'N/A') ?></td>
-                        <td style="padding: 12px; font-weight: bold; color: #800000;"><?= e($r['dr_number']) ?></td>
-                        <td style="padding: 12px;"><?= e($r['supplier_name']) ?></td>
-                        <td style="padding: 12px;"><?= e(date('M d, Y', strtotime($r['date_received']))) ?></td>
-                        <td style="padding: 12px; text-align: center;">
-                            <a href="print_iar.php?id=<?= $r['delivery_id'] ?>" target="_blank" style="padding: 6px 12px; background: #374151; color: white; text-decoration: none; border-radius: 4px; font-size: 0.85em; font-weight: bold;">🖨 Print IAR PDF</a>
+                    <tr class="legacy-036">
+                        <td class="legacy-091"><?= e($r['po_number'] ?? 'N/A') ?></td>
+                        <td class="legacy-038"><?= e($r['dr_number']) ?></td>
+                        <td class="legacy-033"><?= e($r['supplier_name']) ?></td>
+                        <td class="legacy-033"><?= e(date('M d, Y', strtotime($r['date_received']))) ?></td>
+                        <td class="legacy-034">
+                            <a href="print_iar.php?id=<?= $r['delivery_id'] ?>" target="_blank" class="legacy-129">🖨 Print IAR PDF</a>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>
@@ -317,68 +317,68 @@ require_once __DIR__ . '/includes/header.php';
         </table>
 
     <?php elseif ($tab === 'condemn'): ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">Condemnation & Disposal Forms</h3>
+        <div class="legacy-121">
+            <h3 class="legacy-122">Condemnation & Disposal Forms</h3>
         </div>
 
         <!-- Filter & Search Bar for Condemnation -->
-        <form method="GET" action="reports.php" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #eee;">
+        <form method="GET" action="reports.php" class="legacy-123">
             <input type="hidden" name="tab" value="condemn">
-            <div style="flex: 1; min-width: 180px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Search Keyword</label>
-                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Form No., Item, or Requester..." style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-079">
+                <label class="legacy-124">Search Keyword</label>
+                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Form No., Item, or Requester..." class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 130px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Filter Status</label>
-                <select name="status" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-082">
+                <label class="legacy-124">Filter Status</label>
+                <select name="status" class="legacy-125">
                     <option value="">-- All Statuses --</option>
                     <option value="pending" <?= $filter_status === 'pending' ? 'selected' : '' ?>>Pending</option>
                     <option value="approved" <?= $filter_status === 'approved' ? 'selected' : '' ?>>Approved</option>
                     <option value="rejected" <?= $filter_status === 'rejected' ? 'selected' : '' ?>>Rejected</option>
                 </select>
             </div>
-            <div style="flex: 1; min-width: 130px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Approved From</label>
-                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-082">
+                <label class="legacy-124">Approved From</label>
+                <input type="date" name="date_from" value="<?= e($filter_date_from) ?>" class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 130px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Approved To</label>
-                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-082">
+                <label class="legacy-124">Approved To</label>
+                <input type="date" name="date_to" value="<?= e($filter_date_to) ?>" class="legacy-125">
             </div>
             <div>
-                <button type="submit" style="padding: 7px 14px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Filter</button>
-                <a href="reports.php?tab=condemn" style="padding: 7px 12px; background: #e5e7eb; color: #333; text-decoration: none; border-radius: 4px; font-size: 0.9em; margin-left: 4px;">Reset</a>
+                <button type="submit" class="legacy-126">Filter</button>
+                <a href="reports.php?tab=condemn" class="legacy-127">Reset</a>
             </div>
         </form>
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left;">
+        <table class="legacy-128">
             <thead>
-                <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                    <th style="padding: 12px;">Form Number</th>
-                    <th style="padding: 12px;">Item Name</th>
-                    <th style="padding: 12px;">Qty</th>
-                    <th style="padding: 12px;">Status</th>
-                    <th style="padding: 12px; text-align: center;">Action</th>
+                <tr class="legacy-032">
+                    <th class="legacy-033">Form Number</th>
+                    <th class="legacy-033">Item Name</th>
+                    <th class="legacy-033">Qty</th>
+                    <th class="legacy-033">Status</th>
+                    <th class="legacy-034">Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($records)): ?>
-                    <tr><td colspan="5" style="padding: 20px; text-align: center; color: #666;">No condemnation records found.</td></tr>
+                    <tr><td colspan="5" class="legacy-035">No condemnation records found.</td></tr>
                 <?php else: foreach ($records as $r): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px; font-weight: bold; color: #800000;"><?= e($r['form_number']) ?></td>
-                        <td style="padding: 12px;"><?= e($r['item_name']) ?></td>
-                        <td style="padding: 12px; font-weight: bold;"><?= e($r['quantity']) ?> <?= e($r['unit']) ?></td>
-                        <td style="padding: 12px;">
-                            <span style="padding: 3px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; background: <?= $r['status'] === 'approved' ? '#d1fae5; color: #065f46;' : '#fef3c7; color: #92400e;' ?>;">
+                    <tr class="legacy-036">
+                        <td class="legacy-038"><?= e($r['form_number']) ?></td>
+                        <td class="legacy-033"><?= e($r['item_name']) ?></td>
+                        <td class="legacy-091"><?= e($r['quantity']) ?> <?= e($r['unit']) ?></td>
+                        <td class="legacy-033">
+                            <span class="status-badge <?= $r['status'] === 'approved' ? 'status-success' : 'status-warning' ?>">
                                 <?= e(ucfirst($r['status'])) ?>
                             </span>
                         </td>
-                        <td style="padding: 12px; text-align: center;">
+                        <td class="legacy-034">
                             <?php if ($r['status'] === 'approved'): ?>
-                                <a href="print_condemn.php?id=<?= $r['condemnation_id'] ?>" target="_blank" style="padding: 6px 12px; background: #374151; color: white; text-decoration: none; border-radius: 4px; font-size: 0.85em; font-weight: bold;">🖨 Print Form</a>
+                                <a href="print_condemn.php?id=<?= $r['condemnation_id'] ?>" target="_blank" class="legacy-129">🖨 Print Form</a>
                             <?php else: ?>
-                                <span style="color: #666; font-size: 0.85em;">Pending Approval</span>
+                                <span class="legacy-041">Pending Approval</span>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -387,23 +387,23 @@ require_once __DIR__ . '/includes/header.php';
         </table>
 
     <?php elseif ($tab === 'summary'): ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">TVL Course & Elective Inventory Summary</h3>
-            <a href="print_course_summary.php?course_id=<?= $filter_course_id ?>&search=<?= urlencode($search_query) ?>" target="_blank" style="padding: 6px 14px; background: #800000; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.9em;">
+        <div class="legacy-121">
+            <h3 class="legacy-122">TVL Course & Elective Inventory Summary</h3>
+            <a href="print_course_summary.php?course_id=<?= $filter_course_id ?>&search=<?= urlencode($search_query) ?>" target="_blank" class="legacy-132">
                 🖨 Print Official Course Summary
             </a>
         </div>
 
         <!-- Filter & Search Bar for Course Summary -->
-        <form method="GET" action="reports.php" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 15px; background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #eee;">
+        <form method="GET" action="reports.php" class="legacy-123">
             <input type="hidden" name="tab" value="summary">
-            <div style="flex: 1; min-width: 200px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Search Course Name</label>
-                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Search Elective Name..." style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-130">
+                <label class="legacy-124">Search Course Name</label>
+                <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="Search Elective Name..." class="legacy-125">
             </div>
-            <div style="flex: 1; min-width: 200px;">
-                <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Select Course</label>
-                <select name="course_id" style="width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-130">
+                <label class="legacy-124">Select Course</label>
+                <select name="course_id" class="legacy-125">
                     <option value="0">-- All TVL / TechPro Electives --</option>
                     <?php foreach ($all_courses as $c): ?>
                         <option value="<?= $c['course_id'] ?>" <?= $filter_course_id === (int)$c['course_id'] ? 'selected' : '' ?>>
@@ -413,27 +413,27 @@ require_once __DIR__ . '/includes/header.php';
                 </select>
             </div>
             <div>
-                <button type="submit" style="padding: 7px 14px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Filter</button>
-                <a href="reports.php?tab=summary" style="padding: 7px 12px; background: #e5e7eb; color: #333; text-decoration: none; border-radius: 4px; font-size: 0.9em; margin-left: 4px;">Reset</a>
+                <button type="submit" class="legacy-126">Filter</button>
+                <a href="reports.php?tab=summary" class="legacy-127">Reset</a>
             </div>
         </form>
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left;">
+        <table class="legacy-133">
             <thead>
-                <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                    <th style="padding: 12px;">Course / Elective</th>
-                    <th style="padding: 12px; text-align: center;">Active ICS</th>
-                    <th style="padding: 12px; text-align: center;">Total Units</th>
-                    <th style="padding: 12px; text-align: center; color: #10b981;">Serviceable</th>
-                    <th style="padding: 12px; text-align: center; color: #d97706;">For Repair</th>
-                    <th style="padding: 12px; text-align: center; color: #dc2626;">Damaged</th>
-                    <th style="padding: 12px; text-align: right;">Total Asset Value</th>
-                    <th style="padding: 12px; text-align: center;">Action</th>
+                <tr class="legacy-032">
+                    <th class="legacy-033">Course / Elective</th>
+                    <th class="legacy-034">Active ICS</th>
+                    <th class="legacy-034">Total Units</th>
+                    <th class="legacy-134">Serviceable</th>
+                    <th class="legacy-135">For Repair</th>
+                    <th class="legacy-136">Damaged</th>
+                    <th class="legacy-137">Total Asset Value</th>
+                    <th class="legacy-034">Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($summary_records)): ?>
-                    <tr><td colspan="8" style="padding: 20px; text-align: center; color: #666;">No course inventory records found.</td></tr>
+                    <tr><td colspan="8" class="legacy-035">No course inventory records found.</td></tr>
                 <?php else: 
                     $grand_units = 0;
                     $grand_value = 0;
@@ -441,25 +441,25 @@ require_once __DIR__ . '/includes/header.php';
                         $grand_units += $r['total_units_issued'];
                         $grand_value += $r['total_monetary_value'];
                 ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px; font-weight: bold; color: #1f2937;"><?= e($r['course_name']) ?></td>
-                        <td style="padding: 12px; text-align: center;"><?= e($r['total_ics_count']) ?> Slips</td>
-                        <td style="padding: 12px; text-align: center; font-weight: bold;"><?= e($r['total_units_issued']) ?> units</td>
-                        <td style="padding: 12px; text-align: center; color: #10b981; font-weight: bold;"><?= e($r['serviceable_units']) ?></td>
-                        <td style="padding: 12px; text-align: center; color: #d97706; font-weight: bold;"><?= e($r['repair_units']) ?></td>
-                        <td style="padding: 12px; text-align: center; color: #dc2626; font-weight: bold;"><?= e($r['damaged_units']) ?></td>
-                        <td style="padding: 12px; text-align: right; font-weight: bold; color: #800000;">₱<?= number_format($r['total_monetary_value'], 2) ?></td>
-                        <td style="padding: 12px; text-align: center;">
-                            <a href="print_course_summary.php?course_id=<?= $r['course_id'] ?>" target="_blank" style="padding: 4px 10px; background: #374151; color: white; text-decoration: none; border-radius: 4px; font-size: 0.85em; font-weight: bold;">Print PDF</a>
+                    <tr class="legacy-036">
+                        <td class="legacy-138"><?= e($r['course_name']) ?></td>
+                        <td class="legacy-034"><?= e($r['total_ics_count']) ?> Slips</td>
+                        <td class="legacy-139"><?= e($r['total_units_issued']) ?> units</td>
+                        <td class="legacy-140"><?= e($r['serviceable_units']) ?></td>
+                        <td class="legacy-141"><?= e($r['repair_units']) ?></td>
+                        <td class="legacy-142"><?= e($r['damaged_units']) ?></td>
+                        <td class="legacy-143">₱<?= number_format($r['total_monetary_value'], 2) ?></td>
+                        <td class="legacy-034">
+                            <a href="print_course_summary.php?course_id=<?= $r['course_id'] ?>" target="_blank" class="legacy-144">Print PDF</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
-                <tr style="background: #f9fafb; font-weight: bold; border-top: 2px solid #ccc;">
-                    <td style="padding: 12px;">TOTAL PROGRAM INVENTORY</td>
-                    <td style="padding: 12px;"></td>
-                    <td style="padding: 12px; text-align: center; color: #800000;"><?= number_format($grand_units) ?> units</td>
+                <tr class="legacy-145">
+                    <td class="legacy-033">TOTAL PROGRAM INVENTORY</td>
+                    <td class="legacy-033"></td>
+                    <td class="legacy-146"><?= number_format($grand_units) ?> units</td>
                     <td colspan="3"></td>
-                    <td style="padding: 12px; text-align: right; color: #800000;">₱<?= number_format($grand_value, 2) ?></td>
+                    <td class="legacy-147">₱<?= number_format($grand_value, 2) ?></td>
                     <td></td>
                 </tr>
                 <?php endif; ?>

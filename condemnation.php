@@ -166,82 +166,81 @@ $active = 'condemnation';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div class="content-header legacy-026">
     <div>
         <h2>Condemnation & Disposal Management</h2>
-        <p style="color: #666; margin: 0;">Formalize the disposal of unserviceable equipment approved by the Property Custodian.</p>
+        <p class="legacy-027">Formalize the disposal of unserviceable equipment approved by the Property Custodian.</p>
     </div>
     <?php if ($role === 'teacher'): ?>
-        <button onclick="openCondemnModal()" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Request Condemnation</button>
+        <button onclick="openCondemnModal()" class="legacy-028">+ Request Condemnation</button>
     <?php endif; ?>
 </div>
 
 <?php if (isset($_GET['requested'])): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+    <div class="legacy-029">
         Condemnation request submitted successfully. Waiting for Property Custodian approval.
     </div>
 <?php endif; ?>
 
 <?php if (isset($_GET['updated'])): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+    <div class="legacy-029">
         Condemnation request status updated successfully.
     </div>
 <?php endif; ?>
 
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+<div class="card legacy-030">
+    <table class="legacy-031">
         <thead>
-            <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                <th style="padding: 12px;">Form No. / Item</th>
+            <tr class="legacy-032">
+                <th class="legacy-033">Form No. / Item</th>
                 <?php if ($role !== 'teacher'): ?>
-                    <th style="padding: 12px;">Requested By</th>
+                    <th class="legacy-033">Requested By</th>
                 <?php endif; ?>
-                <th style="padding: 12px;">Qty</th>
-                <th style="padding: 12px;">Reason for Disposal</th>
-                <th style="padding: 12px;">Status</th>
-                <th style="padding: 12px;">Outcome / Approver</th>
+                <th class="legacy-033">Qty</th>
+                <th class="legacy-033">Reason for Disposal</th>
+                <th class="legacy-033">Status</th>
+                <th class="legacy-033">Outcome / Approver</th>
                 <?php if ($role === 'supply_officer'): ?>
-                    <th style="padding: 12px; text-align: center;">Action</th>
+                    <th class="legacy-034">Action</th>
                 <?php endif; ?>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($condemnations)): ?>
                 <tr>
-                    <td colspan="7" style="padding: 20px; text-align: center; color: #666;">No condemnation records found.</td>
+                    <td colspan="7" class="legacy-035">No condemnation records found.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($condemnations as $con): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px;">
+                    <tr class="legacy-036">
+                        <td class="legacy-033">
                             <strong><?= e($con['form_number']) ?></strong><br>
-                            <small style="color: #666;"><?= e($con['item_name']) ?> (ICS: <?= e($con['ics_number']) ?>)</small>
+                            <small class="legacy-037"><?= e($con['item_name']) ?> (ICS: <?= e($con['ics_number']) ?>)</small>
                         </td>
                         <?php if ($role !== 'teacher'): ?>
-                            <td style="padding: 12px;"><?= e($con['requester_name']) ?></td>
+                            <td class="legacy-033"><?= e($con['requester_name']) ?></td>
                         <?php endif; ?>
-                        <td style="padding: 12px; font-weight: bold;"><?= e($con['quantity']) ?> <?= e($con['unit']) ?></td>
-                        <td style="padding: 12px;"><?= e($con['reason']) ?></td>
-                        <td style="padding: 12px;">
-                            <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;
-                                background: <?= $con['status'] === 'approved' ? '#d1fae5; color: #065f46;' : ($con['status'] === 'rejected' ? '#fee2e2; color: #991b1b;' : '#fef3c7; color: #92400e;') ?>;">
+                        <td class="legacy-091"><?= e($con['quantity']) ?> <?= e($con['unit']) ?></td>
+                        <td class="legacy-033"><?= e($con['reason']) ?></td>
+                        <td class="legacy-033">
+                            <span class="status-badge <?= $con['status'] === 'approved' ? 'status-success' : ($con['status'] === 'rejected' ? 'status-danger' : 'status-warning') ?>">
                                 <?= e(ucfirst($con['status'])) ?>
                             </span>
                         </td>
-                        <td style="padding: 12px;">
+                        <td class="legacy-033">
                             <?= e($con['outcome']) ?><br>
-                            <small style="color: #666;"><?= $con['approver_name'] ? 'Approved by: ' . e($con['approver_name']) : '' ?></small>
+                            <small class="legacy-037"><?= $con['approver_name'] ? 'Approved by: ' . e($con['approver_name']) : '' ?></small>
                         </td>
                         <?php if ($role === 'supply_officer'): ?>
-                            <td style="padding: 12px; text-align: center;">
+                            <td class="legacy-034">
                                 <?php if ($con['status'] === 'requested'): ?>
-                                    <form method="POST" style="display: inline-flex; gap: 5px;">
+                                    <form method="POST" class="legacy-211">
                                         <input type="hidden" name="condemnation_id" value="<?= $con['condemnation_id'] ?>">
-                                        <button type="submit" name="action_condemnation" value="approved" style="padding: 4px 8px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Approve</button>
-                                        <button type="submit" name="action_condemnation" value="rejected" style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Reject</button>
+                                        <button type="submit" name="action_condemnation" value="approved" class="legacy-212">Approve</button>
+                                        <button type="submit" name="action_condemnation" value="rejected" class="legacy-213">Reject</button>
                                     </form>
                                 <?php else: ?>
-                                    <span style="color: #666; font-size: 0.85em;">Resolved</span>
+                                    <span class="legacy-041">Resolved</span>
                                 <?php endif; ?>
                             </td>
                         <?php endif; ?>
@@ -254,13 +253,13 @@ require_once __DIR__ . '/includes/header.php';
 
 <!-- Request Condemnation Modal (Teacher) -->
 <?php if ($role === 'teacher'): ?>
-<div id="condemnModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
-    <div style="background: white; padding: 25px; border-radius: 8px; width: 450px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0; color: #800000;">Request Item Condemnation</h3>
+<div id="condemnModal" class="legacy-042 modal-overlay" hidden>
+    <div class="legacy-043">
+        <h3 class="legacy-044">Request Item Condemnation</h3>
         <form method="POST">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Select Accountable Item *</label>
-                <select name="ics_item_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-045">
+                <label class="legacy-046">Select Accountable Item *</label>
+                <select name="ics_item_id" required class="legacy-047">
                     <option value="">-- Choose Damaged / Broken Item --</option>
                     <?php foreach ($my_items as $mi): 
                         $avail_condemn = $mi['qty_issued'] - $mi['condemned_qty'];
@@ -273,25 +272,25 @@ require_once __DIR__ . '/includes/header.php';
                 </select>
             </div>
 
-            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                <div style="flex: 1;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px;">Quantity *</label>
-                    <input type="number" name="quantity" min="1" value="1" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-048">
+                <div class="legacy-049">
+                    <label class="legacy-046">Quantity *</label>
+                    <input type="number" name="quantity" min="1" value="1" required class="legacy-047">
                 </div>
-                <div style="flex: 1;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px;">Form Number (Opt.)</label>
-                    <input type="text" name="form_number" placeholder="e.g. CF-2026-001" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <div class="legacy-049">
+                    <label class="legacy-046">Form Number (Opt.)</label>
+                    <input type="text" name="form_number" placeholder="e.g. CF-2026-001" class="legacy-047">
                 </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Reason for Condemnation / Disposal *</label>
-                <textarea name="reason" rows="3" required placeholder="Describe why this equipment is beyond repair..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            <div class="legacy-050">
+                <label class="legacy-046">Reason for Condemnation / Disposal *</label>
+                <textarea name="reason" rows="3" required placeholder="Describe why this equipment is beyond repair..." class="legacy-047"></textarea>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" onclick="closeCondemnModal()" style="padding: 8px 16px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
-                <button type="submit" name="request_condemnation" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Submit Request</button>
+            <div class="legacy-051">
+                <button type="button" onclick="closeCondemnModal()" class="legacy-052">Cancel</button>
+                <button type="submit" name="request_condemnation" class="legacy-028">Submit Request</button>
             </div>
         </form>
     </div>
@@ -299,10 +298,10 @@ require_once __DIR__ . '/includes/header.php';
 
 <script>
 function openCondemnModal() {
-    document.getElementById('condemnModal').style.display = 'flex';
+    TNTSUI.open('condemnModal');
 }
 function closeCondemnModal() {
-    document.getElementById('condemnModal').style.display = 'none';
+    TNTSUI.close('condemnModal');
 }
 </script>
 <?php endif; ?>

@@ -166,3 +166,12 @@ function icon(string $name, int $size = 20): string
          . 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
          . $p . '</svg>';
 }
+// Shared branding: replace assets/images/school-logo.png with the school's approved logo.
+function school_logo(string $class = ''): string
+{
+    $path = __DIR__ . '/../assets/images/school-logo.png';
+    if (is_file($path)) {
+        return '<img class="school-logo ' . e($class) . '" src="' . e(url('assets/images/school-logo.png')) . '?v=' . (int)filemtime($path) . '" alt="Tanza National Trade School logo" width="64" height="64">';
+    }
+    return '<span class="school-logo logo-monogram ' . e($class) . '" aria-label="Tanza National Trade School">TNTS</span>';
+}

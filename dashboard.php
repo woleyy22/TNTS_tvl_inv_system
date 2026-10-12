@@ -172,7 +172,7 @@ include __DIR__ . '/includes/header.php';
                 <?php foreach ($byCourse as $r): ?>
                     <div class="bar-row">
                         <div class="bar-label"><?= e($r['course_name']) ?></div>
-                        <div class="bar-track"><div class="bar-fill" style="width: <?= (int)round(((int)$r['qty'] / $maxQty) * 100) ?>%"></div></div>
+                        <div class="bar-track"><div class="bar-fill width-<?= max(0, min(100, (int)round(((int)$r['qty'] / $maxQty) * 100))) ?>"></div></div>
                         <div class="bar-value"><?= e($r['qty']) ?></div>
                     </div>
                 <?php endforeach; ?>
