@@ -70,6 +70,38 @@ function csrf_check(): void
     }
 }
 
+/**
+ * Generates sequential document numbers based on the current year and database table count.
+ * 
+ * @param string $type ('ics', 'iar', 'condemnation')
+ * @return string Formatted document number (e.g., ICS-2026-001)
+ */
+function generate_document_number(string $type): string {
+    $year = date('Y');
+    
+    switch (strtolower($type)) {
+        case 'ics':
+            $prefix = "ICS";
+            $stmt = db()->query("SELECT COUNT(*) FROM ics WHERE YEAR(date_issued) = '$year'");
+            break;
+        case 'iar':
+            $prefix = "IAR";
+            $stmt = db()->query("SELECT COUNT(*) FROM inspection_reports WHERE YEAR(date_inspected) = '$year'");
+            break;
+        case 'condemnation':
+            $prefix = "CF";
+            $stmt = db()->query("SELECT COUNT(*) FROM condemnations WHERE YEAR(date_requested) = '$year'");
+            break;
+        default:
+            $prefix = "DOC";
+            $stmt = db()->query("SELECT COUNT(*) FROM history_logs");
+            break;
+    }
+
+    $count = (int)$stmt->fetchColumn() + 1;
+    return sprintf("%s-%s-%03d", $prefix, $year, $count);
+}
+
 // ---------- history log ----------
 function log_action(?int $userId, string $action, string $module, ?int $recordId = null, ?string $details = null): void
 {

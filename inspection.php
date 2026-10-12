@@ -30,7 +30,7 @@ if (empty($items)) {
 
 // Handle Inspection Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $iar_number = trim($_POST['iar_number'] ?? '');
+    $iar_number = generate_document_number('iar');
     $date_inspected = $_POST['date_inspected'] ?? date('Y-m-d');
     $result = $_POST['result'] ?? 'complete';
     $remarks = trim($_POST['remarks'] ?? '');

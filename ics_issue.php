@@ -30,7 +30,7 @@ $inventory = $stmt->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $teacher_id = (int)($_POST['teacher_id'] ?? 0);
     $course_id = (int)($_POST['course_id'] ?? 0);
-    $ics_number = trim($_POST['ics_number'] ?? '');
+    $ics_number = trim($_POST['ics_number'] ?? '') ?: generate_document_number('ics');
     $date_issued = $_POST['date_issued'] ?? date('Y-m-d');
     $active_user_id = $user['id'] ?? $user['user_id'];
     
@@ -51,33 +51,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("You must issue at least one item.");
     }
 
-    db()->beginTransaction();
-    try {
-        // 1. Create the master ICS record
-        $stmt = db()->prepare("INSERT INTO ics (ics_number, teacher_id, course_id, issued_by, date_issued, status) VALUES (?, ?, ?, ?, ?, 'active')");
-        $stmt->execute([$ics_number, $teacher_id, $course_id, $active_user_id, $date_issued]);
-        $ics_id = db()->lastInsertId();
-        
-        // 2. Add the selected items to this ICS
-        $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, item_condition) VALUES (?, ?, ?, 'serviceable')");
-        foreach ($items_to_issue as $item_id => $qty) {
-            $insert_item->execute([$ics_id, $item_id, $qty]);
+    // Inside ics_issue.php POST handler
+db()->beginTransaction();
+try {
+    // Validate each requested item quantity against live unissued stock
+    foreach ($items_to_issue as $item_id => $qty_to_issue) {
+        $stmt_check = db()->prepare("
+            SELECT i.item_name, i.quantity,
+                   COALESCE((SELECT SUM(ii.qty_issued) 
+                             FROM ics_items ii 
+                             JOIN ics c ON ii.ics_id = c.ics_id 
+                             WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) AS total_issued
+            FROM inventory_items i
+            WHERE i.item_id = ?
+            FOR UPDATE
+        ");
+        $stmt_check->execute([$item_id]);
+        $stock = $stmt_check->fetch();
+
+        if (!$stock) {
+            throw new Exception("Invalid inventory item selected.");
         }
-        
-        // 3. Log the action
-        db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Issued ICS', 'ICS', ?, ?)")
-            ->execute([$active_user_id, $ics_id, "Issued ICS #$ics_number to Teacher ID $teacher_id"]);
-            
-        db()->commit();
-        
-        // Temporarily redirecting back to inventory. 
-        // Later, we will redirect this to an ICS PDF Generation page.
-        header("Location: inventory.php?success=1");
-        exit;
-    } catch (Exception $e) {
-        db()->rollBack();
-        die("Error issuing ICS: " . $e->getMessage());
+
+        $available_qty = $stock['quantity'] - $stock['total_issued'];
+        if ($qty_to_issue > $available_qty) {
+            throw new Exception("Cannot issue {$qty_to_issue} unit(s) of '{$stock['item_name']}'. Only {$available_qty} unit(s) available in central inventory.");
+        }
     }
+
+    // Insert master ICS record
+    $stmt_ics = db()->prepare("INSERT INTO ics (ics_number, teacher_id, course_id, issued_by, date_issued, status) VALUES (?, ?, ?, ?, ?, 'active')");
+    $stmt_ics->execute([$ics_number, $teacher_id, $course_id, $active_user_id, $date_issued]);
+    $ics_id = db()->lastInsertId();
+
+    // Insert line items
+    $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, condition) VALUES (?, ?, ?, 'serviceable')");
+    foreach ($items_to_issue as $item_id => $qty_to_issue) {
+        $insert_item->execute([$ics_id, $item_id, $qty_to_issue]);
+    }
+
+    db()->commit();
+    header("Location: inventory.php?success=1");
+    exit;
+} catch (Exception $e) {
+    db()->rollBack();
+    header("Location: ics_issue.php?error=" . urlencode($e->getMessage()));
+    exit;
+}
 }
 
 $pageTitle = 'Issue ICS';

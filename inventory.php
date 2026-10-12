@@ -277,7 +277,7 @@ require_once __DIR__ . '/includes/header.php';
                 <?php foreach ($inventory as $item): ?>
                     <tr style="border-bottom: 1px solid #eee;">
                         <?php if ($role === 'teacher' || $view_mode === 'issued'): 
-                            $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty'] - $item['approved_condemned']);
+                            $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty']);
                         ?>
                             <td style="padding: 12px;">
                                 <strong><?= e($item['ics_number']) ?></strong><br>
@@ -301,7 +301,7 @@ require_once __DIR__ . '/includes/header.php';
                         <?php else: 
                             $total_issued = $item['total_issued'];
                             $repair_issued = $item['total_repair'];
-                            $damaged_issued = $item['total_damaged'] + $item['total_condemned'];
+                            $damaged_issued = $item['total_damaged'];
                             $serviceable_issued = max(0, $total_issued - $repair_issued - $damaged_issued);
                             $unissued = max(0, $item['quantity'] - $total_issued);
                         ?>

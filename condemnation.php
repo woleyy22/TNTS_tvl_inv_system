@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_condemnation'
     $ics_item_id = (int)$_POST['ics_item_id'];
     $quantity = (int)$_POST['quantity'];
     $reason = trim($_POST['reason']);
-    $form_number = trim($_POST['form_number']) ?: ('CF-' . date('Y') . '-' . rand(100, 999));
+    $form_number = generate_document_number('condemnation');
 
     if (!$ics_item_id || $quantity <= 0 || empty($reason)) {
         die("All fields are required and quantity must be at least 1.");
@@ -68,39 +68,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_condemnation'
 }
 
 // 2. Handle Admin (Supply Officer / Property Custodian) Approving/Rejecting Condemnation
+// Inside condemnation.php POST handler for Supply Officer approvals
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_condemnation'])) {
     if ($role !== 'supply_officer') {
-        die("Only the Property Custodian / Supply Officer can approve condemnations.");
+        die("Unauthorized access. Only Property Custodians can approve condemnations.");
     }
 
     $condemnation_id = (int)$_POST['condemnation_id'];
-    $decision = $_POST['decision'] ?? $_POST['action_condemnation']; // Catches either field name
+    $decision = $_POST['decision'] ?? $_POST['action_condemnation'];
 
     if (!in_array($decision, ['approved', 'rejected'])) {
-        die("Invalid decision.");
+        die("Invalid decision action.");
     }
 
     db()->beginTransaction();
     try {
-        $status = ($decision === 'approved') ? 'approved' : 'rejected';
-        $outcome = ($decision === 'approved') ? 'Approved for disposal and inventory adjustment' : 'Rejected by Custodian';
+        // Fetch existing condemnation record and verify status is still 'requested'
+        $stmt_check = db()->prepare("SELECT status FROM condemnations WHERE condemnation_id = ? FOR UPDATE");
+        $stmt_check->execute([$condemnation_id]);
+        $existing = $stmt_check->fetch();
+
+        if (!$existing) {
+            throw new Exception("Condemnation record not found.");
+        }
+
+        if ($existing['status'] !== 'requested') {
+            throw new Exception("This condemnation request has already been finalized ('{$existing['status']}') and cannot be modified.");
+        }
+
+        $outcome = ($decision === 'approved') 
+            ? 'Approved for official disposal and inventory write-off' 
+            : 'Rejected by Property Custodian';
 
         $stmt = db()->prepare("
             UPDATE condemnations 
             SET status = ?, approved_by = ?, date_approved = NOW(), outcome = ? 
             WHERE condemnation_id = ?
         ");
-        $stmt->execute([$status, $uid, $outcome, $condemnation_id]);
+        $stmt->execute([$decision, $uid, $outcome, $condemnation_id]);
 
+        // Audit Trail
         db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, ?, 'Condemnation', ?, ?)")
-            ->execute([$uid, ucfirst($decision) . ' Condemnation', $condemnation_id, "Condemnation request #$condemnation_id was $decision."]);
+            ->execute([$uid, ucfirst($decision) . ' Condemnation', $condemnation_id, "Condemnation record #{$condemnation_id} marked as {$decision}."]);
 
         db()->commit();
         header("Location: condemnation.php?updated=1");
         exit;
     } catch (Exception $e) {
         db()->rollBack();
-        die("Error updating condemnation: " . $e->getMessage());
+        header("Location: condemnation.php?error=" . urlencode($e->getMessage()));
+        exit;
     }
 }
 

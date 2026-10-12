@@ -45,32 +45,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
 
     // STRICT VALIDATION CHECKS
     if ($new_condition === 'serviceable') {
-        // Block: Prevent restoring items unless they are specifically marked 'For Repair'
         if ($itemData['current_repair_qty'] < $affected_qty) {
-            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You can only restore items currently marked as 'For Repair'. Damaged items are locked for Condemnation review."));
+            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You can only restore up to the amount currently marked as 'For Repair'."));
             exit;
         }
     } else {
-        // Block: Prevent reporting issues if there isn't enough serviceable stock
         if ($serviceable_qty < $affected_qty) {
-            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You do not have enough Serviceable units available to report."));
+            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You do not have enough Serviceable units available to report an issue."));
             exit;
         }
     }
 
-    // EXECUTE DB WRITES ONLY IF ALL VALIDATIONS PASS
+    // EXECUTE DB WRITES
     db()->beginTransaction();
     try {
         if ($new_condition === 'serviceable') {
-            // Resolve open repair logs for this item
-            $stmt_resolve = db()->prepare("
-                UPDATE repair_logs 
-                SET action_taken = ?, condition_status = 'resolved'
-                WHERE ics_item_id = ? AND condition_status = 'for_repair'
-            ");
-            $stmt_resolve->execute(["Repaired/Serviced: " . $issue_description, $ics_item_id]);
+            
+            // UX FIX: PARTIAL DEDUCTION LOGIC
+            // Sequentially deduct the restored quantity from open 'for_repair' stacks so we don't wipe out the whole log
+            $restoring = $affected_qty;
+            $stmt_open = db()->prepare("SELECT repair_id, quantity_affected FROM repair_logs WHERE ics_item_id = ? AND condition_status = 'for_repair' ORDER BY date_reported ASC");
+            $stmt_open->execute([$ics_item_id]);
+            $open_repairs = $stmt_open->fetchAll();
+            
+            foreach($open_repairs as $rep) {
+                if ($restoring <= 0) break;
+                
+                if ($rep['quantity_affected'] <= $restoring) {
+                    // Fully resolve this specific stack
+                    db()->prepare("UPDATE repair_logs SET action_taken = ?, condition_status = 'resolved' WHERE repair_id = ?")
+                      ->execute(["Repaired/Serviced: " . $issue_description, $rep['repair_id']]);
+                    $restoring -= $rep['quantity_affected'];
+                } else {
+                    // Partially resolve: reduce the quantity of this stack, leaving the rest "For Repair"
+                    $remaining_broken = $rep['quantity_affected'] - $restoring;
+                    db()->prepare("UPDATE repair_logs SET quantity_affected = ? WHERE repair_id = ?")
+                      ->execute([$remaining_broken, $rep['repair_id']]);
+                    $restoring = 0;
+                }
+            }
 
-            // Log restoration record
+            // Log restoration record history
             $stmt_log = db()->prepare("
                 INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, quantity_affected, condition_status, date_reported) 
                 VALUES (?, ?, ?, 'Returned to Serviceable Status', ?, 'serviceable', NOW())
@@ -81,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
             // Log issue for repair or damaged
             $stmt = db()->prepare("
                 INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, quantity_affected, condition_status, date_reported) 
-                VALUES (?, ?, ?, 'Pending custodian review', ?, ?, NOW())
+                VALUES (?, ?, ?, 'Pending maintenance review', ?, ?, NOW())
             ");
             $stmt->execute([$ics_item_id, $uid, $issue_description, $affected_qty, $new_condition]);
 
@@ -110,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
     }
 }
 
-// Fetch teacher's accountable items with accurate condition quantity calculations
+// Fetch teacher's accountable items
 $stmt = db()->prepare("
     SELECT ii.*, i.item_name, i.description, i.unit, c.ics_number, cr.course_name,
            COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) as repair_qty,
@@ -126,7 +141,7 @@ $stmt = db()->prepare("
 $stmt->execute([$uid]);
 $items = $stmt->fetchAll();
 
-// Fetch repair/issue logs for this teacher's items
+// Fetch repair logs (Ordering active "for_repair" items to the top for UX)
 $stmt_repairs = db()->prepare("
     SELECT r.*, i.item_name, i.unit, c.ics_number 
     FROM repair_logs r
@@ -134,7 +149,9 @@ $stmt_repairs = db()->prepare("
     JOIN ics c ON ii.ics_id = c.ics_id
     JOIN inventory_items i ON ii.item_id = i.item_id
     WHERE c.teacher_id = ?
-    ORDER BY r.date_reported DESC
+    ORDER BY 
+        CASE WHEN r.condition_status = 'for_repair' THEN 1 ELSE 2 END ASC, 
+        r.date_reported DESC
 ");
 $stmt_repairs->execute([$uid]);
 $repair_logs = $stmt_repairs->fetchAll();
@@ -185,7 +202,7 @@ require_once __DIR__ . '/includes/header.php';
                 </tr>
             <?php else: ?>
                 <?php foreach ($items as $item): 
-                    $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty'] - $item['approved_condemned']);
+                    $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty']);
                 ?>
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding: 12px;">
@@ -228,18 +245,24 @@ require_once __DIR__ . '/includes/header.php';
         <tbody>
             <?php if (empty($repair_logs)): ?>
                 <tr>
-                    <td colspan="5" style="padding: 20px; text-align: center; color: #666;">No maintenance issues reported. All equipment running smoothly.</td>
+                    <td colspan="5" style="padding: 20px; text-align: center; color: #666;">No maintenance issues reported.</td>
                 </tr>
             <?php else: ?>
-                <?php foreach ($repair_logs as $log): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
+                <?php foreach ($repair_logs as $log): 
+                    // UX Tweak: Highlight active repair groups
+                    $isActiveRepair = ($log['condition_status'] === 'for_repair');
+                    $rowBg = $isActiveRepair ? '#fef3c7' : 'transparent';
+                ?>
+                    <tr style="border-bottom: 1px solid #eee; background-color: <?= $rowBg ?>;">
                         <td style="padding: 12px;">
                             <strong><?= e($log['item_name']) ?></strong><br>
                             <small style="color: #666;">ICS: <?= e($log['ics_number']) ?></small>
                         </td>
                         <td style="padding: 12px; font-weight: bold; color: <?= $log['condition_status'] === 'serviceable' || $log['condition_status'] === 'resolved' ? '#10b981' : ($log['condition_status'] === 'for_repair' ? '#b45309' : '#dc2626') ?>;">
                             <?= e($log['quantity_affected']) ?> <?= e($log['unit']) ?> 
-                            <span style="font-size: 0.8em; display: block; color: #666; text-transform: uppercase;"><?= e(str_replace('_', ' ', $log['condition_status'])) ?></span>
+                            <span style="font-size: 0.8em; display: block; color: #666; text-transform: uppercase;">
+                                <?= $isActiveRepair ? '⚠️ ACTIVE REPAIR' : e(str_replace('_', ' ', $log['condition_status'])) ?>
+                            </span>
                         </td>
                         <td style="padding: 12px;"><?= e($log['issue']) ?></td>
                         <td style="padding: 12px;"><?= e($log['action_taken']) ?></td>
@@ -262,7 +285,7 @@ require_once __DIR__ . '/includes/header.php';
                 <select name="ics_item_id" id="ics_select" onchange="updateLiveItemDetails()" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95em;">
                     <option value="">-- Choose Accountable Item --</option>
                     <?php foreach ($items as $mi): 
-                        $serv_qty = max(0, $mi['qty_issued'] - $mi['repair_qty'] - $mi['damaged_qty'] - $mi['approved_condemned']);
+                        $serv_qty = max(0, $mi['qty_issued'] - $mi['repair_qty'] - $mi['damaged_qty']);
                     ?>
                         <option value="<?= $mi['ics_item_id'] ?>" 
                                 data-issued="<?= $mi['qty_issued'] ?>"
@@ -378,7 +401,7 @@ function adjustQuantityLimits() {
         serviceableOpt.disabled = true;
         serviceableOpt.innerText = "Serviceable (Locked - Nothing For Repair)";
         if (conditionSelect.value === 'serviceable') {
-            conditionSelect.value = 'for_repair'; // Auto-switch away if they were hovering on it
+            conditionSelect.value = 'for_repair'; 
         }
     } else {
         serviceableOpt.disabled = false;
