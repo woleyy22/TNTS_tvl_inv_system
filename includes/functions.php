@@ -70,6 +70,38 @@ function csrf_check(): void
     }
 }
 
+/**
+ * Generates sequential document numbers based on the current year and database table count.
+ * 
+ * @param string $type ('ics', 'iar', 'condemnation')
+ * @return string Formatted document number (e.g., ICS-2026-001)
+ */
+function generate_document_number(string $type): string {
+    $year = date('Y');
+    
+    switch (strtolower($type)) {
+        case 'ics':
+            $prefix = "ICS";
+            $stmt = db()->query("SELECT COUNT(*) FROM ics WHERE YEAR(date_issued) = '$year'");
+            break;
+        case 'iar':
+            $prefix = "IAR";
+            $stmt = db()->query("SELECT COUNT(*) FROM inspection_reports WHERE YEAR(date_inspected) = '$year'");
+            break;
+        case 'condemnation':
+            $prefix = "CF";
+            $stmt = db()->query("SELECT COUNT(*) FROM condemnations WHERE YEAR(date_requested) = '$year'");
+            break;
+        default:
+            $prefix = "DOC";
+            $stmt = db()->query("SELECT COUNT(*) FROM history_logs");
+            break;
+    }
+
+    $count = (int)$stmt->fetchColumn() + 1;
+    return sprintf("%s-%s-%03d", $prefix, $year, $count);
+}
+
 // ---------- history log ----------
 function log_action(?int $userId, string $action, string $module, ?int $recordId = null, ?string $details = null): void
 {
@@ -133,4 +165,13 @@ function icon(string $name, int $size = 20): string
     return '<svg class="icon" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" '
          . 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
          . $p . '</svg>';
+}
+// Shared branding: replace assets/images/school-logo.png with the school's approved logo.
+function school_logo(string $class = ''): string
+{
+    $path = __DIR__ . '/../assets/images/school-logo.png';
+    if (is_file($path)) {
+        return '<img class="school-logo ' . e($class) . '" src="' . e(url('assets/images/school-logo.png')) . '?v=' . (int)filemtime($path) . '" alt="Tanza National Trade School logo" width="64" height="64">';
+    }
+    return '<span class="school-logo logo-monogram ' . e($class) . '" aria-label="Tanza National Trade School">TNTS</span>';
 }

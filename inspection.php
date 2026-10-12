@@ -30,7 +30,7 @@ if (empty($items)) {
 
 // Handle Inspection Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $iar_number = trim($_POST['iar_number'] ?? '');
+    $iar_number = generate_document_number('iar');
     $date_inspected = $_POST['date_inspected'] ?? date('Y-m-d');
     $result = $_POST['result'] ?? 'complete';
     $remarks = trim($_POST['remarks'] ?? '');
@@ -103,70 +103,70 @@ $active = 'receiving';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="margin-bottom: 20px;">
+<div class="content-header legacy-050">
     <h2>Create Inspection & Acceptance Report (IAR)</h2>
-    <p style="color: #666;">Delivery #<?= e($delivery_id) ?> - <?= e($delivery['supplier_name']) ?></p>
+    <p class="legacy-037">Delivery #<?= e($delivery_id) ?> - <?= e($delivery['supplier_name']) ?></p>
 </div>
 
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 800px;">
+<div class="card legacy-064">
     <form method="POST">
-        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-            <div style="flex: 1;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">IAR Number (Optional)</label>
-                <input type="text" name="iar_number" placeholder="e.g. IAR-2026-001" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div class="legacy-065">
+            <div class="legacy-049">
+                <label class="legacy-046">IAR Number (Optional)</label>
+                <input type="text" name="iar_number" placeholder="e.g. IAR-2026-001" class="legacy-047">
             </div>
-            <div style="flex: 1;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Date Inspected *</label>
-                <input type="date" name="date_inspected" value="<?= date('Y-m-d') ?>" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-049">
+                <label class="legacy-046">Date Inspected *</label>
+                <input type="date" name="date_inspected" value="<?= date('Y-m-d') ?>" required class="legacy-047">
             </div>
-            <div style="flex: 1;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Overall Result *</label>
-                <select name="result" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-049">
+                <label class="legacy-046">Overall Result *</label>
+                <select name="result" required class="legacy-047">
                     <option value="complete">Complete Delivery</option>
                     <option value="incomplete">Incomplete Delivery</option>
                 </select>
             </div>
         </div>
 
-        <h3 style="margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px;">Items to Accept</h3>
-        <p style="font-size: 0.9em; color: #555;">Verify the quantity accepted for each item. Accepted items will be added to the official inventory.</p>
+        <h3 class="legacy-066">Items to Accept</h3>
+        <p class="legacy-067">Verify the quantity accepted for each item. Accepted items will be added to the official inventory.</p>
 
-        <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 20px;">
-            <tr style="background: #f9fafb;">
-                <th style="padding: 10px; border-bottom: 1px solid #ddd;">Item Name</th>
-                <th style="padding: 10px; border-bottom: 1px solid #ddd;">Qty Delivered</th>
-                <th style="padding: 10px; border-bottom: 1px solid #ddd; width: 150px;">Qty Accepted *</th>
+        <table class="legacy-068">
+            <tr class="legacy-069">
+                <th class="legacy-070">Item Name</th>
+                <th class="legacy-070">Qty Delivered</th>
+                <th class="legacy-071">Qty Accepted *</th>
             </tr>
             <?php foreach ($items as $item): ?>
                 <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <td class="legacy-072">
                         <strong><?= e($item['item_name']) ?></strong><br>
-                        <small style="color: #666;"><?= e($item['unit']) ?> | Cost: ₱<?= e(number_format($item['unit_cost'], 2)) ?></small>
+                        <small class="legacy-037"><?= e($item['unit']) ?> | Cost: ₱<?= e(number_format($item['unit_cost'], 2)) ?></small>
                     </td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <td class="legacy-072">
                         <?= e($item['qty_delivered']) ?>
                     </td>
-                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <td class="legacy-072">
                         <input type="number" name="qty_accepted[<?= $item['delivery_item_id'] ?>]" 
                                value="<?= e($item['qty_delivered']) ?>" 
                                max="<?= e($item['qty_delivered']) ?>" min="0" required 
-                               style="width: 80px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                               class="legacy-073">
                     </td>
                 </tr>
             <?php endforeach; ?>
         </table>
 
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Inspection Remarks / Notes (Optional)</label>
-            <textarea name="remarks" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Note any missing items, damages, or notes for the supplier here..."></textarea>
+        <div class="legacy-050">
+            <label class="legacy-046">Inspection Remarks / Notes (Optional)</label>
+            <textarea name="remarks" rows="3" placeholder="Note any missing items, damages, or notes for the supplier here..." class="legacy-047"></textarea>
         </div>
 
-        <div style="background: #eff6ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 0.9em;">
+        <div class="legacy-074">
             <strong>Signatories:</strong> This IAR will be recorded under your name (<strong><?= e($user['name'] ?? $user['full_name'] ?? 'Admin') ?></strong>). As confirmed, Mr. Arnold G. Angeles (Supply Officer) and Mr. Reynald Ace (Property Custodian) will sign the physical PDF generation of this form.
         </div>
 
-        <button type="submit" style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.1em;">Confirm Inspection & Add to Inventory</button>
-        <a href="delivery_view.php?id=<?= $delivery_id ?>" style="margin-left: 15px; color: #666; text-decoration: none;">Cancel</a>
+        <button type="submit" class="legacy-075">Confirm Inspection & Add to Inventory</button>
+        <a href="delivery_view.php?id=<?= $delivery_id ?>" class="legacy-076">Cancel</a>
     </form>
 </div>
 
