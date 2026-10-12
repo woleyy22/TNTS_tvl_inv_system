@@ -11,6 +11,24 @@ if (!$user || $user['role'] !== 'teacher') {
 
 $uid = (int)($user['user_id'] ?? $user['id']);
 
+// Approved condemnation quantities overlap the retained damaged repair logs.
+// Split that pool for display instead of deducting disposed units twice.
+// This follows the aggregate convention also used by borrow.php.
+function maintenance_stock_quantities(array $item): array
+{
+    $issued = max(0, (int)$item['qty_issued']);
+    $repair = max(0, (int)($item['repair_qty'] ?? $item['current_repair_qty'] ?? 0));
+    $reportedDamaged = max(0, (int)($item['damaged_qty'] ?? $item['current_damaged_qty'] ?? 0));
+    $disposed = max(0, (int)($item['approved_condemned'] ?? 0));
+    $damaged = max(0, $reportedDamaged - $disposed);
+    return [
+        'serviceable' => max(0, $issued - $repair - $damaged - $disposed),
+        'repair' => $repair,
+        'damaged' => $damaged,
+        'disposed' => $disposed,
+    ];
+}
+
 // Handle Issue Reporting AND Condition Resolution (Server-Side Validation First)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
     $ics_item_id       = (int)$_POST['ics_item_id'];
@@ -41,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
         exit;
     }
 
-    $serviceable_qty = $itemData['qty_issued'] - $itemData['current_repair_qty'] - $itemData['current_damaged_qty'] - $itemData['approved_condemned'];
+    $serviceable_qty = maintenance_stock_quantities($itemData)['serviceable'];
 
     // STRICT VALIDATION CHECKS
     if ($new_condition === 'serviceable') {
@@ -184,6 +202,7 @@ require_once __DIR__ . '/includes/header.php';
 <!-- Section 1: Detailed Quantity Breakdown by Condition -->
 <div class="card legacy-191">
     <h3 class="legacy-192">Accountable Inventory Quantity Breakdown</h3>
+    <p class="field-help">Total issued = Serviceable + For repair + Damaged + Disposed. Damaged excludes disposed units. Disposed follows the existing approved-condemnation records.</p>
     <table class="legacy-031">
         <thead>
             <tr class="legacy-032">
@@ -192,17 +211,19 @@ require_once __DIR__ . '/includes/header.php';
                 <th class="legacy-033">Total Issued</th>
                 <th class="legacy-087">Serviceable</th>
                 <th class="legacy-088">For Repair</th>
-                <th class="legacy-089">Damaged / Disposed</th>
+                <th class="legacy-089">Damaged</th>
+                <th class="legacy-033">Disposed</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($items)): ?>
                 <tr>
-                    <td colspan="6" class="legacy-035">No items assigned to your account.</td>
+                    <td colspan="7" class="legacy-035">No items assigned to your account.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($items as $item): 
-                    $serviceable_qty = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty']);
+                    $stock = maintenance_stock_quantities($item);
+                    $serviceable_qty = $stock['serviceable'];
                 ?>
                     <tr class="legacy-036">
                         <td class="legacy-033">
@@ -216,12 +237,8 @@ require_once __DIR__ . '/includes/header.php';
                         <td class="legacy-091"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td>
                         <td class="legacy-092"><?= $serviceable_qty ?></td>
                         <td class="legacy-093"><?= e($item['repair_qty']) ?></td>
-                        <td class="legacy-094">
-                            <?= e($item['damaged_qty']) ?> 
-                            <?php if ($item['approved_condemned'] > 0): ?>
-                                <small>(<?= e($item['approved_condemned']) ?> disposed)</small>
-                            <?php endif; ?>
-                        </td>
+                        <td class="legacy-094"><?= $stock['damaged'] ?></td>
+                        <td class="legacy-033"><?= $stock['disposed'] ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -288,10 +305,11 @@ require_once __DIR__ . '/includes/header.php';
                     <select name="ics_item_id" id="ics_select" onchange="updateLiveItemDetails()" required class="input" data-initial-focus aria-describedby="equipmentHelp">
                         <option value="">Select an accountable item</option>
                         <?php foreach ($items as $mi):
-                            // Match the existing server-side availability check for reporting issues.
-                            $serv_qty = max(0, $mi['qty_issued'] - $mi['repair_qty'] - $mi['damaged_qty'] - $mi['approved_condemned']);
+                            // Use the same breakdown as the table and POST validation.
+                            $stock = maintenance_stock_quantities($mi);
+                            $serv_qty = $stock['serviceable'];
                         ?>
-                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$serv_qty ?>" data-repair="<?= (int)$mi['repair_qty'] ?>" data-damaged="<?= (int)$mi['damaged_qty'] ?>" data-condemned="<?= (int)$mi['approved_condemned'] ?>" data-unit="<?= e($mi['unit']) ?>">
+                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$serv_qty ?>" data-repair="<?= (int)$mi['repair_qty'] ?>" data-damaged="<?= $stock['damaged'] ?>" data-condemned="<?= (int)$mi['approved_condemned'] ?>" data-unit="<?= e($mi['unit']) ?>">
                                 <?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -302,7 +320,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div id="live_status_card" class="equipment-snapshot" hidden>
                     <div class="snapshot-heading">Current stock <strong id="badge_total">0</strong></div>
                     <div class="quantity-tiles">
-                        <div><span>Available</span><strong id="badge_serviceable" class="text-success">0</strong></div>
+                        <div><span>Serviceable</span><strong id="badge_serviceable" class="text-success">0</strong></div>
                         <div><span>For repair</span><strong id="badge_repair" class="text-warning">0</strong></div>
                         <div><span>Damaged</span><strong id="badge_damaged" class="text-danger">0</strong></div>
                         <div><span>Disposed</span><strong id="badge_condemned">0</strong></div>
