@@ -144,53 +144,53 @@ $active = 'transfers';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div class="content-header legacy-026">
     <div>
         <h2>Teacher Property Transfer Module</h2>
-        <p style="color: #666; margin: 0;">Reassign accountable ICS items when a teacher leaves or changes courses (Same-course transfers only).</p>
+        <p class="legacy-027">Reassign accountable ICS items when a teacher leaves or changes courses (Same-course transfers only).</p>
     </div>
-    <button onclick="openTransferModal()" style="padding: 10px 18px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Execute New Property Transfer</button>
+    <button onclick="openTransferModal()" class="legacy-180">+ Execute New Property Transfer</button>
 </div>
 
 <?php if ($error): ?>
-    <div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: bold;"><?= e($error) ?></div>
+    <div class="legacy-181"><?= e($error) ?></div>
 <?php endif; ?>
 
 <?php if ($success): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: bold;"><?= e($success) ?></div>
+    <div class="legacy-182"><?= e($success) ?></div>
 <?php endif; ?>
 
 <!-- Audit Trail of Previous Transfers -->
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #800000;">Property Transfer Log History</h3>
-    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+<div class="card legacy-030">
+    <h3 class="legacy-183">Property Transfer Log History</h3>
+    <table class="legacy-031">
         <thead>
-            <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                <th style="padding: 12px;">Transferred Item</th>
-                <th style="padding: 12px;">Outgoing Teacher</th>
-                <th style="padding: 12px;">Receiving Teacher</th>
-                <th style="padding: 12px;">Reason / Notes</th>
-                <th style="padding: 12px;">Processed By</th>
-                <th style="padding: 12px;">Date Transferred</th>
+            <tr class="legacy-032">
+                <th class="legacy-033">Transferred Item</th>
+                <th class="legacy-033">Outgoing Teacher</th>
+                <th class="legacy-033">Receiving Teacher</th>
+                <th class="legacy-033">Reason / Notes</th>
+                <th class="legacy-033">Processed By</th>
+                <th class="legacy-033">Date Transferred</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($transfer_history)): ?>
                 <tr>
-                    <td colspan="6" style="padding: 20px; text-align: center; color: #666;">No property transfers recorded yet.</td>
+                    <td colspan="6" class="legacy-035">No property transfers recorded yet.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($transfer_history as $th): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px;">
+                    <tr class="legacy-036">
+                        <td class="legacy-033">
                             <strong><?= e($th['item_name']) ?></strong><br>
-                            <small style="color: #666;"><?= e($th['qty_issued']) ?> <?= e($th['unit']) ?></small>
+                            <small class="legacy-037"><?= e($th['qty_issued']) ?> <?= e($th['unit']) ?></small>
                         </td>
-                        <td style="padding: 12px; color: #dc2626; font-weight: bold;"><?= e($th['outgoing_teacher']) ?></td>
-                        <td style="padding: 12px; color: #10b981; font-weight: bold;"><?= e($th['receiving_teacher']) ?></td>
-                        <td style="padding: 12px;"><?= e($th['reason']) ?></td>
-                        <td style="padding: 12px;"><?= e($th['executor']) ?></td>
-                        <td style="padding: 12px;"><?= e(date('M d, Y h:i A', strtotime($th['date_transferred']))) ?></td>
+                        <td class="legacy-094"><?= e($th['outgoing_teacher']) ?></td>
+                        <td class="legacy-092"><?= e($th['receiving_teacher']) ?></td>
+                        <td class="legacy-033"><?= e($th['reason']) ?></td>
+                        <td class="legacy-033"><?= e($th['executor']) ?></td>
+                        <td class="legacy-033"><?= e(date('M d, Y h:i A', strtotime($th['date_transferred']))) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -199,13 +199,13 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <!-- Modal Form for Executing Transfer -->
-<div id="transferModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 999;">
-    <div style="background: white; padding: 25px; border-radius: 8px; width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0; color: #800000;">Execute Accountable Property Transfer</h3>
+<div id="transferModal" class="legacy-184 modal-overlay" hidden>
+    <div class="legacy-185">
+        <h3 class="legacy-044">Execute Accountable Property Transfer</h3>
         <form method="POST">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Select Course / Elective *</label>
-                <select name="course_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-045">
+                <label class="legacy-046">Select Course / Elective *</label>
+                <select name="course_id" required class="legacy-047">
                     <option value="">-- Choose Elective Course --</option>
                     <?php foreach ($courses as $c): ?>
                         <option value="<?= $c['course_id'] ?>"><?= e($c['course_name']) ?> (<?= e($c['program']) ?>)</option>
@@ -213,9 +213,9 @@ require_once __DIR__ . '/includes/header.php';
                 </select>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Outgoing Teacher (Relinquishing Property) *</label>
-                <select name="from_teacher_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-045">
+                <label class="legacy-046">Outgoing Teacher (Relinquishing Property) *</label>
+                <select name="from_teacher_id" required class="legacy-047">
                     <option value="">-- Select Outgoing Teacher --</option>
                     <?php foreach ($teachers as $t): ?>
                         <option value="<?= $t['user_id'] ?>"><?= e($t['full_name']) ?></option>
@@ -223,9 +223,9 @@ require_once __DIR__ . '/includes/header.php';
                 </select>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Receiving Teacher (Same Elective) *</label>
-                <select name="to_teacher_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-045">
+                <label class="legacy-046">Receiving Teacher (Same Elective) *</label>
+                <select name="to_teacher_id" required class="legacy-047">
                     <option value="">-- Select Receiving Teacher --</option>
                     <?php foreach ($teachers as $t): ?>
                         <option value="<?= $t['user_id'] ?>"><?= e($t['full_name']) ?></option>
@@ -233,21 +233,21 @@ require_once __DIR__ . '/includes/header.php';
                 </select>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Reason for Transfer *</label>
-                <input type="text" name="transfer_reason" required placeholder="e.g. Teacher resignation / Reassignment of load" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="legacy-045">
+                <label class="legacy-046">Reason for Transfer *</label>
+                <input type="text" name="transfer_reason" required placeholder="e.g. Teacher resignation / Reassignment of load" class="legacy-047">
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <div class="legacy-050">
+                <label class="legacy-186">
                     <input type="checkbox" name="deactivate_outgoing" value="1" checked>
-                    <span style="font-size: 0.9em; color: #4b5563;">Deactivate Outgoing Teacher Account (Retains audit history)</span>
+                    <span class="legacy-187">Deactivate Outgoing Teacher Account (Retains audit history)</span>
                 </label>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" onclick="closeTransferModal()" style="padding: 8px 16px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
-                <button type="submit" name="execute_transfer" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm & Reissue ICS</button>
+            <div class="legacy-051">
+                <button type="button" onclick="closeTransferModal()" class="legacy-052">Cancel</button>
+                <button type="submit" name="execute_transfer" class="legacy-028">Confirm & Reissue ICS</button>
             </div>
         </form>
     </div>
@@ -255,10 +255,10 @@ require_once __DIR__ . '/includes/header.php';
 
 <script>
 function openTransferModal() {
-    document.getElementById('transferModal').style.display = 'flex';
+    TNTSUI.open('transferModal');
 }
 function closeTransferModal() {
-    document.getElementById('transferModal').style.display = 'none';
+    TNTSUI.close('transferModal');
 }
 </script>
 

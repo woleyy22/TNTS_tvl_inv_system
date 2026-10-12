@@ -44,10 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
 </head>
 <body class="login-page">
+    <section class="login-intro" aria-label="About this workspace"><div class="eyebrow">TVL / TechPro Workspace</div><h2>Organized assets.<br>Accountable teams.</h2><p>A central workspace for equipment, deliveries, custody records, and maintenance.</p><div class="login-feature">Inventory &amp; custody tracking</div><div class="login-feature">Equipment condition &amp; repair logs</div><div class="login-feature">School reports &amp; documentation</div></section>
     <div class="login-card">
-        <div class="login-logo"><?= icon('cap', 34) ?></div>
-        <h1><?= e(APP_NAME) ?></h1>
-        <p class="login-sub">TVL Facilities &amp; Laboratories</p>
+        <div class="login-logo"><?= school_logo() ?></div>
+        <div class="eyebrow login-kicker">Tanza National Trade School</div>
+        <h1>Welcome back</h1>
+        <p class="login-sub">Sign in to your TVL / TechPro inventory workspace.</p>
 
         <?php foreach (get_flashes() as $f): ?>
             <div class="alert alert-<?= e($f['type']) ?>"><?= e($f['msg']) ?></div>
@@ -56,18 +58,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-error"><?= e($error) ?></div>
         <?php endif; ?>
 
-        <form method="post" autocomplete="off">
+        <form method="post" autocomplete="on">
             <?= csrf_field() ?>
             <div class="field">
                 <label for="email">Email Address</label>
-                <input class="input" type="email" id="email" name="email" value="<?= e($email) ?>" placeholder="you@tnts.edu.ph" required autofocus>
+                <input class="input" type="email" id="email" name="email" autocomplete="username" value="<?= e($email) ?>" placeholder="you@tnts.edu.ph" required autofocus>
             </div>
             <div class="field">
                 <label for="password">Password</label>
-                <input class="input" type="password" id="password" name="password" placeholder="Your password" required>
+                <input class="input" type="password" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
             </div>
             <button class="btn btn-primary btn-block" type="submit">Sign In</button>
         </form>
+        <p class="login-help">Need access? Contact your Supply Officer.</p>
     </div>
 </body>
 </html>

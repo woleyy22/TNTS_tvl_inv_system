@@ -33,128 +33,16 @@ if (!$record) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Condemnation Form - <?= e($record['form_number']) ?></title>
-    <style>
-        @page {
-            size: portrait;
-            margin: 15mm;
-        }
-        body {
-            font-family: "Times New Roman", Times, serif;
-            font-size: 11pt;
-            color: #000;
-            background: #fff;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            border: 2px solid #000;
-            box-sizing: border-box;
-        }
-        .top-appendix {
-            text-align: right;
-            font-style: italic;
-            font-size: 10pt;
-            padding: 4px 8px 0 0;
-            font-weight: bold;
-        }
-        .form-title {
-            text-align: center;
-            font-weight: bold;
-            font-size: 13pt;
-            letter-spacing: 0.5px;
-            margin: 5px 0 15px 0;
-            text-transform: uppercase;
-        }
-        .meta-header {
-            width: 100%;
-            border-collapse: collapse;
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
-        }
-        .meta-header td {
-            padding: 4px 8px;
-            font-size: 9.5pt;
-            vertical-align: top;
-        }
-        .meta-line {
-            border-bottom: 1px solid #000;
-            display: inline-block;
-            font-weight: bold;
-            padding: 0 5px;
-        }
-
-        /* Items Table */
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .items-table th, .items-table td {
-            border: 1px solid #000;
-            padding: 6px;
-            font-size: 9.5pt;
-            vertical-align: top;
-        }
-        .items-table th {
-            text-align: center;
-            font-weight: bold;
-            background: #f9f9f9;
-        }
-        .item-row td {
-            height: 250px;
-        }
-
-        /* Footer Signatories (3 Columns) */
-        .footer-table {
-            width: 100%;
-            border-collapse: collapse;
-            border-top: 2px solid #000;
-        }
-        .footer-table td {
-            border: 1px solid #000;
-            width: 33.33%;
-            vertical-align: top;
-            padding: 8px;
-            font-size: 9pt;
-        }
-        .sig-block {
-            text-align: center;
-            margin-top: 25px;
-        }
-        .sig-name {
-            font-weight: bold;
-            text-decoration: underline;
-            text-transform: uppercase;
-            display: block;
-        }
-        .sig-label {
-            font-size: 8pt;
-            display: block;
-            margin-top: 2px;
-        }
-        .sig-date {
-            border-top: 1px solid #000;
-            width: 70%;
-            margin: 12px auto 0 auto;
-            display: block;
-            padding-top: 2px;
-            font-size: 8.5pt;
-        }
-
-        @media print {
-            .no-print { display: none !important; }
-            .container { border: 2px solid #000; }
-        }
-    </style>
+    <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
 </head>
-<body>
+<body class="print-document print-condemn">
+<div class="print-brand no-print"><?= school_logo() ?><span>Tanza National Trade School · TVL / TechPro</span></div>
 
-    <div class="no-print" style="max-width: 800px; margin: 10px auto; text-align: right;">
-        <button onclick="window.print()" style="padding: 8px 16px; background: #800000; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🖨 Print Condemnation Form</button>
-        <a href="<?= e(url('reports.php?tab=condemn')) ?>" style="padding: 8px 16px; background: #e5e7eb; color: #333; text-decoration: none; border-radius: 4px; margin-left: 5px; font-weight: bold;">Back to Reports</a>
+    <div class="no-print legacy-001">
+        <button onclick="window.print()" class="legacy-002">🖨 Print Condemnation Form</button>
+        <a href="<?= e(url('reports.php?tab=condemn')) ?>" class="legacy-003">Back to Reports</a>
     </div>
 
     <div class="container">
@@ -164,33 +52,33 @@ if (!$record) {
         <!-- Meta Header Details -->
         <table class="meta-header">
             <tr>
-                <td style="width: 60%;">
+                <td class="legacy-007">
                     <strong>Entity Name:</strong> 
-                    <span class="meta-line" style="width: 70%;">TANZA NATIONAL TRADE SCHOOL</span>
+                    <span class="meta-line legacy-005">TANZA NATIONAL TRADE SCHOOL</span>
                 </td>
-                <td style="width: 40%;">
+                <td class="legacy-019">
                     <strong>Form No.:</strong> 
-                    <span class="meta-line" style="width: 60%;"><?= e($record['form_number']) ?></span>
+                    <span class="meta-line legacy-007"><?= e($record['form_number']) ?></span>
                 </td>
             </tr>
             <tr>
                 <td>
                     <strong>Accountable Officer:</strong> 
-                    <span class="meta-line" style="width: 60%;"><?= e($record['requester_name']) ?></span>
+                    <span class="meta-line legacy-007"><?= e($record['requester_name']) ?></span>
                 </td>
                 <td>
                     <strong>Date Requested:</strong> 
-                    <span class="meta-line" style="width: 50%;"><?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?></span>
+                    <span class="meta-line legacy-010"><?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?></span>
                 </td>
             </tr>
             <tr>
                 <td>
                     <strong>Reference ICS No.:</strong> 
-                    <span class="meta-line" style="width: 65%;"><?= e($record['ics_number']) ?></span>
+                    <span class="meta-line legacy-009"><?= e($record['ics_number']) ?></span>
                 </td>
                 <td>
                     <strong>Status:</strong> 
-                    <span class="meta-line" style="width: 60%; text-transform: uppercase;"><?= e($record['status']) ?></span>
+                    <span class="meta-line legacy-020"><?= e($record['status']) ?></span>
                 </td>
             </tr>
         </table>
@@ -199,25 +87,25 @@ if (!$record) {
         <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: 10%;">Qty</th>
-                    <th style="width: 10%;">Unit</th>
-                    <th style="width: 35%;">Item Description</th>
-                    <th style="width: 15%;">Unit Cost</th>
-                    <th style="width: 30%;">Reason for Condemnation</th>
+                    <th class="legacy-011">Qty</th>
+                    <th class="legacy-011">Unit</th>
+                    <th class="legacy-021">Item Description</th>
+                    <th class="legacy-012">Unit Cost</th>
+                    <th class="legacy-022">Reason for Condemnation</th>
                 </tr>
             </thead>
             <tbody>
                 <tr class="item-row">
-                    <td style="text-align: center; font-weight: bold; color: #b91c1c;"><?= e($record['quantity']) ?></td>
-                    <td style="text-align: center;"><?= e($record['unit']) ?></td>
+                    <td class="legacy-023"><?= e($record['quantity']) ?></td>
+                    <td class="legacy-013"><?= e($record['unit']) ?></td>
                     <td>
                         <strong><?= e($record['item_name']) ?></strong>
                         <?php if (!empty($record['description'])): ?>
                             <br><small><?= e($record['description']) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td style="text-align: right;">₱<?= number_format($record['unit_cost'], 2) ?></td>
-                    <td style="color: #b91c1c;">
+                    <td class="legacy-024">₱<?= number_format($record['unit_cost'], 2) ?></td>
+                    <td class="legacy-025">
                         <?= e($record['reason']) ?>
                     </td>
                 </tr>
@@ -234,7 +122,7 @@ if (!$record) {
                     <div class="sig-block">
                         <span class="sig-name"><?= e($record['requester_name']) ?></span>
                         <span class="sig-label">Signature Over Printed Name</span>
-                        <span style="font-weight: bold; display: block; margin-top: 2px;">ACCOUNTABLE TEACHER</span>
+                        <span class="legacy-018">ACCOUNTABLE TEACHER</span>
                         <span class="sig-label">TVL Faculty</span>
                         
                         <div class="sig-date">
@@ -251,7 +139,7 @@ if (!$record) {
                     <div class="sig-block">
                         <span class="sig-name">REYNALD ACE</span>
                         <span class="sig-label">Signature Over Printed Name</span>
-                        <span style="font-weight: bold; display: block; margin-top: 2px;">PROPERTY CUSTODIAN</span>
+                        <span class="legacy-018">PROPERTY CUSTODIAN</span>
                         <span class="sig-label">Inspection Officer</span>
                         
                         <div class="sig-date">
@@ -268,7 +156,7 @@ if (!$record) {
                     <div class="sig-block">
                         <span class="sig-name">ARNOLD G. ANGELES</span>
                         <span class="sig-label">Signature Over Printed Name</span>
-                        <span style="font-weight: bold; display: block; margin-top: 2px;">SUPPLY OFFICER I</span>
+                        <span class="legacy-018">SUPPLY OFFICER I</span>
                         <span class="sig-label">Supply Office / Final Approval</span>
                         
                         <div class="sig-date">

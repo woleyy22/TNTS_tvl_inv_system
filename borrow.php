@@ -3,119 +3,108 @@ require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$user = current_user();
-if (!$user) {
-    header('Location: login.php');
-    exit;
-}
-
+$user = require_login();
 $role = $user['role'];
-$uid = (int)($user['user_id'] ?? $user['id']);
+$uid = (int)$user['id'];
 
-// Handle borrowing item submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['borrow_item'])) {
-    if ($role !== 'teacher') {
-        die("Only teachers can lend/borrow items.");
+// The same stock calculation is used by the dropdown and the POST validation.
+function borrow_stock_quantities(array $item): array
+{
+    $issued = max(0, (int)$item['qty_issued']);
+    $repair = max(0, (int)$item['repair_qty']);
+    $damaged = max(0, (int)$item['damaged_qty']);
+    $condemned = max(0, (int)$item['approved_condemned']);
+    // Existing damaged logs remain after condemnation approval. These quantities
+    // overlap; do not deduct the same damaged units twice. Cover approvals with
+    // no damage log by using the larger unavailable pool.
+    $unavailable = $repair + max($damaged, $condemned);
+    $serviceable = max(0, $issued - $unavailable);
+    if (($item['item_condition'] ?? 'serviceable') !== 'serviceable' && $unavailable === 0) {
+        // Legacy whole-line condition without quantity logs: do not offer it.
+        $serviceable = 0;
     }
-    
-    $ics_item_id = (int)$_POST['ics_item_id'];
-    $borrower_id = (int)$_POST['borrower_id'];
-    $quantity = (int)$_POST['quantity'];
-    $program_purpose = trim($_POST['program_purpose']);
-    $date_borrowed = $_POST['date_borrowed'] ?? date('Y-m-d');
+    return ['serviceable_qty' => $serviceable, 'lendable_qty' => max(0, $serviceable - max(0, (int)$item['borrowed_qty']))];
+}
 
-    if (!$ics_item_id || !$borrower_id || $quantity <= 0 || empty($program_purpose)) {
-        die("All fields are required and quantity must be greater than zero.");
-    }
+$lendingColumns = "
+    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) AS repair_qty,
+    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) AS damaged_qty,
+    COALESCE((SELECT SUM(co.quantity) FROM condemnations co WHERE co.ics_item_id = ii.ics_item_id AND co.status = 'approved'), 0) AS approved_condemned,
+    COALESCE((SELECT SUM(b.quantity) FROM borrow_logs b WHERE b.ics_item_id = ii.ics_item_id AND b.status = 'borrowed'), 0) AS borrowed_qty";
 
-    if ($borrower_id === $uid) {
-        die("You cannot borrow an item to yourself.");
-    }
-
-    // Verify item belongs to logged-in teacher's active ICS
-    $check = db()->prepare("
-        SELECT ii.qty_issued, 
-               COALESCE((SELECT SUM(quantity) FROM borrow_logs WHERE ics_item_id = ii.ics_item_id AND status = 'borrowed'), 0) as already_borrowed
-        FROM ics_items ii
-        JOIN ics c ON ii.ics_id = c.ics_id
-        WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active'
-    ");
-    $check->execute([$ics_item_id, $uid]);
-    $itemData = $check->fetch();
-
-    if (!$itemData) {
-        die("Invalid item selection or you are not the accountable holder.");
-    }
-
-    $available_to_lend = $itemData['qty_issued'] - $itemData['already_borrowed'];
-    if ($quantity > $available_to_lend) {
-        die("Cannot lend more than available quantity ($available_to_lend available).");
-    }
-
-    db()->beginTransaction();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
     try {
-        $stmt = db()->prepare("
-            INSERT INTO borrow_logs (ics_item_id, borrower_id, quantity, program_purpose, date_borrowed, status)
-            VALUES (?, ?, ?, ?, ?, 'borrowed')
-        ");
-        $stmt->execute([$ics_item_id, $borrower_id, $quantity, $program_purpose, $date_borrowed]);
-        
-        db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Lent Equipment', 'Borrow', ?, ?)")
-            ->execute([$uid, db()->lastInsertId(), "Lent qty $quantity for $program_purpose"]);
-
-        db()->commit();
-        header("Location: borrow.php?success=1");
-        exit;
-    } catch (Exception $e) {
-        db()->rollBack();
-        die("Error processing borrow record: " . $e->getMessage());
-    }
-}
-
-// Handle Return submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['return_item'])) {
-    $borrow_id = (int)$_POST['borrow_id'];
-    
-    // Verify borrow record exists
-    $stmt = db()->prepare("SELECT * FROM borrow_logs WHERE borrow_id = ? AND status = 'borrowed'");
-    $stmt->execute([$borrow_id]);
-    $borrow = $stmt->fetch();
-
-    if ($borrow) {
-        db()->beginTransaction();
-        try {
-            $stmt = db()->prepare("UPDATE borrow_logs SET status = 'returned', date_returned = NOW() WHERE borrow_id = ?");
-            $stmt->execute([$borrow_id]);
-
-            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Returned Equipment', 'Borrow', ?, ?)")
-                ->execute([$uid, $borrow_id, "Item returned from borrower."]);
-
+        if (isset($_POST['borrow_item'])) {
+            if ($role !== 'teacher') { throw new InvalidArgumentException('Only teachers can lend equipment.'); }
+            $ics_item_id = filter_var($_POST['ics_item_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $borrower_id = filter_var($_POST['borrower_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $purpose = isset($_POST['program_purpose']) && is_string($_POST['program_purpose']) ? trim($_POST['program_purpose']) : '';
+            $purposeLength = preg_match_all('/./us', $purpose);
+            $date_borrowed = isset($_POST['date_borrowed']) && is_string($_POST['date_borrowed']) ? $_POST['date_borrowed'] : '';
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $date_borrowed);
+            if (!$ics_item_id || !$borrower_id || !$quantity || $purpose === '' || ($purposeLength === false || $purposeLength > 200) || !$date || $date->format('Y-m-d') !== $date_borrowed) {
+                throw new InvalidArgumentException('Choose equipment and a teacher, enter a whole-number quantity, a valid date and a purpose of up to 200 characters.');
+            }
+            if ($borrower_id === $uid) { throw new InvalidArgumentException('Choose another teacher as the borrower.'); }
+            $st = db()->prepare("SELECT user_id FROM users WHERE user_id = ? AND role = 'teacher' AND status = 'active'");
+            $st->execute([$borrower_id]);
+            if (!$st->fetch()) { throw new InvalidArgumentException('The selected teacher is no longer available. Refresh the page and choose another teacher.'); }
+            db()->beginTransaction();
+            // Serialize simultaneous lending requests for the same accountable item.
+            $lock = db()->prepare("SELECT ii.ics_item_id FROM ics_items ii JOIN ics c ON c.ics_id = ii.ics_id
+                WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active' FOR UPDATE");
+            $lock->execute([$ics_item_id, $uid]);
+            if (!$lock->fetch()) { throw new InvalidArgumentException('This item is no longer assigned to your active ICS.'); }
+            $check = db()->prepare("SELECT ii.qty_issued, ii.item_condition, $lendingColumns FROM ics_items ii WHERE ii.ics_item_id = ?");
+            $check->execute([$ics_item_id]);
+            $available = borrow_stock_quantities($check->fetch())['lendable_qty'];
+            if ($quantity > $available) { throw new InvalidArgumentException("Only $available serviceable unit(s) are currently available to lend. Refresh the form and reduce the quantity."); }
+            db()->prepare("INSERT INTO borrow_logs (ics_item_id, borrower_id, quantity, program_purpose, date_borrowed, status) VALUES (?, ?, ?, ?, ?, 'borrowed')")
+                ->execute([$ics_item_id, $borrower_id, $quantity, $purpose, $date_borrowed]);
+            $borrowId = (int)db()->lastInsertId();
+            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Lent Equipment', 'Borrow', ?, ?)")
+                ->execute([$uid, $borrowId, "Lent qty $quantity for $purpose"]);
             db()->commit();
-            header("Location: borrow.php?returned=1");
-            exit;
-        } catch (Exception $e) {
-            db()->rollBack();
-            die("Error processing return: " . $e->getMessage());
-        }
+            redirect('borrow.php?success=1');
+        } elseif (isset($_POST['return_item'])) {
+            $borrowId = filter_var($_POST['borrow_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if (!$borrowId) { throw new InvalidArgumentException('Choose a valid loan record.'); }
+            db()->beginTransaction();
+            $st = db()->prepare("SELECT b.borrow_id, b.status, b.borrower_id, c.teacher_id FROM borrow_logs b
+                JOIN ics_items ii ON ii.ics_item_id = b.ics_item_id JOIN ics c ON c.ics_id = ii.ics_id
+                WHERE b.borrow_id = ? FOR UPDATE");
+            $st->execute([$borrowId]);
+            $loan = $st->fetch();
+            if (!$loan || ($role === 'teacher' && (int)$loan['teacher_id'] !== $uid && (int)$loan['borrower_id'] !== $uid)) {
+                throw new InvalidArgumentException('You cannot update this loan record.');
+            }
+            if ($loan['status'] !== 'borrowed') { throw new InvalidArgumentException('This equipment has already been marked as returned.'); }
+            db()->prepare("UPDATE borrow_logs SET status = 'returned', date_returned = NOW() WHERE borrow_id = ?")->execute([$borrowId]);
+            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Returned Equipment', 'Borrow', ?, ?)")
+                ->execute([$uid, $borrowId, 'Item returned from borrower.']);
+            db()->commit();
+            redirect('borrow.php?returned=1');
+        } else { throw new InvalidArgumentException('Choose a valid lending action.'); }
+    } catch (Throwable $ex) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        flash('error', $ex instanceof InvalidArgumentException ? $ex->getMessage() : 'The loan could not be saved. Please refresh and try again.');
+        redirect('borrow.php');
     }
 }
 
-// Fetch teachers for lending dropdown
 $teachers = db()->query("SELECT user_id, full_name FROM users WHERE role = 'teacher' AND status = 'active' ORDER BY full_name")->fetchAll();
-
-// Fetch teacher's items available to lend
 $my_lendable_items = [];
 if ($role === 'teacher') {
-    $stmt = db()->prepare("
-        SELECT ii.ics_item_id, i.item_name, i.unit, ii.qty_issued, c.ics_number,
-               COALESCE((SELECT SUM(quantity) FROM borrow_logs WHERE ics_item_id = ii.ics_item_id AND status = 'borrowed'), 0) as borrowed_qty
-        FROM ics_items ii
-        JOIN ics c ON ii.ics_id = c.ics_id
-        JOIN inventory_items i ON ii.item_id = i.item_id
-        WHERE c.teacher_id = ? AND c.status = 'active'
-    ");
+    $stmt = db()->prepare("SELECT ii.ics_item_id, ii.item_condition, i.item_name, i.unit, ii.qty_issued, c.ics_number, $lendingColumns
+        FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id JOIN inventory_items i ON ii.item_id = i.item_id
+        WHERE c.teacher_id = ? AND c.status = 'active' ORDER BY i.item_name, c.ics_number");
     $stmt->execute([$uid]);
-    $my_lendable_items = $stmt->fetchAll();
+    foreach ($stmt->fetchAll() as $item) {
+        $item = array_merge($item, borrow_stock_quantities($item));
+        if ($item['lendable_qty'] > 0) { $my_lendable_items[] = $item; }
+    }
 }
 
 // Fetch active borrow logs
@@ -152,75 +141,75 @@ $active = 'borrow';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div class="content-header legacy-026">
     <div>
         <h2>Borrow & Return Log</h2>
-        <p style="color: #666; margin: 0;">Track equipment lent out during school programs while maintaining primary accountability.</p>
+        <p class="legacy-027">Track equipment lent out during school programs while maintaining primary accountability.</p>
     </div>
     <?php if ($role === 'teacher'): ?>
-        <button onclick="openBorrowModal()" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Lend Item</button>
+        <button onclick="openBorrowModal()" class="legacy-028">+ Lend Item</button>
     <?php endif; ?>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+    <div class="legacy-029">
         Equipment lending recorded successfully! Note: You remain accountable on your ICS.
     </div>
 <?php endif; ?>
 
 <?php if (isset($_GET['returned'])): ?>
-    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+    <div class="legacy-029">
         Equipment successfully marked as returned!
     </div>
 <?php endif; ?>
 
-<div class="card" style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+<div class="card legacy-030">
+    <table class="legacy-031">
         <thead>
-            <tr style="background: #f9fafb; border-bottom: 2px solid #eee;">
-                <th style="padding: 12px;">Item Details</th>
-                <th style="padding: 12px;">Lender (ICS Holder)</th>
-                <th style="padding: 12px;">Borrower</th>
-                <th style="padding: 12px;">Qty</th>
-                <th style="padding: 12px;">Program / Purpose</th>
-                <th style="padding: 12px;">Date Borrowed</th>
-                <th style="padding: 12px;">Status</th>
-                <th style="padding: 12px; text-align: center;">Action</th>
+            <tr class="legacy-032">
+                <th class="legacy-033">Item Details</th>
+                <th class="legacy-033">Lender (ICS Holder)</th>
+                <th class="legacy-033">Borrower</th>
+                <th class="legacy-033">Qty</th>
+                <th class="legacy-033">Program / Purpose</th>
+                <th class="legacy-033">Date Borrowed</th>
+                <th class="legacy-033">Status</th>
+                <th class="legacy-034">Action</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($borrow_logs)): ?>
                 <tr>
-                    <td colspan="8" style="padding: 20px; text-align: center; color: #666;">No borrow or lend records found.</td>
+                    <td colspan="8" class="legacy-035">No borrow or lend records found.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($borrow_logs as $log): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px;">
+                    <tr class="legacy-036">
+                        <td class="legacy-033">
                             <strong><?= e($log['item_name']) ?></strong><br>
-                            <small style="color: #666;">ICS: <?= e($log['ics_number']) ?></small>
+                            <small class="legacy-037">ICS: <?= e($log['ics_number']) ?></small>
                         </td>
-                        <td style="padding: 12px;"><?= e($log['lender_name']) ?></td>
-                        <td style="padding: 12px; font-weight: bold; color: #800000;"><?= e($log['borrower_name']) ?></td>
-                        <td style="padding: 12px;"><?= e($log['quantity']) ?> <?= e($log['unit']) ?></td>
-                        <td style="padding: 12px;"><?= e($log['program_purpose']) ?></td>
-                        <td style="padding: 12px;"><?= e(date('M d, Y', strtotime($log['date_borrowed']))) ?></td>
-                        <td style="padding: 12px;">
-                            <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;
-                                background: <?= $log['status'] === 'borrowed' ? '#fef3c7; color: #92400e;' : '#d1fae5; color: #065f46;' ?>;">
+                        <td class="legacy-033"><?= e($log['lender_name']) ?></td>
+                        <td class="legacy-038"><?= e($log['borrower_name']) ?></td>
+                        <td class="legacy-033"><?= e($log['quantity']) ?> <?= e($log['unit']) ?></td>
+                        <td class="legacy-033"><?= e($log['program_purpose']) ?></td>
+                        <td class="legacy-033"><?= e(date('M d, Y', strtotime($log['date_borrowed']))) ?></td>
+                        <td class="legacy-033">
+                            <span class="status-badge <?= $log['status'] === 'borrowed' ? 'status-warning' : 'status-success' ?>">
                                 <?= e(ucfirst($log['status'])) ?>
                             </span>
                         </td>
-                        <td style="padding: 12px; text-align: center;">
+                        <td class="legacy-034">
                             <?php if ($log['status'] === 'borrowed'): ?>
-                                <form method="POST" style="display: inline;">
+                                <form method="POST" class="legacy-039">
+                                    <?= csrf_field() ?>
                                     <input type="hidden" name="borrow_id" value="<?= $log['borrow_id'] ?>">
-                                    <button type="submit" name="return_item" onclick="return confirm('Mark this item as returned?')" style="padding: 4px 10px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                                    <button type="submit" name="return_item" onclick="return confirm('Mark this item as returned?')" class="legacy-040">
                                         Mark Returned
                                     </button>
                                 </form>
                             <?php else: ?>
-                                <span style="color: #666; font-size: 0.85em;"><?= e(date('M d, Y', strtotime($log['date_returned']))) ?></span>
+                                <span class="legacy-041"><?= e(date('M d, Y', strtotime($log['date_returned']))) ?></span>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -232,65 +221,89 @@ require_once __DIR__ . '/includes/header.php';
 
 <!-- Lend Item Modal -->
 <?php if ($role === 'teacher'): ?>
-<div id="borrowModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
-    <div style="background: white; padding: 25px; border-radius: 8px; width: 450px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0; color: #800000;">Lend Equipment to Teacher</h3>
-        <form method="POST">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Select Your Accountable Item *</label>
-                <select name="ics_item_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="">-- Choose Item from your ICS --</option>
-                    <?php foreach ($my_lendable_items as $mi): 
-                        $avail = $mi['qty_issued'] - $mi['borrowed_qty'];
-                        if ($avail > 0):
-                    ?>
-                        <option value="<?= $mi['ics_item_id'] ?>">
-                            <?= e($mi['item_name']) ?> (ICS: <?= e($mi['ics_number']) ?>) - Available: <?= $avail ?> <?= e($mi['unit']) ?>
-                        </option>
-                    <?php endif; endforeach; ?>
-                </select>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Borrowing Teacher *</label>
-                <select name="borrower_id" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="">-- Select Teacher Borrower --</option>
-                    <?php foreach ($teachers as $t): if ($t['user_id'] != $uid): ?>
-                        <option value="<?= $t['user_id'] ?>"><?= e($t['full_name']) ?></option>
-                    <?php endif; endforeach; ?>
-                </select>
-            </div>
-
-            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                <div style="flex: 1;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px;">Quantity *</label>
-                    <input type="number" name="quantity" min="1" value="1" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+<div id="borrowModal" class="modal-overlay" hidden>
+    <section class="guided-modal">
+        <div class="eyebrow">Borrow &amp; return</div>
+        <h3>Lend equipment to a teacher</h3>
+        <p class="modal-intro">Record who will use the equipment, how many units they need, and the purpose of the loan.</p>
+        <form method="POST" id="lendingForm">
+            <?= csrf_field() ?>
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">1</span><h4>Select equipment</h4></div>
+                <div class="field"><label for="lendItem">Equipment from your active ICS <span class="required-mark">*</span></label>
+                    <select name="ics_item_id" id="lendItem" required class="input" onchange="updateLendingDetails()" data-initial-focus aria-describedby="lendEquipmentHelp">
+                        <option value="">Select equipment to lend</option>
+                        <?php foreach ($my_lendable_items as $mi):
+                            $avail = $mi['lendable_qty'];
+                            if ($avail > 0):
+                        ?>
+                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-available="<?= (int)$avail ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$mi['serviceable_qty'] ?>" data-borrowed="<?= (int)$mi['borrowed_qty'] ?>" data-unit="<?= e($mi['unit']) ?>" data-item="<?= e($mi['item_name']) ?>" data-ics="<?= e($mi['ics_number']) ?>"><?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?></option>
+                        <?php endif; endforeach; ?>
+                    </select>
+                    <small id="lendEquipmentHelp" class="field-help">Only serviceable units that are not already on loan are available.</small>
                 </div>
-                <div style="flex: 1;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 5px;">Date Borrowed *</label>
-                    <input type="date" name="date_borrowed" value="<?= date('Y-m-d') ?>" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <div id="lendAvailability" class="equipment-snapshot" hidden><div class="snapshot-heading"><span id="lendReference"></span><strong id="lendAvailable"></strong></div><p class="field-help" id="lendAvailabilityNote"></p></div>
+                <p class="form-notice" id="lendEmpty" hidden>No serviceable equipment is currently available to lend from your active custody records.</p>
+            </section>
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">2</span><h4>Choose the borrower and quantity</h4></div>
+                <div class="field"><label for="lendTeacher">Borrowing teacher <span class="required-mark">*</span></label>
+                    <select name="borrower_id" id="lendTeacher" required class="input" onchange="updateLendingSummary()">
+                        <option value="">Select a teacher</option>
+                        <?php foreach ($teachers as $t): if ($t['user_id'] != $uid): ?>
+                            <option value="<?= (int)$t['user_id'] ?>"><?= e($t['full_name']) ?></option>
+                        <?php endif; endforeach; ?>
+                    </select>
+                    <small class="field-help">Your own account is excluded from this list.</small>
                 </div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Program / Purpose *</label>
-                <input type="text" name="program_purpose" required placeholder="e.g. TLE School Fair 2026 Demo" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button type="button" onclick="closeBorrowModal()" style="padding: 8px 16px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
-                <button type="submit" name="borrow_item" style="padding: 8px 16px; background: #800000; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Confirm Lend</button>
-            </div>
+                <p class="form-notice" id="lendNoTeachers" hidden>No other active teacher is available. Contact your Supply Officer.</p>
+                <div class="guided-form-grid">
+                    <div class="field"><label for="lendQuantity">Units to lend <span class="required-mark">*</span></label><input type="number" name="quantity" id="lendQuantity" min="1" step="1" value="1" required class="input" oninput="updateLendingSummary()" aria-describedby="lendQuantityHelp"><small id="lendQuantityHelp" class="field-help">Choose equipment to see the limit.</small></div>
+                    <div class="field"><label for="lendDate">Date borrowed <span class="required-mark">*</span></label><input type="date" name="date_borrowed" id="lendDate" value="<?= date('Y-m-d') ?>" required class="input"></div>
+                </div>
+            </section>
+            <section class="form-section">
+                <div class="section-heading"><span class="step-number">3</span><h4>Describe the purpose</h4></div>
+                <div class="field"><label for="lendPurpose">Program or purpose <span class="required-mark">*</span></label><textarea name="program_purpose" id="lendPurpose" rows="2" maxlength="200" required class="input" placeholder="For example: equipment demonstration for the TLE school fair."></textarea></div>
+            </section>
+            <div class="form-review" id="lendSummary" aria-live="polite">Select equipment and a borrowing teacher to review this loan.</div>
+            <div class="modal-actions"><button type="button" onclick="closeBorrowModal()" class="btn btn-outline">Cancel</button><button type="submit" name="borrow_item" id="lendSubmit" class="btn btn-primary" disabled>Confirm equipment loan</button></div>
         </form>
-    </div>
+    </section>
 </div>
-
 <script>
-function openBorrowModal() {
-    document.getElementById('borrowModal').style.display = 'flex';
+function openBorrowModal() { updateLendingDetails(); TNTSUI.open('borrowModal'); }
+function closeBorrowModal() { TNTSUI.close('borrowModal'); }
+function updateLendingDetails() {
+    const item = document.getElementById('lendItem');
+    const option = item.value ? item.options[item.selectedIndex] : null;
+    const quantity = document.getElementById('lendQuantity');
+    document.getElementById('lendAvailability').hidden = !option;
+    document.getElementById('lendEmpty').hidden = item.options.length > 1;
+    document.getElementById('lendNoTeachers').hidden = document.getElementById('lendTeacher').options.length > 1;
+    quantity.disabled = !option;
+    if (option) {
+        const maximum = Number(option.dataset.available);
+        quantity.max = String(maximum);
+        quantity.value = String(Math.max(1, Math.min(maximum, Number(quantity.value) || 1)));
+        document.getElementById('lendReference').textContent = 'ICS: ' + option.dataset.ics;
+        document.getElementById('lendAvailable').textContent = maximum + ' ' + option.dataset.unit + ' serviceable & available';
+        document.getElementById('lendAvailabilityNote').textContent = option.dataset.issued + ' issued · ' + option.dataset.serviceable + ' serviceable · ' + option.dataset.borrowed + ' currently on loan';
+        document.getElementById('lendQuantityHelp').textContent = 'Enter 1 to ' + maximum + ' ' + option.dataset.unit + '.';
+    } else {
+        quantity.removeAttribute('max');
+        document.getElementById('lendQuantityHelp').textContent = 'Choose equipment to see the limit.';
+    }
+    updateLendingSummary();
 }
-function closeBorrowModal() {
-    document.getElementById('borrowModal').style.display = 'none';
+function updateLendingSummary() {
+    const item = document.getElementById('lendItem');
+    const teacher = document.getElementById('lendTeacher');
+    const quantity = document.getElementById('lendQuantity');
+    const valid = !!item.value && Number.isInteger(Number(quantity.value)) && Number(quantity.value) >= 1 && Number(quantity.value) <= Number(quantity.max);
+    quantity.setCustomValidity(valid || !item.value ? '' : 'Enter a whole number from 1 to ' + quantity.max + '.');
+    document.getElementById('lendSubmit').disabled = !valid || !teacher.value;
+    document.getElementById('lendSummary').textContent = valid && teacher.value ? 'Lend ' + Number(quantity.value) + ' ' + item.options[item.selectedIndex].dataset.unit + ' of ' + item.options[item.selectedIndex].dataset.item + ' to ' + teacher.options[teacher.selectedIndex].textContent.trim() + '.' : 'Select equipment, a teacher, and a valid quantity to review this loan.';
 }
 </script>
 <?php endif; ?>
