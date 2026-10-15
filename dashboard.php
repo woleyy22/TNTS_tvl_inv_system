@@ -10,6 +10,13 @@ if (!$user) {
 }
 
 $isTeacher = ($user['role'] === 'teacher');
+$mySpecializations = [];
+if ($isTeacher) {
+    $courseStmt = db()->prepare("SELECT c.course_name FROM teacher_courses tc JOIN courses c ON c.course_id = tc.course_id WHERE tc.user_id = ? ORDER BY c.course_name");
+    $courseStmt->execute([(int)($user['user_id'] ?? $user['id'])]);
+    $mySpecializations = $courseStmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
 $uid = (int)($user['user_id'] ?? $user['id']);
 $pdo = db();
 
@@ -125,6 +132,9 @@ include __DIR__ . '/includes/header.php';
     <h1>Dashboard</h1>
     <p>Welcome back, <?= e($user['full_name'] ?? 'User') ?></p>
 </div>
+<?php if ($isTeacher): ?>
+<div class="teacher-course-banner"><strong>Assigned course / specialization:</strong> <?= e($mySpecializations ? implode(', ', $mySpecializations) : 'No course assigned') ?></div>
+<?php endif; ?>
 
 <div class="stats">
     <?php foreach ($cards as $c): ?>

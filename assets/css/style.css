@@ -1109,3 +1109,121 @@ body.login-page{min-width:1024px;min-height:100dvh;padding:48px 6vw;gap:clamp(40
 .account-shortcut{color:var(--text);border-radius:12px;padding:6px 9px;max-width:340px}.account-shortcut:hover{background:#eee8ed;text-decoration:none}.account-shortcut strong{overflow-wrap:anywhere}.workspace-user img.user-avatar{object-fit:cover;flex-shrink:0}
 .profile-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start;max-width:1280px}.profile-overview{text-align:center;position:sticky;top:24px}.profile-overview h2{font-size:19px;line-height:1.4;margin:16px 0 8px;overflow-wrap:anywhere}.profile-email{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.profile-avatar-large{display:inline-flex;align-items:center;justify-content:center;width:96px;height:96px;flex-shrink:0;object-fit:cover;border-radius:24px;background:var(--maroon-soft);color:var(--maroon);font-size:34px;font-weight:700;border:1px solid #e7cdd7}
 .profile-facts{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:16px 0;margin:20px 0;text-align:left;display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px}.profile-facts dt{color:var(--muted)}.profile-facts dd{margin:0;text-align:right}.profile-content{min-width:0}.profile-section-heading{margin-bottom:24px}.profile-section-heading h2{font-size:20px;margin:6px 0 0}.profile-photo-field{display:flex;align-items:center;gap:22px;margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border)}.profile-photo-field .field{margin:0;min-width:0;flex:1}.profile-photo-preview{flex-shrink:0}.profile-remove-photo{margin-top:10px!important;font-size:11px}.optional-label{font-size:10px;color:var(--muted);font-weight:400;margin-left:4px}.profile-form-actions{display:flex;justify-content:flex-end;margin-top:20px}.profile-show-password{margin-top:14px!important;font-size:12px}.field-error{font-size:12px;color:var(--red-text);margin:8px 0 0}.form-errors{margin:0;padding-left:18px}.profile-content input[readonly]{background:#f6f7fa!important;color:var(--muted)!important}.profile-content input[type=file]{font-size:12px}.profile-content input[type=file]::file-selector-button{border:0;background:var(--maroon-soft);color:var(--maroon);padding:7px 10px;border-radius:6px;margin-right:8px;cursor:pointer}.sidebar-collapsed .sidebar-foot .nav-link{justify-content:center}
+
+/* 2026 UI improvements — unified stylesheet */
+.item-type-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:.75rem;font-weight:650;white-space:nowrap;background:#e5f0ff;color:#174b8f}
+.item-type-supply{background:#fff2d5;color:#7a4a00}
+.table-sort-button{background:transparent;border:0;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left;padding:4px 0;white-space:nowrap}
+.table-sort-button:hover,.table-sort-button:focus-visible{text-decoration:underline;outline-offset:3px}
+.teacher-course-banner{padding:12px 16px;margin:0 0 16px;border:1px solid #c9daf5;background:#f2f7ff;border-radius:8px}
+.unit-delete-form{display:inline-block;margin:5px 0 0 8px}.unit-delete-form .btn-danger{background:#b42318;color:#fff}
+body.print-course-report{font-family:Arial,sans-serif;color:#111;background:white;font-size:10pt}
+body.print-course-report>.container{max-width:100%;margin:0 auto;padding:12mm}
+body.print-course-report .summary-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8pt}
+body.print-course-report .summary-table th,body.print-course-report .summary-table td{overflow-wrap:anywhere;border:1px solid #777;padding:5px 4px;vertical-align:top}
+body.print-course-report .summary-table thead{display:table-header-group}
+body.print-course-report .summary-table tr{break-inside:avoid;page-break-inside:avoid}
+@media print{ @page{size:A4 landscape;margin:10mm}body.print-course-report{margin:0!important;font-size:9pt}body.print-course-report>.container{padding:0!important;margin:0!important;max-width:100%!important;width:100%!important}body.print-course-report .no-print,body.print-course-report .print-brand{display:none!important}body.print-course-report .summary-table{font-size:7.5pt}body.print-course-report .summary-table th,body.print-course-report .summary-table td{padding:4px 3px}body.print-course-report .sign-table{break-inside:avoid}}
+
+/* TNTS UI refinement — all presentation styles are centralized here. */
+.desktop-workspace .sidebar { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#a76a7f transparent; }
+.desktop-workspace .nav { min-height:0; }
+.sort-heading { display:inline-flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.sort-controls { display:inline-flex; gap:3px; white-space:nowrap; }
+.app-page .sort-direction { min-height:25px!important; width:26px; height:25px; padding:0; border:1px solid #d8dce5; border-radius:5px; background:#fff; color:#59657a; font-weight:700; font-size:15px; cursor:pointer; box-shadow:none; }
+.app-page .sort-direction:hover,.app-page .sort-direction:focus-visible { color:#870d1e; border-color:#870d1e; background:#fdf3f5; }
+.app-page .sort-direction.is-active { color:#fff; border-color:#870d1e; background:#870d1e; }
+.app-page table thead th { vertical-align:middle; }
+.account-specialization { text-align:left; margin:15px 0; padding:13px; background:#f8f3f6; border:1px solid #eddce3; border-radius:10px; font-size:12px; }
+.account-specialization strong { color:#7e1432; font-size:12px; }
+.account-specialization ul { margin:8px 0 0; padding-left:18px; line-height:1.65; }
+.account-specialization p { margin:8px 0 0; color:#667085; }
+body.print-course-report { background:#fff; color:#161616; font-family:Arial,Helvetica,sans-serif; }
+body.print-course-report > .container { max-width:277mm; padding:12mm; margin:0 auto; }
+.print-course-report .official-report-header { text-align:center; padding:0 0 12px; border-bottom:2px solid #232323; }
+.print-course-report .official-report-header h3 { font-size:14pt; letter-spacing:.3px; margin:5px 0; }
+.print-course-report .official-report-header h4,.print-course-report .official-report-header h5 { margin:2px 0; font-size:9pt; }
+.print-course-report .official-report-header p { margin:4px 0 0; font-size:8pt; }
+.print-course-report .official-report-title { text-align:center; margin:18px 0 12px; font-weight:700; font-size:12pt; letter-spacing:.5px; }
+.print-course-report .meta-info { width:100%; margin:0 0 14px; border-collapse:collapse; font-size:9pt; }
+.print-course-report .meta-info td { padding:5px 3px; }
+.print-course-report .official-report-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.5pt; }
+.print-course-report .official-report-table th { background:#eef0f3!important; text-transform:uppercase; font-weight:700; text-align:center; }
+.print-course-report .official-report-table th,.print-course-report .official-report-table td { border:1px solid #626262; padding:5px 4px; overflow-wrap:anywhere; vertical-align:top; }
+.print-course-report .official-report-signatures { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:20px; }
+.print-course-report .official-report-signatures td { width:33.333%; vertical-align:top; text-align:center; padding:6px 14px; font-size:8pt; }
+.print-course-report .official-report-signatures .sig-name { display:block; font-weight:700; margin-top:35px; text-decoration:underline; }
+.print-course-report .official-report-signatures .sig-title { display:block; margin-top:3px; }
+@media print {
+ @page { size:A4 landscape; margin:9mm; }
+ body.print-course-report > .container { max-width:none!important; width:100%!important; margin:0!important; padding:0!important; }
+ .print-course-report .official-report-header { break-after:avoid; }
+ .print-course-report .official-report-table thead { display:table-header-group; }
+ .print-course-report .official-report-table tr,.print-course-report .official-report-signatures { break-inside:avoid; page-break-inside:avoid; }
+ .print-course-report .official-report-table th { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+}
+
+/* TNTS compact tables and explicitly visible sorting controls */
+.tnts-sort-header{display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap;min-width:0}
+.tnts-sort-actions{display:inline-flex;align-items:center;gap:3px;flex-wrap:nowrap}
+.app-page table .tnts-sort-button{display:inline-flex!important;align-items:center;justify-content:center;min-height:24px;padding:3px 5px!important;border:1px solid #d6b9c1!important;border-radius:5px!important;background:#fff!important;color:#83152e!important;font-size:10px!important;font-weight:700!important;line-height:1.15!important;white-space:nowrap;cursor:pointer}
+.app-page table .tnts-sort-button:hover,.app-page table .tnts-sort-button.is-active{background:#83152e!important;color:#fff!important}
+.tnts-unit-action-cell .tnts-unit-actions{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.tnts-unit-actions form{display:inline-flex!important;margin:0!important;padding:0!important;flex:0 0 auto}
+.tnts-unit-actions .btn{margin:0!important;white-space:nowrap}
+.tnts-inspection-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.tnts-inspection-table th,.tnts-inspection-table td{vertical-align:middle!important;padding:8px 7px!important;line-height:1.35}
+.tnts-inspection-table th:first-child,.tnts-inspection-table td:first-child{width:23%}
+.tnts-inspection-table th:nth-child(2),.tnts-inspection-table td:nth-child(2){width:13%}
+.tnts-inspection-table th:nth-child(3),.tnts-inspection-table td:nth-child(3){width:15%}
+.tnts-inspection-table th:nth-child(4),.tnts-inspection-table td:nth-child(4){width:20%}
+.tnts-inspection-table th:nth-child(5),.tnts-inspection-table td:nth-child(5){width:29%}
+.tnts-inspection-table select,.tnts-inspection-table input{max-width:100%;width:100%!important;box-sizing:border-box}
+.tnts-inspection-table small{display:block;margin-top:4px;font-size:11px;line-height:1.35}
+@media(max-width:850px){.tnts-unit-action-cell .tnts-unit-actions{flex-wrap:wrap}.tnts-inspection-table{min-width:760px}}
+
+
+/* Single-button three-state sorting: default (−), ascending (↑), descending (↓). */
+.app-page table th .tnts-sort-toggle {
+ display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;
+ width:auto;max-width:100%;margin:0;padding:2px 0!important;min-height:24px!important;
+ border:0!important;border-radius:0!important;background:transparent!important;
+ box-shadow:none!important;color:inherit!important;font:inherit;font-weight:inherit!important;
+ text-align:left;cursor:pointer;white-space:normal;
+}
+.app-page table th .tnts-sort-toggle:hover {color:var(--maroon)!important;background:transparent!important;box-shadow:none!important;}
+.app-page table th .tnts-sort-title{min-width:0;}
+.app-page table th .tnts-sort-icon {display:inline-flex;flex:0 0 12px;justify-content:center;align-items:center;font-size:14px;line-height:1;font-weight:800;color:#8792a2;}
+.app-page table th .tnts-sort-toggle[data-sort-state="asc"] .tnts-sort-icon,
+.app-page table th .tnts-sort-toggle[data-sort-state="desc"] .tnts-sort-icon{color:var(--maroon);}
+.app-page table th .tnts-sort-toggle:focus-visible {outline:2px solid var(--maroon)!important;outline-offset:3px;}
+
+/* Measurement Units: match the Courses delete action and align the buttons. */
+.app-page .tnts-unit-actions { display:flex; flex-direction:row; align-items:center; flex-wrap:nowrap; gap:8px; }
+.app-page .tnts-unit-actions form,
+.app-page .tnts-unit-actions .unit-delete-form { display:inline-flex; align-items:center; margin:0!important; padding:0; }
+.app-page .tnts-unit-actions .btn-danger,
+.app-page .tnts-unit-actions .unit-delete-form .btn-danger {
+  background:#fff; color:var(--red-text); border:1px solid #fecaca; box-shadow:none;
+}
+.app-page .tnts-unit-actions .btn-danger:hover { background:var(--red-soft); }
+.app-page .tnts-unit-actions .btn { white-space:nowrap; }
+/* Hover previews do not change the visual design of existing navigation links. */
+
+/* Compact measurement-unit actions (2026-10-15) */
+.app-page .tnts-unit-actions .tnts-unit-toggle {background:#fff;color:#3a3a3a;border:1px solid #3a3a3a;padding:6px 12px;font-size:11px;min-height:34px;min-width:96px;}
+.app-page .tnts-unit-actions .tnts-unit-toggle:hover {background:#f3f4f6;color:#000;border-color:#000;}
+.app-page .tnts-unit-actions .btn-danger {min-height:34px;min-width:96px;padding:6px 12px;font-size:11px;}
+.app-page .tnts-unit-actions {display:flex;align-items:center;gap:8px;}
+/* Login/password form visibility checkbox */
+.password-visibility-option {display:flex;align-items:center;gap:8px;margin:8px 0 15px;cursor:pointer;font-size:13px;}
+
+/* Explicitly pinned navigation groups remain outlined across page changes. */
+.desktop-workspace .nav-group.is-pinned > .nav-group-toggle,
+.app-page .nav-group.is-pinned > .nav-group-toggle {
+    border:1px solid rgba(255,255,255,.92);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+    color:#fff;
+}
+.app-page .nav-group:not(.is-pinned) > .nav-group-toggle {border:1px solid transparent;}
+.app-page .nav-group.is-pinned > .nav-group-toggle:hover {background:rgba(255,255,255,.10);}

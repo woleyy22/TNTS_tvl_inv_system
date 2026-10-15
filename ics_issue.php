@@ -16,10 +16,12 @@ $teachers = $stmt->fetchAll();
 $stmt = db()->query("SELECT course_id, course_name FROM courses ORDER BY course_name");
 $courses = $stmt->fetchAll();
 
+// Teacher-to-course assignments drive both the UI and server validation.
+$teacher_course_rows = db()->query("SELECT tc.user_id, tc.course_id FROM teacher_courses tc JOIN users u ON u.user_id = tc.user_id WHERE u.role = 'teacher' AND u.status = 'active'")->fetchAll(PDO::FETCH_ASSOC);
 // Fetch available inventory (items with unissued stock > 0)
 $stmt = db()->query("
     SELECT i.*, 
-           (i.quantity - COALESCE((SELECT SUM(qty_issued) FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active'), 0)) as available_qty
+           (i.quantity - COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id = co.ics_item_id WHERE ii.item_id = i.item_id AND co.status = 'approved' AND co.outcome = 'disposed'), 0) - COALESCE((SELECT SUM(ii.qty_issued - COALESCE((SELECT SUM(co2.quantity) FROM condemnations co2 WHERE co2.ics_item_id = ii.ics_item_id AND co2.status = 'approved' AND co2.outcome = 'disposed'),0)) FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active'), 0)) as available_qty
     FROM inventory_items i
     HAVING available_qty > 0
     ORDER BY i.item_name
@@ -30,17 +32,21 @@ $inventory = $stmt->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $teacher_id = (int)($_POST['teacher_id'] ?? 0);
     $course_id = (int)($_POST['course_id'] ?? 0);
-    $ics_number = trim($_POST['ics_number'] ?? '') ?: generate_document_number('ics');
     $date_issued = $_POST['date_issued'] ?? date('Y-m-d');
     $active_user_id = $user['id'] ?? $user['user_id'];
     
-    if (!$teacher_id || !$course_id || empty($ics_number)) {
-        die("Teacher, Course, and ICS Number are required.");
+    if (!$teacher_id || !$course_id) {
+        header('Location: ics_issue.php?error=' . urlencode('Select an active teacher and one of their assigned courses.')); exit;
+    }
+    $assignment = db()->prepare("SELECT 1 FROM teacher_courses tc JOIN users u ON u.user_id=tc.user_id WHERE tc.user_id=? AND tc.course_id=? AND u.role='teacher' AND u.status='active'");
+    $assignment->execute([$teacher_id, $course_id]);
+    if (!$assignment->fetchColumn()) {
+        header('Location: ics_issue.php?error=' . urlencode('This course is not assigned to the selected active teacher.')); exit;
     }
     
     // Check if at least one item was selected
     $items_to_issue = [];
-    foreach ($_POST['issue_qty'] as $item_id => $qty) {
+    foreach (($_POST['issue_qty'] ?? []) as $item_id => $qty) {
         $qty = (int)$qty;
         if ($qty > 0) {
             $items_to_issue[$item_id] = $qty;
@@ -48,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($items_to_issue)) {
-        die("You must issue at least one item.");
+        header('Location: ics_issue.php?error=' . urlencode('Select at least one item and enter a quantity.')); exit;
     }
 
     // Inside ics_issue.php POST handler
@@ -61,7 +67,9 @@ try {
                    COALESCE((SELECT SUM(ii.qty_issued) 
                              FROM ics_items ii 
                              JOIN ics c ON ii.ics_id = c.ics_id 
-                             WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) AS total_issued
+                             WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) AS total_issued,
+                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id WHERE ii.item_id=i.item_id AND co.status='approved' AND co.outcome='disposed'),0) AS disposed_all,
+                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='active' AND co.status='approved' AND co.outcome='disposed'),0) AS disposed_active
             FROM inventory_items i
             WHERE i.item_id = ?
             FOR UPDATE
@@ -73,11 +81,14 @@ try {
             throw new Exception("Invalid inventory item selected.");
         }
 
-        $available_qty = $stock['quantity'] - $stock['total_issued'];
+        $available_qty = $stock['quantity'] - $stock['disposed_all'] - ($stock['total_issued'] - $stock['disposed_active']);
         if ($qty_to_issue > $available_qty) {
             throw new Exception("Cannot issue {$qty_to_issue} unit(s) of '{$stock['item_name']}'. Only {$available_qty} unit(s) available in central inventory.");
         }
     }
+
+    // Reserve a unique number in the same transaction as the ICS and its items.
+    $ics_number = generate_next_ics_number($date_issued);
 
     // Insert master ICS record
     $stmt_ics = db()->prepare("INSERT INTO ics (ics_number, teacher_id, course_id, issued_by, date_issued, status) VALUES (?, ?, ?, ?, ?, 'active')");
@@ -85,7 +96,7 @@ try {
     $ics_id = db()->lastInsertId();
 
     // Insert line items
-    $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, condition) VALUES (?, ?, ?, 'serviceable')");
+    $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, item_condition) VALUES (?, ?, ?, 'serviceable')");
     foreach ($items_to_issue as $item_id => $qty_to_issue) {
         $insert_item->execute([$ics_id, $item_id, $qty_to_issue]);
     }
@@ -110,12 +121,13 @@ require_once __DIR__ . '/includes/header.php';
     <p class="legacy-037">Assign available inventory items to a specific teacher and course.</p>
 </div>
 
+<?php if (!empty($_GET['error'])): ?><div class="legacy-181" role="alert"><?= e($_GET['error']) ?></div><?php endif; ?>
 <form method="POST" class="card legacy-148">
     
     <div class="legacy-149">
         <div class="legacy-049">
-            <label class="legacy-046">ICS Number *</label>
-            <input type="text" name="ics_number" placeholder="e.g. ICS-2026-001" required class="legacy-047">
+            <label class="legacy-046">ICS Number</label>
+            <div class="legacy-047">Automatically generated when the ICS is issued</div>
         </div>
         <div class="legacy-049">
             <label class="legacy-046">Date Issued *</label>
@@ -126,7 +138,7 @@ require_once __DIR__ . '/includes/header.php';
     <div class="legacy-150">
         <div class="legacy-049">
             <label class="legacy-046">Assign To Teacher *</label>
-            <select name="teacher_id" required class="legacy-047">
+            <select name="teacher_id" id="ics_teacher" required class="legacy-047">
                 <option value="">-- Select Teacher --</option>
                 <?php foreach ($teachers as $t): ?>
                     <option value="<?= $t['user_id'] ?>"><?= e($t['full_name']) ?></option>
@@ -135,7 +147,7 @@ require_once __DIR__ . '/includes/header.php';
         </div>
         <div class="legacy-049">
             <label class="legacy-046">For Course / Subject *</label>
-            <select name="course_id" required class="legacy-047">
+            <select name="course_id" id="ics_course" required class="legacy-047">
                 <option value="">-- Select Course --</option>
                 <?php foreach ($courses as $c): ?>
                     <option value="<?= $c['course_id'] ?>"><?= e($c['course_name']) ?></option>
@@ -159,7 +171,7 @@ require_once __DIR__ . '/includes/header.php';
                 <tr>
                     <td class="legacy-072">
                         <strong><?= e($item['item_name']) ?></strong><br>
-                        <small class="legacy-037">₱<?= e(number_format($item['unit_cost'], 2)) ?> / <?= e($item['unit']) ?></small>
+                        <small class="legacy-037"><?= e(display_unit_cost($item['unit_cost'])) ?> / <?= e($item['unit']) ?></small>
                     </td>
                     <td class="legacy-072"><?= e(ucfirst($item['item_type'])) ?></td>
                     <td class="legacy-153">
@@ -178,4 +190,22 @@ require_once __DIR__ . '/includes/header.php';
     <button type="submit" class="legacy-154">Issue ICS to Teacher</button>
 </form>
 
+<script>
+const icsAssignments = <?= json_encode($teacher_course_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+const icsTeacher = document.getElementById('ics_teacher');
+const icsCourse = document.getElementById('ics_course');
+function refreshIcsCourses() {
+    const teacher = Number(icsTeacher.value);
+    for (const opt of icsCourse.options) {
+        if (!opt.value) continue;
+        opt.hidden = !icsAssignments.some(row => Number(row.user_id) === teacher && Number(row.course_id) === Number(opt.value));
+        opt.disabled = opt.hidden;
+    }
+    if (icsCourse.selectedOptions[0]?.disabled) icsCourse.value = '';
+    const eligible = [...icsCourse.options].filter(o => o.value && !o.disabled);
+    if (eligible.length === 1) icsCourse.value = eligible[0].value;
+}
+icsTeacher.addEventListener('change', refreshIcsCourses);
+refreshIcsCourses();
+</script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

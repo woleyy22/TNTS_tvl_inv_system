@@ -7,6 +7,17 @@ function e($v): string
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
+/** A blank unit cost is unknown, not zero. */
+function display_unit_cost($cost): string
+{
+    return $cost === null || $cost === '' ? 'Not Specified' : '₱' . number_format((float)$cost, 2);
+}
+
+function display_line_cost($cost, $quantity): string
+{
+    return $cost === null || $cost === '' ? '—' : '₱' . number_format((float)$cost * (int)$quantity, 2);
+}
+
 function url(string $path = ''): string
 {
     return BASE_URL . '/' . ltrim($path, '/');
@@ -102,6 +113,48 @@ function generate_document_number(string $type): string {
     return sprintf("%s-%s-%03d", $prefix, $year, $count);
 }
 
+/**
+ * Reserve the next yearly ICS number inside the caller's transaction.
+ * The row lock serializes simultaneous issuances and rolls back on failure.
+ * Run the Task 1 SQL migration before using this helper.
+ */
+function generate_next_ics_number(string $issuedDate): string
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $issuedDate);
+    if (!$date || $date->format('Y-m-d') !== $issuedDate) {
+        throw new InvalidArgumentException('Invalid ICS issue date.');
+    }
+    if (!db()->inTransaction()) {
+        throw new LogicException('ICS numbering must be performed inside a database transaction.');
+    }
+
+    $year = (int)$date->format('Y');
+    // Existing row is locked until commit; new row is locked by the INSERT.
+    $seed = db()->prepare('INSERT INTO ics_number_sequences (issue_year, last_number) VALUES (?, 0) ON DUPLICATE KEY UPDATE issue_year = issue_year');
+    $seed->execute([$year]);
+    $lock = db()->prepare('SELECT last_number FROM ics_number_sequences WHERE issue_year = ? FOR UPDATE');
+    $lock->execute([$year]);
+    $current = (int)$lock->fetchColumn();
+
+    // Safety net for legacy rows, including any ICS number created before migration.
+    $existing = db()->prepare("SELECT ics_number FROM ics WHERE ics_number LIKE ?");
+    $existing->execute(['ICS-' . $year . '-%']);
+    $largestExisting = 0;
+    foreach ($existing->fetchAll(PDO::FETCH_COLUMN) as $number) {
+        if (preg_match('/^ICS-' . $year . '-([0-9]+)$/', $number, $m)) {
+            $largestExisting = max($largestExisting, (int)$m[1]);
+        }
+    }
+
+    $next = max($current, $largestExisting) + 1;
+    if ($next > 999999999) {
+        throw new RuntimeException('ICS sequence limit reached.');
+    }
+    $update = db()->prepare('UPDATE ics_number_sequences SET last_number = ? WHERE issue_year = ?');
+    $update->execute([$next, $year]);
+    return sprintf('ICS-%04d-%03d', $year, $next);
+}
+
 // ---------- history log ----------
 function log_action(?int $userId, string $action, string $module, ?int $recordId = null, ?string $details = null): void
 {
@@ -132,6 +185,7 @@ function nav_items(string $role): array
         ['courses.php',   'Courses',      'book',   ['supply_officer', 'tvl_head']],
         ['history.php',   'History Logs', 'clock',  ['supply_officer', 'tvl_head']],
         ['accounts.php',  'Accounts',     'users',  ['supply_officer']],
+        ['units.php',     'Measurement Units', 'box', ['supply_officer']],
     ];
     $out = [];
     foreach ($all as $item) {

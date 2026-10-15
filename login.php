@@ -68,9 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="password">Password</label>
                 <input class="input" type="password" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
             </div>
+            <label class="password-visibility-option" for="loginShowPassword"><input type="checkbox" id="loginShowPassword"> Show password</label>
             <button class="btn btn-primary btn-block" type="submit">Sign In</button>
         </form>
         <p class="login-help">Need access? Contact your Supply Officer.</p>
     </div>
+<script>
+    document.getElementById('loginShowPassword').addEventListener('change', function () {
+        document.getElementById('password').type = this.checked ? 'text' : 'password';
+    });
+</script>
 </body>
 </html>

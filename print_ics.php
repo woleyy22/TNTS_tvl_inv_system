@@ -22,8 +22,21 @@ $stmt->execute([$ics_id]);
 $ics = $stmt->fetch();
 
 if (!$ics) {
-    die("ICS record not found.");
+    http_response_code(404);
+    exit('ICS record not found.');
 }
+// Teachers may print only their own active ICS. Custodians/head may see archived versions.
+$viewerId = (int)($user['user_id'] ?? $user['id']);
+if ($user['role'] === 'teacher' &&
+    ((int)$ics['teacher_id'] !== $viewerId || $ics['status'] !== 'active')) {
+    http_response_code(403);
+    exit('Access denied to this ICS document.');
+}
+if (!in_array($user['role'], ['teacher','supply_officer','tvl_head'], true)) {
+    http_response_code(403);
+    exit('Access denied.');
+}
+
 
 // Fetch ICS items safely without requiring missing columns
 $stmt_items = db()->prepare("
@@ -52,6 +65,9 @@ $items = $stmt_items->fetchAll();
     </div>
 
     <div class="container">
+        <?php if ($ics['status'] === 'closed'): ?>
+        <p style="text-align:center;border:1px solid #999;padding:8px;font-weight:bold">ARCHIVED ICS — HISTORICAL COPY (NOT CURRENT ACCOUNTABILITY)</p>
+        <?php endif; ?>
         <div class="top-appendix">Appendix 59</div>
         <div class="form-title">INVENTORY CUSTODIAN SLIP</div>
 
@@ -109,13 +125,13 @@ $items = $stmt_items->fetchAll();
                     <!-- Unit Cost -->
                     <td class="legacy-024">
                         <?php foreach ($items as $item): ?>
-                            <div>₱<?= number_format($item['unit_cost'], 2) ?></div>
+                            <div><?= e(display_unit_cost($item['unit_cost'])) ?></div>
                         <?php endforeach; ?>
                     </td>
                     <!-- Total Cost -->
                     <td class="legacy-024">
                         <?php foreach ($items as $item): ?>
-                            <div>₱<?= number_format($item['qty_issued'] * $item['unit_cost'], 2) ?></div>
+                            <div><?= e(display_line_cost($item['unit_cost'], $item['qty_issued'])) ?></div>
                         <?php endforeach; ?>
                     </td>
                     <!-- Description -->

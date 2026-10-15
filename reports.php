@@ -25,13 +25,15 @@ $all_courses = db()->query("SELECT course_id, course_name FROM courses ORDER BY 
 
 // Fetch data based on active tab and role with search/filtering
 if ($tab === 'ics') {
+    $ics_view = ($_GET['ics_view'] ?? 'active') === 'archive' && $role !== 'teacher' ? 'archive' : 'active';
     $whereClauses = [];
+    $whereClauses[] = $ics_view === 'archive' ? "(c.status = 'closed' OR u.status = 'inactive')" : "c.status = 'active' AND u.status = 'active'";
     $params = [];
 
     if ($role === 'teacher') {
         $whereClauses[] = "c.teacher_id = ?";
         $params[] = $uid;
-        $whereClauses[] = "c.status = 'active'";
+
     }
 
     if (!empty($search_query)) {
@@ -155,6 +157,7 @@ if ($tab === 'ics') {
                COUNT(ii.ics_item_id) as total_line_items,
                COALESCE(SUM(ii.qty_issued), 0) as total_units_issued,
                COALESCE(SUM(ii.qty_issued * i.unit_cost), 0) as total_monetary_value,
+               SUM(CASE WHEN ii.ics_item_id IS NOT NULL AND i.unit_cost IS NULL THEN 1 ELSE 0 END) as unpriced_lines,
                COALESCE(SUM(
                    LEAST(ii.qty_issued, 
                        GREATEST(0, ii.qty_issued 
@@ -203,12 +206,19 @@ require_once __DIR__ . '/includes/header.php';
 
     <?php if ($tab === 'ics'): ?>
         <div class="legacy-121">
-            <h3 class="legacy-122">Inventory Custodian Slips (ICS)</h3>
+            <h3 class="legacy-122">Inventory Custodian Slips (ICS) — <?= $ics_view === 'archive' ? 'Historical Records' : 'Active Accountability' ?></h3>
         </div>
 
         <!-- Filter & Search Bar for ICS -->
         <form method="GET" action="reports.php" class="legacy-123">
             <input type="hidden" name="tab" value="ics">
+            <?php if ($role !== 'teacher'): ?>
+            <div><label class="legacy-124">Document View</label>
+            <select name="ics_view" class="legacy-125">
+                <option value="active" <?= $ics_view === 'active' ? 'selected' : '' ?>>Active ICS</option>
+                <option value="archive" <?= $ics_view === 'archive' ? 'selected' : '' ?>>Archived / Inactive Teacher</option>
+            </select></div>
+            <?php endif; ?>
             <div class="legacy-079">
                 <label class="legacy-124">Search Keyword</label>
                 <input type="text" name="search" value="<?= e($search_query) ?>" placeholder="ICS No. or Teacher Name..." class="legacy-125">
@@ -239,10 +249,10 @@ require_once __DIR__ . '/includes/header.php';
         <table class="legacy-128">
             <thead>
                 <tr class="legacy-032">
-                    <th class="legacy-033">ICS Number</th>
-                    <th class="legacy-033">Teacher Accountable</th>
-                    <th class="legacy-033">Course / Elective</th>
-                    <th class="legacy-033">Date Issued</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort ICS Number: default order. Activate for ascending." title="Sort ICS Number: default order" aria-pressed="false"><span class="tnts-sort-title">ICS Number</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Teacher Accountable: default order. Activate for ascending." title="Sort Teacher Accountable: default order" aria-pressed="false"><span class="tnts-sort-title">Teacher Accountable</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Course / Elective: default order. Activate for ascending." title="Sort Course / Elective: default order" aria-pressed="false"><span class="tnts-sort-title">Course / Elective</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Date Issued: default order. Activate for ascending." title="Sort Date Issued: default order" aria-pressed="false"><span class="tnts-sort-title">Date Issued</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                     <th class="legacy-034">Action</th>
                 </tr>
             </thead>
@@ -253,7 +263,7 @@ require_once __DIR__ . '/includes/header.php';
                     <tr class="legacy-036">
                         <td class="legacy-038"><?= e($r['ics_number']) ?></td>
                         <td class="legacy-033"><?= e($r['teacher_name']) ?></td>
-                        <td class="legacy-033"><?= e($r['course_name']) ?></td>
+                        <td class="legacy-033"><?= e($r['course_name']) ?><?= $ics_view === 'archive' ? ' (Archived)' : '' ?></td>
                         <td class="legacy-033"><?= e(date('M d, Y', strtotime($r['date_issued']))) ?></td>
                         <td class="legacy-034">
                             <a href="print_ics.php?id=<?= $r['ics_id'] ?>" target="_blank" class="legacy-129">🖨 Print ICS PDF</a>
@@ -292,10 +302,10 @@ require_once __DIR__ . '/includes/header.php';
         <table class="legacy-128">
             <thead>
                 <tr class="legacy-032">
-                    <th class="legacy-033">PO Number</th>
-                    <th class="legacy-033">DR Number</th>
-                    <th class="legacy-033">Supplier</th>
-                    <th class="legacy-033">Date Received</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort PO Number: default order. Activate for ascending." title="Sort PO Number: default order" aria-pressed="false"><span class="tnts-sort-title">PO Number</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort DR Number: default order. Activate for ascending." title="Sort DR Number: default order" aria-pressed="false"><span class="tnts-sort-title">DR Number</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Supplier: default order. Activate for ascending." title="Sort Supplier: default order" aria-pressed="false"><span class="tnts-sort-title">Supplier</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Date Received: default order. Activate for ascending." title="Sort Date Received: default order" aria-pressed="false"><span class="tnts-sort-title">Date Received</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                     <th class="legacy-034">Action</th>
                 </tr>
             </thead>
@@ -354,10 +364,10 @@ require_once __DIR__ . '/includes/header.php';
         <table class="legacy-128">
             <thead>
                 <tr class="legacy-032">
-                    <th class="legacy-033">Form Number</th>
-                    <th class="legacy-033">Item Name</th>
-                    <th class="legacy-033">Qty</th>
-                    <th class="legacy-033">Status</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Form Number: default order. Activate for ascending." title="Sort Form Number: default order" aria-pressed="false"><span class="tnts-sort-title">Form Number</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Item Name: default order. Activate for ascending." title="Sort Item Name: default order" aria-pressed="false"><span class="tnts-sort-title">Item Name</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Qty: default order. Activate for ascending." title="Sort Qty: default order" aria-pressed="false"><span class="tnts-sort-title">Qty</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Status: default order. Activate for ascending." title="Sort Status: default order" aria-pressed="false"><span class="tnts-sort-title">Status</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                     <th class="legacy-034">Action</th>
                 </tr>
             </thead>
@@ -421,13 +431,13 @@ require_once __DIR__ . '/includes/header.php';
         <table class="legacy-133">
             <thead>
                 <tr class="legacy-032">
-                    <th class="legacy-033">Course / Elective</th>
-                    <th class="legacy-034">Active ICS</th>
-                    <th class="legacy-034">Total Units</th>
-                    <th class="legacy-134">Serviceable</th>
-                    <th class="legacy-135">For Repair</th>
-                    <th class="legacy-136">Damaged</th>
-                    <th class="legacy-137">Total Asset Value</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Course / Elective: default order. Activate for ascending." title="Sort Course / Elective: default order" aria-pressed="false"><span class="tnts-sort-title">Course / Elective</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-034"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Active ICS: default order. Activate for ascending." title="Sort Active ICS: default order" aria-pressed="false"><span class="tnts-sort-title">Active ICS</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-034"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Total Units: default order. Activate for ascending." title="Sort Total Units: default order" aria-pressed="false"><span class="tnts-sort-title">Total Units</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-134"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Serviceable: default order. Activate for ascending." title="Sort Serviceable: default order" aria-pressed="false"><span class="tnts-sort-title">Serviceable</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-135"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort For Repair: default order. Activate for ascending." title="Sort For Repair: default order" aria-pressed="false"><span class="tnts-sort-title">For Repair</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-136"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Damaged: default order. Activate for ascending." title="Sort Damaged: default order" aria-pressed="false"><span class="tnts-sort-title">Damaged</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-137"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Total Asset Value: default order. Activate for ascending." title="Sort Total Asset Value: default order" aria-pressed="false"><span class="tnts-sort-title">Total Asset Value</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                     <th class="legacy-034">Action</th>
                 </tr>
             </thead>
@@ -437,9 +447,11 @@ require_once __DIR__ . '/includes/header.php';
                 <?php else: 
                     $grand_units = 0;
                     $grand_value = 0;
+                    $grand_unpriced = 0;
                     foreach ($summary_records as $r): 
                         $grand_units += $r['total_units_issued'];
                         $grand_value += $r['total_monetary_value'];
+                        $grand_unpriced += (int)$r['unpriced_lines'];
                 ?>
                     <tr class="legacy-036">
                         <td class="legacy-138"><?= e($r['course_name']) ?></td>
@@ -448,7 +460,7 @@ require_once __DIR__ . '/includes/header.php';
                         <td class="legacy-140"><?= e($r['serviceable_units']) ?></td>
                         <td class="legacy-141"><?= e($r['repair_units']) ?></td>
                         <td class="legacy-142"><?= e($r['damaged_units']) ?></td>
-                        <td class="legacy-143">₱<?= number_format($r['total_monetary_value'], 2) ?></td>
+                        <td class="legacy-143">₱<?= number_format($r['total_monetary_value'], 2) ?><?= (int)$r['unpriced_lines'] ? ' (partial: ' . (int)$r['unpriced_lines'] . ' unpriced)' : '' ?></td>
                         <td class="legacy-034">
                             <a href="print_course_summary.php?course_id=<?= $r['course_id'] ?>" target="_blank" class="legacy-144">Print PDF</a>
                         </td>
@@ -459,7 +471,7 @@ require_once __DIR__ . '/includes/header.php';
                     <td class="legacy-033"></td>
                     <td class="legacy-146"><?= number_format($grand_units) ?> units</td>
                     <td colspan="3"></td>
-                    <td class="legacy-147">₱<?= number_format($grand_value, 2) ?></td>
+                    <td class="legacy-147">₱<?= number_format($grand_value, 2) ?><?= $grand_unpriced ? ' (partial: ' . $grand_unpriced . ' unpriced)' : '' ?></td>
                     <td></td>
                 </tr>
                 <?php endif; ?>

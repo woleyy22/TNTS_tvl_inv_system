@@ -12,58 +12,51 @@ if (!$user) {
 $role = $user['role'];
 $uid = (int)($user['user_id'] ?? $user['id']);
 
+$request_error = '';
 // 1. Handle Teacher Requesting Condemnation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_condemnation'])) {
     if ($role !== 'teacher') {
         die("Only teachers can request condemnation for their items.");
     }
 
-    $ics_item_id = (int)$_POST['ics_item_id'];
-    $quantity = (int)$_POST['quantity'];
-    $reason = trim($_POST['reason']);
-    $form_number = generate_document_number('condemnation');
-
-    if (!$ics_item_id || $quantity <= 0 || empty($reason)) {
-        die("All fields are required and quantity must be at least 1.");
-    }
-
-    // Verify item belongs to this teacher's active ICS and is marked damaged or for repair
-    $check = db()->prepare("
-        SELECT ii.qty_issued, ii.item_condition,
-               COALESCE((SELECT SUM(quantity) FROM condemnations WHERE ics_item_id = ii.ics_item_id AND status <> 'rejected'), 0) as already_condemned
-        FROM ics_items ii
-        JOIN ics c ON ii.ics_id = c.ics_id
-        WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active'
-    ");
-    $check->execute([$ics_item_id, $uid]);
-    $itemData = $check->fetch();
-
-    if (!$itemData) {
-        die("Invalid item selection or you are not the accountable holder.");
-    }
-
-    $max_condemnable = $itemData['qty_issued'] - $itemData['already_condemned'];
-    if ($quantity > $max_condemnable) {
-        die("Quantity exceeds available items ($max_condemnable available for condemnation request).");
-    }
-
-    db()->beginTransaction();
-    try {
-        $stmt = db()->prepare("
-            INSERT INTO condemnations (form_number, ics_item_id, quantity, reason, requested_by, status, outcome)
-            VALUES (?, ?, ?, ?, ?, 'requested', 'Pending Custodian Review')
-        ");
-        $stmt->execute([$form_number, $ics_item_id, $quantity, $reason, $uid]);
-
-        db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Requested Condemnation', 'Condemnation', ?, ?)")
-            ->execute([$uid, db()->lastInsertId(), "Requested condemnation for qty $quantity. Reason: $reason"]);
-
-        db()->commit();
-        header("Location: condemnation.php?requested=1");
-        exit;
-    } catch (Exception $e) {
-        db()->rollBack();
-        die("Error submitting request: " . $e->getMessage());
+    csrf_check();
+    $ics_item_id = (int)($_POST['ics_item_id'] ?? 0);
+    $raw_quantity = trim((string)($_POST['quantity'] ?? ''));
+    $quantity = filter_var($raw_quantity, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $reason = trim((string)($_POST['reason'] ?? ''));
+    if (!$ics_item_id || $quantity === false || $reason === '') {
+        $request_error = 'Select an accountable item, enter a positive whole-number quantity, and provide a reason.';
+    } else {
+        try {
+            db()->beginTransaction();
+            // Serialize requests for the same ICS item to prevent two simultaneous over-requests.
+            $check = db()->prepare("SELECT ii.qty_issued, ii.item_condition FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.ics_item_id=? AND c.teacher_id=? AND c.status='active' FOR UPDATE");
+            $check->execute([$ics_item_id, $uid]);
+            $row = $check->fetch(PDO::FETCH_ASSOC);
+            if (!$row) throw new RuntimeException('The selected item is no longer accountable to your active ICS.');
+            $sum = db()->prepare("SELECT COALESCE(SUM(quantity),0) FROM condemnations WHERE ics_item_id=? AND status <> 'rejected'");
+            $sum->execute([$ics_item_id]);
+            $remaining = (int)$row['qty_issued'] - (int)$sum->fetchColumn();
+            if ($quantity > $remaining) throw new RuntimeException("Quantity exceeds the available balance ($remaining remaining).");
+            $form_number = generate_document_number('condemnation');
+            db()->prepare("INSERT INTO condemnations (form_number, ics_item_id, quantity, reason, requested_by, status, outcome) VALUES (?, ?, ?, ?, ?, 'requested', NULL)")
+                ->execute([$form_number, $ics_item_id, $quantity, $reason, $uid]);
+            $new_id = (int)db()->lastInsertId();
+            // Mark precisely the requested quantity damaged in the condition ledger.
+            // Do not change the whole ICS line when only some units are affected.
+            db()->prepare("INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, date_reported, quantity_affected, condition_status) VALUES (?, ?, ?, 'Pending condemnation review', CURRENT_DATE(), ?, 'damaged')")
+                ->execute([$ics_item_id, $uid, 'Condemnation request #' . $new_id . ': ' . $reason, $quantity]);
+            if ($quantity === (int)$row['qty_issued'] && $remaining === (int)$row['qty_issued']) {
+                db()->prepare("UPDATE ics_items SET item_condition = 'damaged' WHERE ics_item_id = ?")->execute([$ics_item_id]);
+            }
+            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Requested Condemnation', 'Condemnation', ?, ?)")
+                ->execute([$uid, $new_id, "Requested condemnation for qty $quantity. Reason: $reason"]);
+            db()->commit();
+            header('Location: condemnation.php?requested=1'); exit;
+        } catch (Throwable $e) {
+            if (db()->inTransaction()) db()->rollBack();
+            $request_error = $e->getMessage();
+        }
     }
 }
 
@@ -96,9 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_condemnation']
             throw new Exception("This condemnation request has already been finalized ('{$existing['status']}') and cannot be modified.");
         }
 
-        $outcome = ($decision === 'approved') 
-            ? 'Approved for official disposal and inventory write-off' 
-            : 'Rejected by Property Custodian';
+        // Approval confirms physical disposal only after the custodian's explicit confirmation.
+        if ($decision === 'approved' && !isset($_POST['confirm_disposed'])) {
+            throw new RuntimeException('Confirm that these units were physically disposed before recording disposal.');
+        }
+        $outcome = $decision === 'approved' ? 'disposed' : null;
 
         $stmt = db()->prepare("
             UPDATE condemnations 
@@ -188,6 +183,7 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($request_error): ?><div class="legacy-181" role="alert" style="padding:12px;margin-bottom:12px;background:#ffe3e3;color:#900;border-radius:6px;"><?= e($request_error) ?></div><?php endif; ?>
 <div class="card legacy-030">
     <table class="legacy-031">
         <thead>
@@ -236,7 +232,7 @@ require_once __DIR__ . '/includes/header.php';
                                 <?php if ($con['status'] === 'requested'): ?>
                                     <form method="POST" class="legacy-211">
                                         <input type="hidden" name="condemnation_id" value="<?= $con['condemnation_id'] ?>">
-                                        <button type="submit" name="action_condemnation" value="approved" class="legacy-212">Approve</button>
+                                        <label><input type="checkbox" name="confirm_disposed" value="1"> I confirm these units have been physically disposed of</label><button type="submit" name="action_condemnation" value="approved" class="legacy-212">Approve</button>
                                         <button type="submit" name="action_condemnation" value="rejected" class="legacy-213">Reject</button>
                                     </form>
                                 <?php else: ?>
@@ -256,16 +252,17 @@ require_once __DIR__ . '/includes/header.php';
 <div id="condemnModal" class="legacy-042 modal-overlay" hidden>
     <div class="legacy-043">
         <h3 class="legacy-044">Request Item Condemnation</h3>
-        <form method="POST">
+        <form method="POST" id="condemn_request_form">
+            <?= csrf_field() ?>
             <div class="legacy-045">
                 <label class="legacy-046">Select Accountable Item *</label>
-                <select name="ics_item_id" required class="legacy-047">
+                <select name="ics_item_id" id="condemn_item" required class="legacy-047">
                     <option value="">-- Choose Damaged / Broken Item --</option>
                     <?php foreach ($my_items as $mi): 
                         $avail_condemn = $mi['qty_issued'] - $mi['condemned_qty'];
                         if ($avail_condemn > 0):
                     ?>
-                        <option value="<?= $mi['ics_item_id'] ?>">
+                        <option value="<?= $mi['ics_item_id'] ?>" data-max="<?= (int)$avail_condemn ?>" <?= (int)($_POST['ics_item_id'] ?? 0) === (int)$mi['ics_item_id'] ? 'selected' : '' ?>>
                             <?= e($mi['item_name']) ?> (ICS: <?= e($mi['ics_number']) ?>) - Available: <?= $avail_condemn ?> <?= e($mi['unit']) ?> [<?= e($mi['item_condition']) ?>]
                         </option>
                     <?php endif; endforeach; ?>
@@ -275,7 +272,8 @@ require_once __DIR__ . '/includes/header.php';
             <div class="legacy-048">
                 <div class="legacy-049">
                     <label class="legacy-046">Quantity *</label>
-                    <input type="number" name="quantity" min="1" value="1" required class="legacy-047">
+                    <input type="number" name="quantity" id="condemn_qty" min="1" step="1" value="<?= e($_POST['quantity'] ?? '1') ?>" required class="legacy-047">
+                    <small id="condemn_qty_hint" style="display:block;margin-top:4px;">Select an eligible item to see the maximum quantity.</small>
                 </div>
                 <div class="legacy-049">
                     <label class="legacy-046">Form Number (Opt.)</label>
@@ -285,7 +283,7 @@ require_once __DIR__ . '/includes/header.php';
 
             <div class="legacy-050">
                 <label class="legacy-046">Reason for Condemnation / Disposal *</label>
-                <textarea name="reason" rows="3" required placeholder="Describe why this equipment is beyond repair..." class="legacy-047"></textarea>
+                <textarea name="reason" rows="3" required placeholder="Describe why this equipment is beyond repair..." class="legacy-047"><?= e($_POST['reason'] ?? '') ?></textarea>
             </div>
 
             <div class="legacy-051">
@@ -297,6 +295,30 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <script>
+const condemItem = document.getElementById('condemn_item');
+const condemQty = document.getElementById('condemn_qty');
+const condemHint = document.getElementById('condemn_qty_hint');
+function updateCondemnLimit() {
+ const max = Number(condemItem.selectedOptions[0]?.dataset.max || 0);
+ condemQty.max = max ? String(max) : '';
+ condemHint.textContent = max ? `Maximum available for this request: ${max}` : 'Select an eligible item first.';
+ if (max && Number(condemQty.value) > max) condemQty.value = String(max);
+}
+condemItem.addEventListener('change', updateCondemnLimit);
+document.getElementById('condemn_request_form').addEventListener('submit', event => {
+ const max = Number(condemItem.selectedOptions[0]?.dataset.max || 0);
+ const qty = Number(condemQty.value);
+ if (!max || !Number.isInteger(qty) || qty < 1 || qty > max) {
+  event.preventDefault();
+  condemHint.style.color = '#b91c1c';
+  condemHint.textContent = `Enter a whole number between 1 and ${max}.`;
+  condemQty.focus();
+ }
+});
+updateCondemnLimit();
+<?php if ($request_error): ?>
+document.addEventListener('DOMContentLoaded', () => openCondemnModal());
+<?php endif; ?>
 function openCondemnModal() {
     TNTSUI.open('condemnModal');
 }
