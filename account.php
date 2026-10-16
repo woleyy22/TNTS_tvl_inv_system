@@ -92,6 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $profileErrors[] = 'The form could not be submitted. Refresh the page and try again.';
     }
 }
+$assignedCourses = [];
+if ($profile['role'] === 'teacher') {
+    $courseStmt = db()->prepare('SELECT c.course_name FROM teacher_courses tc JOIN courses c ON c.course_id = tc.course_id WHERE tc.user_id = ? ORDER BY c.course_name');
+    $courseStmt->execute([$uid]);
+    $assignedCourses = $courseStmt->fetchAll(PDO::FETCH_COLUMN);
+}
 $age = profile_age($values['birthday']);
 require __DIR__ . '/includes/header.php';
 ?>
@@ -102,6 +108,14 @@ require __DIR__ . '/includes/header.php';
         <h2><?= e(profile_display_name($profile)) ?></h2>
         <span class="pill gray"><?= e(role_label($profile['role'])) ?></span>
         <p class="profile-email"><?= e($profile['email']) ?></p>
+        <?php if ($profile['role'] === 'teacher'): ?>
+          <div class="account-specialization" aria-label="Assigned courses and specializations">
+            <strong>Assigned Course / Specialization</strong>
+            <?php if ($assignedCourses): ?>
+              <ul><?php foreach ($assignedCourses as $courseName): ?><li><?= e($courseName) ?></li><?php endforeach; ?></ul>
+            <?php else: ?><p>No course assigned yet. Contact the Supply Officer.</p><?php endif; ?>
+          </div>
+        <?php endif; ?>
         <dl class="profile-facts"><dt>Account created</dt><dd><?= e(date('M d, Y', strtotime($profile['created_at']))) ?></dd><dt>Age</dt><dd><?= $age === null ? 'Add your birthday' : e($age) . ' years old' ?></dd></dl>
         <p class="field-help">Personal details are optional. You can update or clear them whenever you need.</p>
     </aside>

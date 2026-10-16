@@ -27,7 +27,7 @@ $search_query    = trim($_GET['search'] ?? '');
 if ($role === 'teacher') {
     // Teachers see only their assigned items with dynamic condition breakdowns
     $stmt = db()->prepare("
-        SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, c.ics_number, c.date_issued, cr.course_name,
+        SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, i.item_type, c.ics_number, c.date_issued, cr.course_name,
                u.full_name as teacher_name,
                COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) as repair_qty,
                COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) as damaged_qty,
@@ -37,7 +37,7 @@ if ($role === 'teacher') {
         JOIN users u ON c.teacher_id = u.user_id
         JOIN inventory_items i ON ii.item_id = i.item_id
         JOIN courses cr ON c.course_id = cr.course_id
-        WHERE c.teacher_id = ? AND c.status = 'active'
+        WHERE c.teacher_id = ? AND c.status = 'active' AND u.status = 'active'
         ORDER BY c.date_issued DESC
     ");
     $stmt->execute([$active_user_id]);
@@ -55,7 +55,7 @@ if ($role === 'teacher') {
 
     if ($view_mode === 'issued') {
         // Query for Items Issued to Teachers
-        $whereClauses[] = "c.status = 'active'";
+        $whereClauses[] = "c.status = 'active' AND u.status = 'active'";
 
         if (!empty($filter_course)) {
             $whereClauses[] = "c.course_id = ?";
@@ -82,7 +82,7 @@ if ($role === 'teacher') {
         $whereSql = "WHERE " . implode(" AND ", $whereClauses);
 
         $sql = "
-            SELECT ii.*, i.item_name, i.description, i.unit, c.ics_number, c.date_issued, 
+            SELECT ii.*, i.item_name, i.description, i.unit, i.item_type, c.ics_number, c.date_issued, 
                    u.full_name as teacher_name, cr.course_name,
                    COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) as repair_qty,
                    COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) as damaged_qty,
@@ -102,23 +102,23 @@ if ($role === 'teacher') {
     } else {
         // Central Inventory Overview Query
         if (!empty($filter_po)) {
-            $whereClauses[] = "d.po_number = ?";
+            $whereClauses[] = "EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.po_number=?)";
             $params[] = $filter_po;
         }
         if (!empty($filter_dr)) {
-            $whereClauses[] = "d.dr_number = ?";
+            $whereClauses[] = "EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.dr_number=?)";
             $params[] = $filter_dr;
         }
         if (!empty($filter_supplier)) {
-            $whereClauses[] = "d.supplier_name = ?";
+            $whereClauses[] = "EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.supplier_name=?)";
             $params[] = $filter_supplier;
         }
         if (!empty($filter_date_from)) {
-            $whereClauses[] = "d.date_received >= ?";
+            $whereClauses[] = "EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.date_received>=?)";
             $params[] = $filter_date_from;
         }
         if (!empty($filter_date_to)) {
-            $whereClauses[] = "d.date_received <= ?";
+            $whereClauses[] = "EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.date_received<=?)";
             $params[] = $filter_date_to;
         }
         if (!empty($search_query)) {
@@ -130,14 +130,13 @@ if ($role === 'teacher') {
         $whereSql = !empty($whereClauses) ? "WHERE " . implode(" AND ", $whereClauses) : "";
 
         $sql = "
-            SELECT i.*, d.po_number, d.dr_number, d.supplier_name, d.date_received,
-                   COALESCE((SELECT SUM(qty_issued) FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) as total_issued,
+            SELECT i.*, (SELECT COUNT(*) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id) AS batch_count,
+                   (SELECT MAX(d.date_received) FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id) AS date_received,
+                   COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) - COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='active' AND co.status='approved' AND co.outcome='disposed'),0) as total_issued,
                    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii ON r.ics_item_id = ii.ics_item_id JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active' AND r.condition_status = 'for_repair'), 0) as total_repair,
                    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii ON r.ics_item_id = ii.ics_item_id JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active' AND r.condition_status = 'damaged'), 0) as total_damaged,
-                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON co.ics_item_id = ii.ics_item_id JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active' AND co.status = 'approved'), 0) as total_condemned
+                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON co.ics_item_id = ii.ics_item_id JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND co.status = 'approved' AND co.outcome = 'disposed'), 0) as total_condemned
             FROM inventory_items i
-            LEFT JOIN delivery_items di ON i.delivery_item_id = di.delivery_item_id
-            LEFT JOIN deliveries d ON di.delivery_id = d.delivery_id
             $whereSql
             ORDER BY i.item_name ASC
         ";
@@ -246,32 +245,34 @@ require_once __DIR__ . '/includes/header.php';
 <?php endif; ?>
 
 <div class="card legacy-030">
-    <table class="legacy-085">
+    <table class="legacy-085 js-sortable-table">
         <thead>
             <tr class="legacy-086">
                 <?php if ($role === 'teacher' || $view_mode === 'issued'): ?>
-                    <th class="legacy-033">ICS Number / Course</th>
-                    <th class="legacy-033">Accountable Teacher</th>
-                    <th class="legacy-033">Item Details</th>
-                    <th class="legacy-033">Total Issued</th>
-                    <th class="legacy-087">Serviceable</th>
-                    <th class="legacy-088">For Repair</th>
-                    <th class="legacy-089">Damaged / Disposed</th>
-                    <th class="legacy-033">Date Issued</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort ICS Number / Course: default order. Activate for ascending." title="Sort ICS Number / Course: default order" aria-pressed="false"><span class="tnts-sort-title">ICS Number / Course</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Accountable Teacher: default order. Activate for ascending." title="Sort Accountable Teacher: default order" aria-pressed="false"><span class="tnts-sort-title">Accountable Teacher</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Item Details: default order. Activate for ascending." title="Sort Item Details: default order" aria-pressed="false"><span class="tnts-sort-title">Item Details</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Type: default order. Activate for ascending." title="Sort Type: default order" aria-pressed="false"><span class="tnts-sort-title">Type</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Total Issued: default order. Activate for ascending." title="Sort Total Issued: default order" aria-pressed="false"><span class="tnts-sort-title">Total Issued</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-087"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Serviceable: default order. Activate for ascending." title="Sort Serviceable: default order" aria-pressed="false"><span class="tnts-sort-title">Serviceable</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-088"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort For Repair: default order. Activate for ascending." title="Sort For Repair: default order" aria-pressed="false"><span class="tnts-sort-title">For Repair</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-089"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Damaged / Disposed: default order. Activate for ascending." title="Sort Damaged / Disposed: default order" aria-pressed="false"><span class="tnts-sort-title">Damaged / Disposed</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Date Issued: default order. Activate for ascending." title="Sort Date Issued: default order" aria-pressed="false"><span class="tnts-sort-title">Date Issued</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                 <?php else: ?>
-                    <th class="legacy-033">Item Details & Reference</th>
-                    <th class="legacy-033">Total Accepted</th>
-                    <th class="legacy-087">Serviceable</th>
-                    <th class="legacy-088">For Repair</th>
-                    <th class="legacy-089">Damaged / Condemned</th>
-                    <th class="legacy-090">Unissued Stock</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Item Details &amp; Reference: default order. Activate for ascending." title="Sort Item Details &amp; Reference: default order" aria-pressed="false"><span class="tnts-sort-title">Item Details & Reference</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Type: default order. Activate for ascending." title="Sort Type: default order" aria-pressed="false"><span class="tnts-sort-title">Type</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Total Accepted: default order. Activate for ascending." title="Sort Total Accepted: default order" aria-pressed="false"><span class="tnts-sort-title">Total Accepted</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-087"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Serviceable: default order. Activate for ascending." title="Sort Serviceable: default order" aria-pressed="false"><span class="tnts-sort-title">Serviceable</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-088"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort For Repair: default order. Activate for ascending." title="Sort For Repair: default order" aria-pressed="false"><span class="tnts-sort-title">For Repair</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-089"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Damaged / Condemned: default order. Activate for ascending." title="Sort Damaged / Condemned: default order" aria-pressed="false"><span class="tnts-sort-title">Damaged / Condemned</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-090"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Unissued Stock: default order. Activate for ascending." title="Sort Unissued Stock: default order" aria-pressed="false"><span class="tnts-sort-title">Unissued Stock</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                 <?php endif; ?>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($inventory)): ?>
                 <tr>
-                    <td colspan="8" class="legacy-035">No inventory records found matching your filters.</td>
+                    <td colspan="9" class="legacy-035">No inventory records found matching your filters.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($inventory as $item): ?>
@@ -288,6 +289,7 @@ require_once __DIR__ . '/includes/header.php';
                                 <strong><?= e($item['item_name']) ?></strong><br>
                                 <small class="legacy-037"><?= e($item['description']) ?></small>
                             </td>
+                            <td><span class="item-type-badge item-type-<?= e($item['item_type']) ?>"><?= $item['item_type'] === 'supply' ? 'Supply' : 'Equipment' ?></span></td>
                             <td class="legacy-091"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td>
                             <td class="legacy-092"><?= $serviceable_qty ?></td>
                             <td class="legacy-093"><?= e($item['repair_qty']) ?></td>
@@ -303,15 +305,17 @@ require_once __DIR__ . '/includes/header.php';
                             $repair_issued = $item['total_repair'];
                             $damaged_issued = $item['total_damaged'];
                             $serviceable_issued = max(0, $total_issued - $repair_issued - $damaged_issued);
-                            $unissued = max(0, $item['quantity'] - $total_issued);
+                            $unissued = max(0, $item['quantity'] - $total_issued - $item['total_condemned']);
                         ?>
                             <td class="legacy-033">
                                 <strong><?= e($item['item_name']) ?></strong><br>
                                 <small class="legacy-037"><?= e($item['description']) ?></small><br>
                                 <small class="legacy-095">
-                                    Arrived: <?= e($item['date_received'] ?? 'N/A') ?> | PO: <?= e($item['po_number'] ?? 'N/A') ?> | DR: <?= e($item['dr_number'] ?? 'N/A') ?> | Supplier: <?= e($item['supplier_name'] ?? 'N/A') ?>
+                                    Latest arrival: <?= e($item['date_received'] ?? 'N/A') ?> | <?= (int)$item['batch_count'] ?> delivery batch(es)
+                                    | <a href="<?= e(url('inventory_batches.php?item_id=' . (int)$item['item_id'])) ?>">View delivery breakdown</a>
                                 </small>
                             </td>
+                            <td><span class="item-type-badge item-type-<?= e($item['item_type']) ?>"><?= $item['item_type'] === 'supply' ? 'Supply' : 'Equipment' ?></span></td>
                             <td class="legacy-091"><?= e($item['quantity']) ?> <?= e($item['unit']) ?></td>
                             <td class="legacy-092"><?= $serviceable_issued ?></td>
                             <td class="legacy-093"><?= $repair_issued ?></td>

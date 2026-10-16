@@ -104,7 +104,7 @@ if (!$record) {
                             <br><small><?= e($record['description']) ?></small>
                         <?php endif; ?>
                     </td>
-                    <td class="legacy-024">₱<?= number_format($record['unit_cost'], 2) ?></td>
+                    <td class="legacy-024"><?= e(display_unit_cost($record['unit_cost'])) ?></td>
                     <td class="legacy-025">
                         <?= e($record['reason']) ?>
                     </td>

@@ -68,14 +68,14 @@ require_once __DIR__ . '/includes/header.php';
 
 <?php if ($action === 'list'): ?>
     <div class="card legacy-054">
-        <table class="legacy-031">
+        <table class="legacy-031 js-sortable-table">
             <thead>
                 <tr class="legacy-055">
-                    <th class="legacy-033">ID</th>
-                    <th class="legacy-033">Supplier</th>
-                    <th class="legacy-033">Date Received</th>
-                    <th class="legacy-033">PO / DR #</th>
-                    <th class="legacy-033">Status</th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Record No.: default order. Activate for ascending." title="Sort Record No.: default order" aria-pressed="false"><span class="tnts-sort-title">Record No.</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Supplier: default order. Activate for ascending." title="Sort Supplier: default order" aria-pressed="false"><span class="tnts-sort-title">Supplier</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Date Received: default order. Activate for ascending." title="Sort Date Received: default order" aria-pressed="false"><span class="tnts-sort-title">Date Received</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort PO / DR #: default order. Activate for ascending." title="Sort PO / DR #: default order" aria-pressed="false"><span class="tnts-sort-title">PO / DR #</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
+                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Status: default order. Activate for ascending." title="Sort Status: default order" aria-pressed="false"><span class="tnts-sort-title">Status</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
                     <th class="legacy-033">Action</th>
                 </tr>
             </thead>
@@ -95,9 +95,9 @@ require_once __DIR__ . '/includes/header.php';
                         <td colspan="6" class="legacy-035">No deliveries logged yet.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($deliveries as $d): ?>
+                    <?php foreach ($deliveries as $rowIndex => $d): ?>
                         <tr class="legacy-036">
-                            <td class="legacy-033">#<?= e($d['delivery_id']) ?></td>
+                            <td class="legacy-033"><?= e(sprintf('REC-%03d', $rowIndex + 1)) ?></td>
                             <td class="legacy-033"><strong><?= e($d['supplier_name']) ?></strong></td>
                             <td class="legacy-033"><?= e(date('M d, Y', strtotime($d['date_received']))) ?></td>
                             <td class="legacy-033">

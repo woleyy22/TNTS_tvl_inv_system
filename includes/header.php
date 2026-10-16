@@ -61,7 +61,7 @@ $menuGroups = [
                     <?php endforeach; ?>
                     <?php continue; ?>
                 <?php endif; ?>
-                <details class="nav-group<?= $groupActive ? ' has-active' : '' ?>"" data-nav-group="<?= e($groupKey) ?>" <?= $groupActive || $groupKey === 'stock' ? 'open' : '' ?>>
+                <details class="nav-group<?= $groupActive ? ' has-active' : '' ?>" data-nav-group="<?= e($groupKey) ?>" <?= $groupActive || $groupKey === 'stock' ? 'open' : '' ?>>
                     <summary class="nav-group-toggle" title="<?= e($group[0]) ?>">
                         <?= icon($group[1]) ?><span class="nav-group-label"><?= e($group[0]) ?></span><span class="nav-chevron" aria-hidden="true">⌄</span>
                     </summary>

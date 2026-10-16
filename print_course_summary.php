@@ -45,7 +45,7 @@ $items = db()->query($sql)->fetchAll();
     <title>TVL Course Inventory Summary Report</title>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
 </head>
-<body onload="window.print()">
+<body class="print-course-report" onload="window.print()">
 <div class="print-brand no-print"><?= school_logo() ?><span>Tanza National Trade School · TVL / TechPro</span></div>
 
     <div class="no-print legacy-097">
@@ -55,7 +55,7 @@ $items = db()->query($sql)->fetchAll();
 
     <div class="container">
         <!-- Official DepEd Header -->
-        <div class="header">
+        <div class="header official-report-header">
             <h5>Republic of the Philippines</h5>
             <h4>DEPARTMENT OF EDUCATION</h4>
             <h4>Region IV-A CALABARZON — Division of Cavite</h4>
@@ -63,7 +63,7 @@ $items = db()->query($sql)->fetchAll();
             <p>Centennial II, Tanza, Cavite</p>
         </div>
 
-        <div class="title-block">
+        <div class="title-block official-report-title">
             TVL / TECHPRO COURSE INVENTORY & PROPERTY SUMMARY REPORT
         </div>
 
@@ -75,7 +75,7 @@ $items = db()->query($sql)->fetchAll();
         </table>
 
         <!-- Summary Table -->
-        <table class="summary-table">
+        <table class="summary-table official-report-table">
             <thead>
                 <tr>
                     <th class="legacy-098">Course</th>
@@ -101,16 +101,19 @@ $items = db()->query($sql)->fetchAll();
                     $total_rep = 0;
                     $total_dmg = 0;
                     $grand_value = 0;
+                    $missing_cost_count = 0;
 
                     foreach ($items as $item):
                         $serviceable = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty'] - $item['approved_condemned']);
-                        $line_total = $item['qty_issued'] * $item['unit_cost'];
+                        $missing_cost = $item['unit_cost'] === null;
+                        $line_total = $missing_cost ? null : $item['qty_issued'] * (float)$item['unit_cost'];
+                        if ($missing_cost) $missing_cost_count++;
 
                         $total_qty += $item['qty_issued'];
                         $total_serv += $serviceable;
                         $total_rep += $item['repair_qty'];
                         $total_dmg += ($item['damaged_qty'] + $item['approved_condemned']);
-                        $grand_value += $line_total;
+                        $grand_value += $line_total ?? 0;
                 ?>
                     <tr>
                         <td><strong><?= e($item['course_name']) ?></strong></td>
@@ -126,8 +129,8 @@ $items = db()->query($sql)->fetchAll();
                         <td class="legacy-107"><?= $serviceable ?></td>
                         <td class="legacy-107"><?= e($item['repair_qty']) ?></td>
                         <td class="legacy-107"><?= e($item['damaged_qty'] + $item['approved_condemned']) ?></td>
-                        <td class="legacy-024">₱<?= number_format($item['unit_cost'], 2) ?></td>
-                        <td class="legacy-108">₱<?= number_format($line_total, 2) ?></td>
+                        <td class="legacy-024"><?= e(display_unit_cost($item['unit_cost'])) ?></td>
+                        <td class="legacy-108"><?= e(display_line_cost($item['unit_cost'], $item['qty_issued'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <!-- Total Row -->
@@ -138,14 +141,14 @@ $items = db()->query($sql)->fetchAll();
                     <td class="legacy-013"><?= number_format($total_rep) ?></td>
                     <td class="legacy-013"><?= number_format($total_dmg) ?></td>
                     <td></td>
-                    <td class="legacy-110">₱<?= number_format($grand_value, 2) ?></td>
+                    <td class="legacy-110">₱<?= number_format($grand_value, 2) ?><?= $missing_cost_count ? ' (partial — ' . $missing_cost_count . ' unpriced line(s))' : '' ?></td>
                 </tr>
                 <?php endif; ?>
             </tbody>
         </table>
 
         <!-- Signatories Footer -->
-        <table class="sign-table">
+        <table class="sign-table official-report-signatures">
             <tr>
                 <td>
                     Prepared & Certified Correct by:

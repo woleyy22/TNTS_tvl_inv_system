@@ -17,16 +17,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = isset($_POST['action']) ? $_POST['action'] : '';
 
-    // activate / deactivate
+    // Prevent deactivation until all accountable ICS slips have been resolved.
     if ($action === 'toggle') {
-        $id = (int)(isset($_POST['id']) ? $_POST['id'] : 0);
+        $id = (int)($_POST['id'] ?? 0);
         if ($id === $myId) {
             flash('error', 'You cannot deactivate your own account.');
         } else {
-            $st = $pdo->prepare("UPDATE users SET status = IF(status = 'active', 'inactive', 'active') WHERE user_id = ?");
-            $st->execute([$id]);
-            log_action($myId, 'change status', 'Accounts', $id, null);
-            flash('success', 'Account status updated.');
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT role, status FROM users WHERE user_id = ? FOR UPDATE');
+                $st->execute([$id]);
+                $target = $st->fetch();
+                if (!$target) { throw new RuntimeException('Account not found.'); }
+                if ($target['status'] === 'active' && $target['role'] === 'teacher') {
+                    $st = $pdo->prepare("SELECT COUNT(*) FROM ics WHERE teacher_id = ? AND status = 'active'");
+                    $st->execute([$id]);
+                    $outstanding = (int)$st->fetchColumn();
+                    if ($outstanding > 0) {
+                        throw new RuntimeException("Cannot deactivate: {$outstanding} active ICS document(s) remain. Transfer or return the accountable items first.");
+                    }
+                }
+                $next = $target['status'] === 'active' ? 'inactive' : 'active';
+                $st = $pdo->prepare('UPDATE users SET status = ? WHERE user_id = ?');
+                $st->execute([$next, $id]);
+                log_action($myId, 'change status', 'Accounts', $id, 'Changed to ' . $next);
+                $pdo->commit();
+                flash('success', 'Account status updated.');
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) { $pdo->rollBack(); }
+                flash('error', $e->getMessage());
+            }
         }
         redirect('accounts.php');
     }
@@ -52,6 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st = $pdo->prepare('SELECT user_id FROM users WHERE email = ? AND user_id <> ?');
         $st->execute([$email, $id]);
         if ($st->fetch()) { $errors[] = 'That email address is already used by another account.'; }
+        if ($id > 0 && $role !== 'teacher') {
+            $check = $pdo->prepare("SELECT COUNT(*) FROM ics WHERE teacher_id = ? AND status = 'active'");
+            $check->execute([$id]);
+            if ((int)$check->fetchColumn() > 0) {
+                $errors[] = 'Resolve all active ICS documents before changing this teacher to another role.';
+            }
+        }
+
 
         if (!$errors) {
             if ($id === 0) {
@@ -131,7 +159,8 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="page-head">
     <h1>Account Management</h1>
-    <p>Create accounts, assign roles and courses, and activate or deactivate users.</p>
+    <p><a class="btn btn-outline" href="<?= e(url('ics_returns.php')) ?>">Receive returned ICS items</a> &nbsp; <a class="btn btn-outline" href="<?= e(url('transfers.php')) ?>">Transfer ICS to another teacher</a></p>
+    <p>Create accounts and manage teachers. Teachers with active ICS records cannot be deactivated until their accountability is resolved through transfers or documented returns.</p>
 </div>
 
 <div class="stats">
@@ -170,6 +199,9 @@ include __DIR__ . '/includes/header.php';
             <div class="field">
                 <label for="password"><?= $form['id'] > 0 ? 'New password (leave blank to keep)' : 'Password (at least 8 characters)' ?></label>
                 <input class="input" type="password" id="password" name="password" <?= $form['id'] > 0 ? '' : 'required' ?>>
+                <label class="password-visibility-option" for="show-account-password">
+                    <input type="checkbox" id="show-account-password" data-toggle-password="password"> Show password
+                </label>
             </div>
         </div>
 

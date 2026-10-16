@@ -37,10 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
     
     $item_name = trim($_POST['item_name']);
     $description = trim($_POST['description']);
-    $unit = trim($_POST['unit']);
+    $unit_id = filter_var($_POST['unit_id'] ?? null, FILTER_VALIDATE_INT);
+    $unit_stmt = db()->prepare('SELECT unit_name FROM units WHERE unit_id = ? AND is_active = 1');
+    $unit_stmt->execute([$unit_id ?: 0]);
+    $unit = $unit_stmt->fetchColumn();
+    if (!$unit) { http_response_code(422); die('Please choose an active unit from the approved list.'); }
     $qty_delivered = (int)$_POST['qty_delivered'];
-    $unit_cost = (float)$_POST['unit_cost'];
-    
+    $cost_input = trim((string)($_POST['unit_cost'] ?? ''));
+    if ($cost_input !== '' && (!is_numeric($cost_input) || (float)$cost_input < 0)) {
+        die('Invalid unit cost. Leave it blank or enter a non-negative number.');
+    }
+    $unit_cost = ($cost_input === '') ? null : (float)$cost_input;
     if ($item_name && $qty_delivered > 0) {
         $stmt = db()->prepare("
             INSERT INTO delivery_items 
@@ -87,6 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_attachment']))
         }
     }
 }
+// Centralized, Supply Officer-managed units (the dropdown is never trusted without POST validation).
+$approved_units = db()->query('SELECT unit_id, unit_name FROM units WHERE is_active = 1 ORDER BY sort_order, unit_name')->fetchAll();
+
 // Fetch Items for this delivery
 $stmt = db()->prepare("SELECT * FROM delivery_items WHERE delivery_id = ?");
 $stmt->execute([$delivery_id]);
@@ -105,6 +115,7 @@ require_once __DIR__ . '/includes/header.php';
 <div class="content-header legacy-026">
     <h2>Delivery #<?= e($delivery_id) ?> - <?= e($delivery['supplier_name']) ?></h2>
     <a href="receiving.php" class="legacy-155">&larr; Back to List</a>
+    <a class="btn btn-outline" href="units.php">Want to change measurement units?</a>
 </div>
 
 <div class="legacy-156">
@@ -127,11 +138,16 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="legacy-162">
                         <input type="text" name="item_name" placeholder="Item Name *" required class="legacy-163">
                         <input type="text" name="description" placeholder="Description / Specs" class="legacy-163">
-                        <input type="text" name="unit" placeholder="Unit (e.g. pcs, set) *" required class="legacy-164">
+                        <select name="unit_id" required class="legacy-164" aria-label="Unit of measurement">
+                            <option value="">Select Unit *</option>
+                            <?php foreach ($approved_units as $approved_unit): ?>
+                                <option value="<?= (int)$approved_unit['unit_id'] ?>"><?= e($approved_unit['unit_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="legacy-061">
                         <input type="number" name="qty_delivered" placeholder="Qty Delivered *" required min="1" class="legacy-164">
-                        <input type="number" step="0.01" name="unit_cost" placeholder="Unit Cost" required min="0" class="legacy-164">
+                        <input type="number" step="0.01" name="unit_cost" placeholder="Unit Cost (optional)" min="0" class="legacy-164">
                         <button type="submit" name="add_item" class="legacy-165">Add Item</button>
                     </div>
                 </form>
@@ -159,7 +175,7 @@ require_once __DIR__ . '/includes/header.php';
                             <td class="legacy-169 <?= $item['qty_accepted'] > 0 ? 'text-success' : 'muted' ?>">
                                 <?= e($item['qty_accepted']) ?>
                             </td>
-                            <td class="legacy-166">₱<?= e(number_format($item['unit_cost'], 2)) ?></td>
+                            <td class="legacy-166"><?= e(display_unit_cost($item['unit_cost'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
