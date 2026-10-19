@@ -17,6 +17,7 @@ if ($user['role'] === 'teacher') {
 }
 
 $action = $_GET['action'] ?? 'list';
+if ($user['role'] === 'tvl_head' && $action !== 'list') { http_response_code(403); exit('TVL Head access is view-only.'); }
 
 // Process new delivery form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {

@@ -1086,7 +1086,7 @@ body.desktop-workspace{min-width:1024px;overflow-x:auto}
 
 /* Optional login photo: put your image at assets/images/login-background.jpg.
    Change the opacity values in these gradients to make the image more/less visible. */
-body.login-page{min-width:1024px;min-height:100dvh;padding:48px 6vw;gap:clamp(40px,6vw,100px);background-color:#40162b;background-image:linear-gradient(145deg,rgba(249, 250, 250, 0.3),rgba(82, 0, 34, 0.582)),radial-gradient(ellipse at 20% 20%,rgba(170,73,102,.5),transparent 70%),url('../images/login-background.jfif');background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed}
+body.login-page{min-width:1024px;min-height:100dvh;padding:48px 6vw;gap:clamp(40px,6vw,100px);background-color:#40162b;background-image:linear-gradient(145deg,rgba(249, 250, 250, 0.3),rgba(82, 0, 34, 0.582)),radial-gradient(ellipse at 20% 20%,rgba(170,73,102,.5),transparent 70%),url('../images/login-background.png');background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed}
 .login-page .login-intro{display:block;flex:1;max-width:460px}.login-page .login-card{flex-shrink:0;width:420px;max-width:420px;padding:38px;border:1px solid #ffffff55;background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}
 
 /* Guided maintenance and lending dialogs. */
@@ -1227,3 +1227,99 @@ body.print-course-report > .container { max-width:277mm; padding:12mm; margin:0 
 }
 .app-page .nav-group:not(.is-pinned) > .nav-group-toggle {border:1px solid transparent;}
 .app-page .nav-group.is-pinned > .nav-group-toggle:hover {background:rgba(255,255,255,.10);}
+
+/* Phase 4.2.1: registration visual refinements */
+body.r42-page-body{margin:0;min-width:0;background:#40162b;}
+body.r42-page-body .r42-page{min-height:100dvh;min-width:0;background-color:#40162b;background-image:linear-gradient(145deg,rgba(249,250,250,.3),rgba(82,0,34,.58)),radial-gradient(ellipse at 20% 20%,rgba(170,73,102,.5),transparent 70%),url('../images/login-background.png');background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed;}
+body.r42-page-body .r42-card{background:rgba(255,255,255,.97);backdrop-filter:blur(12px);}
+/* Interactive transition runs only when Register is clicked; standard navigation is intact. */
+body.login-page::before{content:'';position:fixed;inset:-15px;z-index:0;background-image:linear-gradient(145deg,rgba(249, 250, 250, 0.3),rgba(82, 0, 34, 0.582)),radial-gradient(ellipse at 20% 20%,rgba(170,73,102,.5),transparent 70%),url('../images/login-background.png');background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed;background-color:#40162b;pointer-events:none;opacity:0;filter:blur(6px);transition:opacity 750ms ease;}
+.login-page.p421-transitioning::before{opacity:1;}
+.login-page .login-intro{position:relative;z-index:1;}
+.login-page .login-card{position:relative;z-index:2;}
+.login-page.p421-transitioning .login-card{animation:p421-expand 850ms cubic-bezier(.22,1,.36,1) both;pointer-events:none;filter:blur(4px);}
+.login-page.p421-transitioning .login-intro{animation:p421-fade 450ms ease both;}
+.p421-loading{position:fixed;inset:0;z-index:10;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity 240ms ease;}
+.p421-loading-inner{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.98);box-shadow:0 12px 45px #0003;padding:15px 22px;border-radius:100px;font-weight:650;color:#75182e;}
+.p421-spinner{display:block;width:20px;height:20px;border:3px solid #dfc7ce;border-top-color:#851632;border-radius:50%;animation:p421-spin .75s linear infinite;}
+.login-page.p421-loading-active .p421-loading{opacity:1;}
+@keyframes p421-expand{from{transform:translateX(0) scale(1);width:420px;filter:blur(0);}to{transform:translateX(-14vw) scale(1.04);width:min(630px,80vw);filter:blur(4px);}}
+@keyframes p421-fade{to{opacity:0;transform:translateX(-25px)}}
+@keyframes p421-spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){@keyframes p421-expand{from{transform:scale(1);filter:blur(0);}to{transform:scale(1.04);filter:blur(4px);}}}
+@media(prefers-reduced-motion:reduce){.login-page::before{display:none!important;}.login-page.p421-transitioning .login-card,.login-page.p421-transitioning .login-intro{animation:none;filter:none!important;}.p421-loading,.p421-spinner{transition:none;animation:none}}
+
+
+/* Phase 4.3.3 login layout refinement — preserve original side-by-side page. */
+body.login-page{display:flex;justify-content:space-between;align-items:center;min-width:0;min-height:100dvh;padding:clamp(24px,4vw,58px) clamp(26px,7vw,120px);gap:clamp(35px,6vw,100px);}
+body.login-page .login-intro{display:block;flex:1 1 440px;max-width:510px;min-width:0;text-shadow:0 2px 10px rgba(23,6,16,.18);}
+body.login-page .login-intro h2{font-size:clamp(35px,4vw,52px);line-height:1.12;color:#fff;}
+body.login-page .login-intro p{color:#fff2f6;max-width:470px;}
+body.login-page .login-intro .login-feature{color:#fff5f7;}
+body.login-page .login-card{flex:0 0 420px;width:420px;max-width:420px;position:relative;overflow:hidden;padding:38px;border:1px solid rgba(255,255,255,.65);border-radius:22px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);box-shadow:0 24px 80px rgba(28,0,27,.25);}
+body.login-page .login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:7px;background:linear-gradient(90deg,#61132f,#a73b61);}
+body.login-page .login-logo .school-logo{width:80px;height:80px;}
+body.login-page .login-kicker{color:#801c3d;font-size:10px;letter-spacing:1px;text-align:center;}
+body.login-page .login-card h1{font-size:29px;color:#20283d;}
+body.login-page .login-card .login-sub{color:#657187;font-size:12px;}
+body.login-page .login-card .field label{font-weight:700;font-size:12px;}
+body.login-page .login-card input.input{border-radius:11px;padding:12px 13px;font-size:13px;width:100%;}
+body.login-page .login-card .btn-primary{background:#7d1738;border:0;border-radius:10px;padding:13px;font-weight:750;box-shadow:none;}
+body.login-page .login-card .btn-primary:hover{background:#5f0f2a;}
+body.login-page .login-card a{color:#7d1738;}
+.tnts-login-contact{display:flex;gap:12px 22px;flex-wrap:wrap;margin-top:28px;}
+body.login-page .tnts-login-contact a{color:#fff;font-weight:650;font-size:12px;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.55);padding-bottom:3px;}
+body.login-page .tnts-login-contact a:hover{text-decoration:none;border-bottom-color:#fff;}
+.tnts-login-card-links{border-top:1px solid #e9dfe4;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:18px;padding-top:16px;font-size:11px;}
+.tnts-login-card-links a{text-decoration:none;font-weight:650;}
+.tnts-login-card-links a:hover{text-decoration:underline;}
+.auth-submit-overlay{position:fixed;z-index:30;inset:0;display:grid;place-items:center;background:rgba(40,17,28,.69);backdrop-filter:blur(4px);}
+.auth-submit-overlay[hidden]{display:none;}
+.auth-submit-box{background:#fff;border-radius:17px;padding:25px 35px;display:flex;align-items:center;gap:15px;color:#651531;font-weight:700;}
+.auth-wheel{width:22px;height:22px;border:3px solid #e6ced8;border-top-color:#7d1738;border-radius:50%;animation:auth-spin .75s linear infinite;}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){body.login-page{min-width:0;padding:24px;justify-content:center;gap:0;}body.login-page .login-intro{display:none;}body.login-page .login-card{flex:0 1 440px;max-width:100%;width:100%;}}
+@media(max-width:520px){body.login-page{padding:16px;}body.login-page .login-card{padding:29px 22px;}}
+@media(prefers-reduced-motion:reduce){.auth-wheel{animation:none;}}
+
+/* Phase 4.4: registration review (added to existing unified CSS, no new stylesheet) */
+.p44-review-intro{max-width:830px;color:var(--muted);font-size:13px;line-height:1.7;margin:0 0 18px}
+.p44-review-stats{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 22px}
+.p44-review-stats>span{padding:10px 15px;border:1px solid var(--border);background:#fff;border-radius:10px;font-size:12px}
+.p44-review-stats strong{color:var(--maroon);font-size:18px;margin-left:8px}
+.p44-pill{display:inline-block;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700;background:#fff1d7;color:#8a5d0c}
+.p44-pill.verified{background:#e5f5ed;color:#0e7750}
+.p44-pill.rejected{background:#fee8ec;color:#9b243b}
+.p44-review-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.p44-review-actions form{display:inline-flex;align-items:center;margin:0}
+.p44-review-actions .btn{white-space:nowrap}
+.p44-review-actions .p44-reject-btn{background:#fff;border:1px solid #e7bcc9;color:#a52c4b}
+.p44-review-actions .p44-reject-btn:hover{background:#fff0f3}
+.p44-review-dialog{border:0;border-radius:16px;padding:24px;width:min(460px,calc(100vw - 30px));box-shadow:0 22px 75px #0005}
+.p44-review-dialog::backdrop{background:rgba(24,16,30,.55)}
+.p44-review-dialog textarea{width:100%;min-height:85px;resize:vertical;padding:12px;border-radius:9px;border:1px solid #d9dfe8}
+.p44-review-dialog .actions{justify-content:flex-end;margin-top:17px}
+.p44-review-table td{overflow-wrap:anywhere}
+@media(max-width:680px){.p44-review-actions{flex-direction:column;align-items:stretch}.p44-review-actions form,.p44-review-actions button{width:100%}}
+
+/* Phase 4.4.1 — searchable approval filters & archived decision history. */
+.p441-archived-row{background:#fbf8fa}.p441-archived-row td{color:#596276}.p44-review-table td{overflow-wrap:anywhere}.p44-review-table small{line-height:1.55}.p44-review-table td:nth-child(2){max-width:230px}.p44-review-table td:nth-child(5){max-width:290px}
+
+/* Phase 4.4.2: registration history and advanced filters */
+.p442-filters{display:grid;grid-template-columns:repeat(3,minmax(175px,1fr));gap:14px;margin-bottom:24px;align-items:end}.p442-field{display:flex;flex-direction:column;min-width:0;gap:5px}.p442-field label{font-size:11px;font-weight:700;color:#475569}.p442-field .input{width:100%;max-width:none}.p442-filter-actions{display:flex;gap:8px;align-items:center}.p442-stat{display:inline-flex;gap:12px;align-items:center;border:1px solid #e5e8ef;border-radius:10px;padding:12px 16px;background:#fff;color:#273449;font-size:12px}.p442-stat:hover{border-color:#8b2341;text-decoration:none}.p442-stat strong{color:#831533}.p44-review-table td{overflow-wrap:anywhere}@media(max-width:1050px){.p442-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.p442-filters{grid-template-columns:1fr}}
+
+/* Phase 4.5 — personnel profile approvals; appended to tested consolidated stylesheet */
+.p45-pending{padding:14px 16px;border:1px solid #ecd49f;border-radius:10px;background:#fff8e9;color:#775419;margin:0 0 18px}.p45-pending p{margin:5px 0 0;font-size:12px}
+.p45-review-summary{margin-top:18px;padding:12px 16px;background:#f7f8fb;border:1px solid var(--border);border-radius:10px;font-size:12px}.p45-review-summary p{margin:8px 0 0;color:var(--muted)}
+.p45-filter{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:0 0 18px}.p45-filter .field{margin:0;min-width:190px}
+.p45-decision{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.p45-decision input{min-width:190px;flex:1}.p45-subheading{font-size:14px;margin:0 0 18px}.p45-state{white-space:nowrap;font-weight:700}.p45-state.pending{color:#956212}.p45-state.approved{color:#177b54}.p45-state.rejected{color:#a32939}
+
+
+/* Phase 4.5.1 — Accounts table + expandable rows; consolidated into main style.css */
+.p451-page-head{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.p451-head-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.p451-list-card{min-width:0}.p451-section-head,.p451-expanded-header,.p451-table-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.p451-section-head p{margin:4px 0 16px}.p451-table-heading{padding:12px 0 18px;font-size:13px}
+.p451-filters{display:grid;grid-template-columns:repeat(4,minmax(145px,1fr));gap:14px;margin-bottom:14px;padding-bottom:18px;border-bottom:1px solid var(--border)}.p451-filters .field{margin:0;min-width:0}.p451-filters .input{width:100%;max-width:none;min-width:0}.p451-filters label{display:block;margin-bottom:5px}.p451-filter-actions{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.p451-filter-actions .btn{min-height:42px}
+.p451-table{font-size:11px;min-width:950px}.p451-table th{white-space:normal!important}.p451-table td{font-size:11px;vertical-align:middle!important}.p451-table td.p451-courses{max-width:240px;overflow-wrap:anywhere}.p451-table td.p451-email{overflow-wrap:anywhere;max-width:230px}.p451-sort{display:inline-flex;align-items:center;gap:5px;color:inherit;font:inherit;white-space:nowrap}.p451-sort span{font-weight:800;font-size:14px;color:var(--maroon)}.p451-sort:hover{color:var(--maroon);text-decoration:underline}
+.p451-row-actions{white-space:nowrap;text-align:right}.p451-row-actions .btn{margin:2px 0 2px 4px;min-height:32px!important;padding:6px 9px!important;font-size:10px!important}.p451-row-actions form{display:inline}.p451-toggle{color:#975b0b;background:#fff7e6;border:1px solid #ecc78e!important}.p451-toggle:hover{background:#ffedc4}.p451-delete{background:#fff0f3!important;border:1px solid #eea5b4!important;color:#b21b40!important}.p451-delete:hover{background:#ffe1e7!important}
+.p451-detail-row[hidden],.p451-add-panel[hidden],.p451-teacher-settings[hidden]{display:none!important}.p451-detail-row td{padding:0!important;background:#faf7f9!important}.p451-expanded{margin:12px;border:1px solid #e8d5dd;border-radius:12px;padding:24px;background:#fff}.p451-expanded-header{padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px}.p451-expanded-header h3{margin:0!important;color:#273447!important}.p451-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px}.p451-form-grid .field{min-width:0}.p451-form-grid .input{width:100%;max-width:none}.p451-account-form label{font-size:12px;font-weight:600}.p451-password-label{font-weight:400!important;margin-top:8px!important}.p451-teacher-settings{margin:12px 0;padding:18px;border:1px solid #eadce2;border-radius:12px;min-width:0}.p451-teacher-settings legend{padding:0 8px;color:var(--maroon);font-size:13px;font-weight:750}.p451-teacher-settings>p{font-size:11px;margin:0 0 16px}.p451-course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px 16px;margin:12px 0}.p451-course-grid .check{display:flex;align-items:flex-start;gap:8px;line-height:1.45;font-size:12px;font-weight:400!important}.p451-course-grid input{margin-top:3px}.p451-form-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}.p451-readonly-grid{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:0}.p451-readonly-grid dt{color:var(--muted)}.p451-readonly-grid dd{margin:0;font-weight:600}.p451-delete-dialog{padding:0;border:0;max-width:min(480px,calc(100vw - 30px));border-radius:16px;box-shadow:0 18px 70px #0005}.p451-delete-dialog::backdrop{background:#1e102288}.p451-delete-form{padding:26px}.p451-delete-form h3{color:#ac1b3c}.p451-delete-form .input{width:100%}.p451-my-courses .p451-course-grid{margin:18px 0}
+@media(max-width:1100px){.p451-filters{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media(max-width:680px){.p451-filters,.p451-form-grid{grid-template-columns:1fr}.p451-expanded{padding:15px;margin:6px}.p451-readonly-grid{grid-template-columns:105px 1fr}}

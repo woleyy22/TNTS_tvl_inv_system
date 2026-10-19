@@ -3,6 +3,16 @@ require_once __DIR__ . '/includes/auth.php';
 $me = require_role(['supply_officer', 'tvl_head']);
 $pdo = db();
 $myId = (int)$me['id'];
+if ($me['role']==='tvl_head') {
+    $readonly = $pdo->query("SELECT t.track_name,t.track_code,t.is_active,c.course_name FROM academic_tracks t LEFT JOIN courses c ON c.track_id=t.track_id ORDER BY t.track_name,c.course_name")->fetchAll(PDO::FETCH_ASSOC);
+    $pageTitle='Academic Tracks & Courses (View Only)'; $active='courses.php';
+    include __DIR__.'/includes/header.php';
+    echo '<div class="card"><h2>Academic Tracks &amp; Courses</h2><p>View-only access for TVL Head.</p><div class="table-wrap"><table class="table"><thead><tr><th>Track</th><th>Code</th><th>Course</th><th>Status</th></tr></thead><tbody>';
+    foreach($readonly as $line) echo '<tr><td>'.e($line['track_name']).'</td><td>'.e($line['track_code']).'</td><td>'.e($line['course_name']??'—').'</td><td>'.($line['is_active']?'Active':'Inactive').'</td></tr>';
+    echo '</tbody></table></div></div>';
+    include __DIR__.'/includes/footer.php'; exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = (string)($_POST['action'] ?? '');

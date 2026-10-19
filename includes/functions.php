@@ -180,7 +180,7 @@ function nav_items(string $role): array
         ['item_maintenance.php', 'Maintenance', 'file', ['teacher']],
         ['borrow.php', 'Borrow & Return', 'clip',   ['supply_officer', 'tvl_head', 'teacher']],
         ['condemnation.php', 'Condemnation', 'alert', ['supply_officer', 'tvl_head', 'teacher']],
-        ['transfers.php', 'Property Transfers', 'repeat', ['supply_officer', 'tvl_head']], // <-- ADDED HERE
+        ['transfers.php', 'Property Transfers', 'repeat', ['supply_officer']], // Phase 5 will modernize transfers
         ['reports.php', 'Reports & Docs', 'file',   ['supply_officer', 'tvl_head', 'teacher']],
         ['courses.php',   'Academic Tracks',      'book',   ['supply_officer', 'tvl_head']],
         ['history.php',   'History Logs', 'clock',  ['supply_officer', 'tvl_head']],

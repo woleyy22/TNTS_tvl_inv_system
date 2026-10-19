@@ -4,7 +4,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 
 $user = current_user();
-if (!$user || !in_array($user['role'], ['supply_officer', 'tvl_head'])) {
+if (!$user || !in_array($user['role'], ['supply_officer'])) {
     die("Unauthorized access. Transfer operations are restricted to Supply Officer and TVL Head.");
 }
 

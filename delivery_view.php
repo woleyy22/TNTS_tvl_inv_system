@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
 
 // Handle Upload Attachment form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_attachment'])) {
+    if ($user['role'] !== 'supply_officer') { http_response_code(403); exit('TVL Head access is view-only.'); }
     if (isset($_FILES['dr_file']) && $_FILES['dr_file']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = __DIR__ . '/uploads/';
         if (!is_dir($upload_dir)) {

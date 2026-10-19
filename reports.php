@@ -42,7 +42,7 @@ if ($tab === 'ics') {
         $params[] = "%$search_query%";
     }
     if ($filter_course_id > 0) {
-        $whereClauses[] = "c.course_id = ?";
+        $whereClauses[] = "EXISTS (SELECT 1 FROM ics_items line_filter WHERE line_filter.ics_id=c.ics_id AND line_filter.course_id=?)";
         $params[] = $filter_course_id;
     }
     if (!empty($filter_date_from)) {
@@ -57,10 +57,10 @@ if ($tab === 'ics') {
     $whereSql = !empty($whereClauses) ? "WHERE " . implode(" AND ", $whereClauses) : "";
 
     $stmt = db()->prepare("
-        SELECT c.*, u.full_name as teacher_name, cr.course_name 
+        SELECT c.*, u.full_name as teacher_name, COALESCE((SELECT GROUP_CONCAT(DISTINCT crs.course_name ORDER BY crs.course_name SEPARATOR ', ') FROM ics_items AS item_line LEFT JOIN courses AS crs ON crs.course_id = item_line.course_id WHERE item_line.ics_id = c.ics_id), 'Unclassified') AS course_name 
         FROM ics c
         JOIN users u ON c.teacher_id = u.user_id
-        JOIN courses cr ON c.course_id = cr.course_id
+        
         $whereSql
         ORDER BY c.date_issued DESC
     ");
@@ -167,11 +167,11 @@ if ($tab === 'ics') {
                        )
                    )
                ), 0) as serviceable_units,
-               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE c2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'for_repair'), 0) as repair_units,
-               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE c2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'damaged'), 0) as damaged_units
+               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE ii2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'for_repair'), 0) as repair_units,
+               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE ii2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'damaged'), 0) as damaged_units
         FROM courses cr
-        LEFT JOIN ics c ON cr.course_id = c.course_id AND c.status = 'active'
-        LEFT JOIN ics_items ii ON c.ics_id = ii.ics_id
+        LEFT JOIN ics_items ii ON cr.course_id = ii.course_id AND EXISTS (SELECT 1 FROM ics c0 WHERE c0.ics_id=ii.ics_id AND c0.status='active')
+        LEFT JOIN ics c ON c.ics_id = ii.ics_id
         LEFT JOIN inventory_items i ON ii.item_id = i.item_id
         $whereSql
         GROUP BY cr.course_id, cr.course_name
@@ -263,7 +263,7 @@ require_once __DIR__ . '/includes/header.php';
                     <tr class="legacy-036">
                         <td class="legacy-038"><?= e($r['ics_number']) ?></td>
                         <td class="legacy-033"><?= e($r['teacher_name']) ?></td>
-                        <td class="legacy-033"><?= e($r['course_name']) ?><?= $ics_view === 'archive' ? ' (Archived)' : '' ?></td>
+                        <td class="legacy-033"><?= e($r['course_name']??'Per-item / Unclassified') ?><?= $ics_view === 'archive' ? ' (Archived)' : '' ?></td>
                         <td class="legacy-033"><?= e(date('M d, Y', strtotime($r['date_issued']))) ?></td>
                         <td class="legacy-034">
                             <a href="print_ics.php?id=<?= $r['ics_id'] ?>" target="_blank" class="legacy-129">🖨 Print ICS PDF</a>

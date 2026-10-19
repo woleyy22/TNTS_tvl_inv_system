@@ -21,17 +21,47 @@ foreach (['From'=>$dateFrom, 'To'=>$dateTo] as $name=>$value) {
 if (!$dateFilterError && $dateFrom!=='' && $dateTo!=='' && $dateFrom>$dateTo) {
   $dateFilterError='The From date must be on or before the To date.';
 }
+// Classify an individual ICS item without changing its document or accountability.
+$courseMessage = '';
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='change_item_course') {
+  csrf_check();
+  $lineId=filter_var($_POST['ics_item_id']??null,FILTER_VALIDATE_INT);
+  $courseRaw=(string)($_POST['course_id']??'');
+  $newCourse=$courseRaw===''?null:filter_var($courseRaw,FILTER_VALIDATE_INT);
+  if (!$lineId || ($courseRaw!=='' && !$newCourse)) { $courseMessage='Invalid ICS item or course.'; }
+  elseif (!in_array($role,['teacher','supply_officer'],true)) { http_response_code(403); $courseMessage='You cannot modify item classifications.'; }
+  else {
+    try {
+      db()->beginTransaction();
+      $st=db()->prepare('SELECT ii.course_id,c.teacher_id,c.ics_number FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.ics_item_id=? AND c.status=\'active\' FOR UPDATE');
+      $st->execute([$lineId]);$record=$st->fetch(PDO::FETCH_ASSOC);
+      if (!$record || ($role==='teacher' && (int)$record['teacher_id']!==$uid)) throw new RuntimeException('Active ICS item not found or access denied.');
+      if ($newCourse!==null) {
+        $check=db()->prepare('SELECT 1 FROM courses WHERE course_id=?');$check->execute([$newCourse]);
+        if (!$check->fetchColumn()) throw new RuntimeException('Selected course does not exist.');
+      }
+      $oldCourse=$record['course_id']===null?null:(int)$record['course_id'];
+      if ($oldCourse!==$newCourse) {
+        $update=db()->prepare('UPDATE ics_items SET course_id=? WHERE ics_item_id=?');$update->execute([$newCourse,$lineId]);
+        $log=db()->prepare('INSERT INTO history_logs (user_id,action,module,record_id,details,created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+        $log->execute([$uid,'update_item_course','ics_items',$lineId,'ICS '.$record['ics_number'].' item '.$lineId.': course '.($oldCourse??'none').' -> '.($newCourse??'none')]);
+      }
+      db()->commit();
+      header('Location: '.url('inventory.php?view=issued&course_updated=1'));exit;
+    } catch (Throwable $ex) { if(db()->inTransaction())db()->rollBack();$courseMessage=$ex->getMessage(); }
+  }
+}
 $classifications=db()->query('SELECT classification_id,classification_name FROM item_classifications ORDER BY classification_name')->fetchAll();
 $items=[];$params=[];$where=[];
 if($role==='teacher'||$view==='issued'){
-  $sql="SELECT ii.ics_item_id,ii.qty_issued,ii.qty_returned,i.item_id,i.item_name,i.description,i.unit,i.item_category,i.low_stock_threshold,c.ics_number,c.date_issued,rd.first_received,rd.last_received,co.course_name,u.full_name AS teacher_name,
+  $sql="SELECT ii.ics_item_id,ii.qty_issued,ii.qty_returned,i.item_id,i.item_name,i.description,i.unit,i.item_category,i.low_stock_threshold,c.ics_number,c.date_issued,rd.first_received,rd.last_received,co.course_name,ii.course_id AS item_course_id,c.teacher_id, c.recipient_position_office_snapshot AS position_office,u.full_name AS teacher_name,
     COALESCE(b.qty_for_repair,0) repair_qty, COALESCE(b.qty_serviceable,0) serviceable_balance, COALESCE(b.needs_review,0) needs_review,
     COALESCE(b.qty_damaged,0) damaged_qty,
     COALESCE((SELECT SUM(quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0) disposed_qty
-    FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id JOIN users u ON u.user_id=c.teacher_id LEFT JOIN courses co ON co.course_id=c.course_id LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE c.status='active' AND (i.item_category IN ('consumable','expiring_material') OR ii.qty_issued>ii.qty_returned+COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0))";
+    FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id JOIN users u ON u.user_id=c.teacher_id LEFT JOIN courses co ON co.course_id=ii.course_id LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE c.status='active' AND (i.item_category IN ('consumable','expiring_material') OR ii.qty_issued>ii.qty_returned+COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0))";
   if($role==='teacher'){$sql.=' AND c.teacher_id=?';$params[]=$uid;}
   elseif($teacher){$sql.=' AND c.teacher_id=?';$params[]=$teacher;}
-  if($course){$sql.=' AND c.course_id=?';$params[]=$course;}
+  if($course){$sql.=' AND ii.course_id=?';$params[]=$course;}
   if($category){$sql.=' AND i.item_category=?';$params[]=$category;}
   if($search!==''){$sql.=' AND (i.item_name LIKE ? OR c.ics_number LIKE ?)';array_push($params,'%'.$search.'%','%'.$search.'%');}
   // In the teacher/ICS view, date filters refer to the ICS issuance date.
@@ -92,9 +122,13 @@ foreach($items as &$i){
 }unset($i);
 $teachers=[];$courses=[];
 if($isAdmin){$teachers=db()->query("SELECT user_id,full_name FROM users WHERE role='teacher' ORDER BY full_name")->fetchAll();$courses=db()->query('SELECT course_id,course_name FROM courses ORDER BY course_name')->fetchAll();}
+if (!$isAdmin) $courses=db()->query('SELECT course_id,course_name FROM courses ORDER BY course_name')->fetchAll();
 $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes/header.php';
 ?>
+<?php if($courseMessage!==''): ?><div class="p34-validation" role="alert"><?= e($courseMessage) ?></div><?php endif; ?>
+<?php if(isset($_GET['course_updated'])): ?><div class="card" role="status">Course classification updated; ICS accountability unchanged.</div><?php endif; ?>
 <style>
+.p412-classify{margin:16px 0;padding:14px;border:1px solid #e2e7f0;border-radius:9px;display:flex;flex-wrap:wrap;gap:12px;align-items:end}.p412-classify label{display:grid;gap:5px;flex:1;min-width:220px}.p412-classify select{padding:9px;max-width:100%}.p412-classify small{width:100%;color:#667085}
 /* Inventory-specific UI: isolated from shared modals and shared table sorter. */
 .p34-header{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
 .p34-actions{display:flex;flex-wrap:wrap;gap:9px}
@@ -166,7 +200,7 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
 <?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?7:8; ?>
 <div class="content-header p34-header">
   <div><h2>Inventory Management</h2><p class="p34-sub">Category-specific stock and accountability overview</p></div>
-  <?php if($isAdmin): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage classifications</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
+  <?php if($role==='supply_officer'): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage classifications</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
 </div>
 <?php if($isAdmin): ?>
 <nav class="p34-actions" style="margin-bottom:14px" aria-label="Inventory views">
@@ -224,7 +258,7 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
         <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['item_name']) ?></strong><span class="p34-muted"><?= e($i['description']??'') ?></span><?php if(!empty($i['classification_name'])): ?><span class="p34-badge"><?= e($i['classification_name']) ?></span><?php endif; ?></div></td>
         <td><span class="p34-badge"><?= e($i['category_label']) ?></span></td>
         <?php if($issuedView): ?>
-          <td><div class="p34-cell-main"><span><?= e($i['ics_number']) ?></span><span class="p34-muted"><?= e($i['teacher_name']) ?> · <?= e($i['course_name']??'') ?></span></div></td>
+          <td><div class="p34-cell-main"><span><?= e($i['ics_number']) ?></span><span class="p34-muted"><?= e($i['teacher_name']) ?> · <?= e($i['position_office']??'Office not yet recorded') ?></span></div></td>
           <td><?= e($i['date_issued']??'—') ?></td>
           <td><?= (int)$i['qty_issued'] ?> <?= e($i['unit']) ?></td>
           <td>
@@ -270,7 +304,20 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
                   <div class="p34-stat p34-stat-damaged"><span class="p34-muted">Damaged</span><strong><?= (int)$i['damaged_qty'] ?></strong></div>
                 <?php else: ?><div class="p34-stat"><span class="p34-muted">Supply Distribution</span><strong>Recorded as issued</strong></div><?php endif; ?>
               </div>
-              <dl class="p34-dl"><div><dt>ICS No.</dt><dd><?= e($i['ics_number']) ?></dd></div><div><dt>Accountable Teacher</dt><dd><?= e($i['teacher_name']) ?></dd></div><div><dt>Course / Subject</dt><dd><?= e($i['course_name']??'—') ?></dd></div><div><dt>Date Issued</dt><dd><?= e($i['date_issued']??'—') ?></dd></div><div><dt>Item first recorded arrival</dt><dd><?= e($i['first_received']??'—') ?></dd></div><div><dt>Item latest recorded arrival</dt><dd><?= e($i['last_received']??'—') ?></dd></div></dl>
+              <dl class="p34-dl"><div><dt>ICS No.</dt><dd><?= e($i['ics_number']) ?></dd></div><div><dt>Accountable Teacher</dt><dd><?= e($i['teacher_name']) ?></dd></div><div><dt>Position / Office</dt><dd><?= e($i['position_office']??'—') ?></dd></div><div><dt>Internal Course (optional)</dt><dd><?= e($i['course_name']??'Unclassified') ?></dd></div><div><dt>Date Issued</dt><dd><?= e($i['date_issued']??'—') ?></dd></div><div><dt>Item first recorded arrival</dt><dd><?= e($i['first_received']??'—') ?></dd></div><div><dt>Item latest recorded arrival</dt><dd><?= e($i['last_received']??'—') ?></dd></div></dl>
+              <?php if(in_array($role,['teacher','supply_officer'],true)): ?>
+              <form method="post" class="p412-classify" aria-label="Change optional course classification">
+                <?= csrf_field() ?><input type="hidden" name="action" value="change_item_course">
+                <input type="hidden" name="ics_item_id" value="<?= (int)$i['ics_item_id'] ?>">
+                <label>Internal Course Classification (optional)
+                  <select name="course_id"><option value="">Unclassified / No course</option>
+                    <?php foreach($courses as $c): ?><option value="<?= (int)$c['course_id'] ?>" <?= (int)($i['item_course_id']??0)===(int)$c['course_id']?'selected':'' ?>><?= e($c['course_name']) ?></option><?php endforeach; ?>
+                  </select>
+                </label>
+                <button type="submit" class="p34-view">Save Classification</button>
+                <small>Changes only this item's internal course. Does not change the ICS, custody, or quantity.</small>
+              </form>
+              <?php endif; ?>
               <?php if(!empty($i['needs_review'])&&!$i['is_supply']): ?><div class="p34-note" role="note">Condition balance requires physical verification. Use the ICS Condition Balance Review screen before relying on this record for a new issue or transfer.</div><?php endif; ?>
             <?php else: ?>
               <div class="p34-stat-grid">

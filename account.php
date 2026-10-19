@@ -17,6 +17,16 @@ try {
 $values = $profile;
 $profileErrors = [];
 $passwordErrors = [];
+$officialErrors = [];
+$officialValues = ['teaching_position' => '', 'position_office' => '', 'teaching_level' => ''];
+$officialPending = null;
+$officialReview = [];
+if ($profile['role'] === 'teacher') {
+    $st = db()->prepare('SELECT teaching_position, position_office, teaching_level FROM user_profiles WHERE user_id=?');
+    $st->execute([$uid]);
+    $officialValues = array_merge($officialValues, $st->fetch(PDO::FETCH_ASSOC) ?: []);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = profile_post_text('action');
@@ -53,6 +63,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable $ex) {
                 if (db()->inTransaction()) { db()->rollBack(); }
                 $profileErrors[] = 'Your profile could not be saved. Please try again.';
+            }
+        }
+    } elseif ($action === 'courses' && $profile['role'] === 'teacher') {
+        $selected = $_POST['courses'] ?? [];
+        $courseErrors=[];
+        if (!is_array($selected)) { $courseErrors[]='Invalid course selection.'; }
+        if (!$courseErrors) {
+            try {
+                $pdo=db();$pdo->beginTransaction();
+                $lock=$pdo->prepare("SELECT user_id FROM users WHERE user_id=? AND role='teacher' AND status='active' FOR UPDATE");
+                $lock->execute([$uid]);if(!$lock->fetchColumn())throw new RuntimeException('Account is not eligible to change courses.');
+                $available=$pdo->query('SELECT course_id FROM courses')->fetchAll(PDO::FETCH_COLUMN);
+                $ids=array_values(array_unique(array_map('intval',$selected)));
+                foreach($ids as $courseId)if(!in_array($courseId,array_map('intval',$available),true))throw new RuntimeException('Invalid course selected.');
+                $existing=$pdo->prepare('SELECT course_id FROM teacher_courses WHERE user_id=?');$existing->execute([$uid]);
+                $old=array_map('intval',$existing->fetchAll(PDO::FETCH_COLUMN));sort($old);sort($ids);
+                if($old!==$ids){
+                    $pdo->prepare('DELETE FROM teacher_courses WHERE user_id=?')->execute([$uid]);
+                    $ins=$pdo->prepare('INSERT INTO teacher_courses(user_id,course_id) VALUES (?,?)');
+                    foreach($ids as $courseId)$ins->execute([$uid,$courseId]);
+                    $pdo->prepare('INSERT INTO history_logs(user_id,action,module,record_id,details) VALUES (?,?,?,?,?)')
+                        ->execute([$uid,'Changed own assigned courses','My Account',$uid,'Assigned course IDs: ['.implode(',',$old).'] → ['.implode(',',$ids).']']);
+                }
+                $pdo->commit();flash('success','Assigned courses updated immediately. No approval required.');redirect('account.php#assignedCourses');
+            }catch(Throwable $ex){if(db()->inTransaction())db()->rollBack();$courseErrors[]=$ex instanceof RuntimeException?$ex->getMessage():'Unable to save courses.';}
+        }
+    } elseif ($action === 'official_request' && $profile['role'] === 'teacher') {
+        foreach (array_keys($officialValues) as $key) { $officialValues[$key] = profile_post_text($key); }
+        $validPositions = db()->query('SELECT position_name FROM teaching_positions WHERE active=1')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array($officialValues['teaching_position'], $validPositions, true)) { $officialErrors[] = 'Select a valid teaching position.'; }
+        if ($officialValues['position_office'] === '' || profile_length($officialValues['position_office']) > 150) { $officialErrors[] = 'Enter a Position / Office up to 150 characters.'; }
+        if (!in_array($officialValues['teaching_level'], ['JHS','SHS','JHS_SHS'], true)) { $officialErrors[] = 'Select a valid teaching level.'; }
+        if (!$officialErrors) {
+            try {
+                $pdo = db(); $pdo->beginTransaction();
+                $lock = $pdo->prepare("SELECT change_id FROM account_change_requests WHERE user_id=? AND request_type='profile_official' AND status='pending' FOR UPDATE");
+                $lock->execute([$uid]);
+                if ($lock->fetch()) { throw new RuntimeException('You already have a pending personnel-change request.'); }
+                $ins = $pdo->prepare("INSERT INTO account_change_requests(user_id,request_type,requested_payload,status) VALUES (?, 'profile_official', ?, 'pending')");
+                $ins->execute([$uid, json_encode($officialValues, JSON_THROW_ON_ERROR)]);
+                $changeId = (int)$pdo->lastInsertId();
+                $pdo->commit();
+                log_action($uid, 'Requested official personnel change', 'Accounts', $changeId, 'Awaiting review; existing ICS snapshots unchanged.');
+                flash('success', 'Your official personnel update has been submitted for review.');
+                redirect('account.php#officialInformation');
+            } catch (Throwable $ex) {
+                if (db()->inTransaction()) db()->rollBack();
+                $officialErrors[] = $ex instanceof RuntimeException ? $ex->getMessage() : 'Request could not be saved. Please try again.';
             }
         }
     } elseif ($action === 'password') {
@@ -93,11 +151,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $assignedCourses = [];
+$assignedCourseIds = [];
+$allCourseOptions = [];
 if ($profile['role'] === 'teacher') {
+    $allCourseOptions = db()->query('SELECT course_id, course_name FROM courses ORDER BY course_name')->fetchAll(PDO::FETCH_ASSOC);
+    $idsStmt=db()->prepare('SELECT course_id FROM teacher_courses WHERE user_id=?');$idsStmt->execute([$uid]);
+    $assignedCourseIds=array_map('intval',$idsStmt->fetchAll(PDO::FETCH_COLUMN));
     $courseStmt = db()->prepare('SELECT c.course_name FROM teacher_courses tc JOIN courses c ON c.course_id = tc.course_id WHERE tc.user_id = ? ORDER BY c.course_name');
     $courseStmt->execute([$uid]);
     $assignedCourses = $courseStmt->fetchAll(PDO::FETCH_COLUMN);
 }
+if ($profile['role'] === 'teacher') {
+    $st = db()->prepare("SELECT change_id, requested_payload, requested_at FROM account_change_requests WHERE user_id=? AND request_type='profile_official' AND status='pending' ORDER BY change_id DESC LIMIT 1");
+    $st->execute([$uid]); $officialPending = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    $st = db()->prepare("SELECT status, reviewed_at, review_notes FROM account_change_requests WHERE user_id=? AND request_type='profile_official' AND status<>'pending' ORDER BY change_id DESC LIMIT 3");
+    $st->execute([$uid]); $officialReview = $st->fetchAll(PDO::FETCH_ASSOC);
+}
+$teachingPositions = db()->query('SELECT position_name FROM teaching_positions WHERE active=1 ORDER BY sort_order,position_name')->fetchAll(PDO::FETCH_COLUMN);
 $age = profile_age($values['birthday']);
 require __DIR__ . '/includes/header.php';
 ?>
@@ -113,7 +183,7 @@ require __DIR__ . '/includes/header.php';
             <strong>Assigned Course / Specialization</strong>
             <?php if ($assignedCourses): ?>
               <ul><?php foreach ($assignedCourses as $courseName): ?><li><?= e($courseName) ?></li><?php endforeach; ?></ul>
-            <?php else: ?><p>No course assigned yet. Contact the Supply Officer.</p><?php endif; ?>
+            <?php else: ?><p>No course assigned yet. You can select your courses below.</p><?php endif; ?>
           </div>
         <?php endif; ?>
         <dl class="profile-facts"><dt>Account created</dt><dd><?= e(date('M d, Y', strtotime($profile['created_at']))) ?></dd><dt>Age</dt><dd><?= $age === null ? 'Add your birthday' : e($age) . ' years old' ?></dd></dl>
@@ -142,6 +212,34 @@ require __DIR__ . '/includes/header.php';
                 <div class="profile-form-actions"><button class="btn btn-primary" type="submit">Save profile</button></div>
             </form>
         </section>
+        <?php if ($profile['role'] === 'teacher'): ?>
+        <section class="card p451-my-courses" id="assignedCourses">
+          <div class="profile-section-heading"><div class="eyebrow">Academic assignments</div><h2>Courses handled</h2><p class="field-help">Change your assigned courses directly. No email code or personnel approval is required. Already issued ICS documents and their item classifications are not changed.</p></div>
+          <?php if (!empty($courseErrors)): ?><div class="alert alert-error"><?php foreach($courseErrors as $er): ?><p><?= e($er) ?></p><?php endforeach; ?></div><?php endif; ?>
+          <form method="post" action="<?= e(url('account.php')) ?>#assignedCourses"><?= csrf_field() ?><input type="hidden" name="action" value="courses">
+          <div class="p451-course-grid"><?php foreach($allCourseOptions as $course): ?><label class="check"><input type="checkbox" name="courses[]" value="<?= (int)$course['course_id'] ?>" <?= in_array((int)$course['course_id'],$assignedCourseIds,true)?'checked':'' ?>><span><?= e($course['course_name']) ?></span></label><?php endforeach; ?></div>
+          <?php if(!$allCourseOptions): ?><p class="muted">No courses are configured yet.</p><?php endif; ?>
+          <div class="profile-form-actions"><button type="submit" class="btn btn-primary">Save courses</button></div>
+          </form>
+        </section>
+        <section class="card" id="officialInformation">
+            <div class="profile-section-heading"><div class="eyebrow">Verified personnel information</div><h2>Official Position / Office</h2><p class="field-help">Personnel changes are reviewed by the Supply Officer or TVL Head. They do not rewrite existing ICS documents.</p></div>
+            <?php if ($officialErrors): ?><div class="alert alert-error" role="alert"><?php foreach ($officialErrors as $err): ?><p><?= e($err) ?></p><?php endforeach; ?></div><?php endif; ?>
+            <?php if ($officialPending): ?>
+              <div class="p45-pending"><strong>Pending review</strong><p>Requested <?= e($officialPending['requested_at']) ?>. Your approved details remain in effect until review is completed.</p></div>
+            <?php endif; ?>
+            <form method="post" action="<?= e(url('account.php')) ?>#officialInformation">
+              <?= csrf_field() ?><input type="hidden" name="action" value="official_request">
+              <div class="guided-form-grid">
+                <div class="field"><label for="p45Position">Teaching position</label><select class="input" id="p45Position" name="teaching_position" required <?= $officialPending ? 'disabled' : '' ?>><option value="">Select position</option><?php foreach ($teachingPositions as $p45Position): ?><option value="<?= e($p45Position) ?>" <?= $officialValues['teaching_position'] === $p45Position ? 'selected' : '' ?>><?= e($p45Position) ?></option><?php endforeach; ?></select></div>
+                <div class="field"><label for="p45Office">Position / Office</label><input class="input" id="p45Office" name="position_office" maxlength="150" value="<?= e($officialValues['position_office'] ?? '') ?>" required <?= $officialPending ? 'disabled' : '' ?>></div>
+                <div class="field"><label for="p45Level">Teaching level</label><select class="input" id="p45Level" name="teaching_level" required <?= $officialPending ? 'disabled' : '' ?>><option value="JHS" <?= $officialValues['teaching_level'] === 'JHS' ? 'selected' : '' ?>>JHS</option><option value="SHS" <?= $officialValues['teaching_level'] === 'SHS' ? 'selected' : '' ?>>SHS</option><option value="JHS_SHS" <?= $officialValues['teaching_level'] === 'JHS_SHS' ? 'selected' : '' ?>>Both JHS / SHS</option></select></div>
+              </div>
+              <?php if (!$officialPending): ?><div class="profile-form-actions"><button class="btn btn-primary" type="submit">Submit personnel update</button></div><?php endif; ?>
+            </form>
+            <?php if ($officialReview): ?><div class="p45-review-summary"><strong>Recent decisions</strong><?php foreach ($officialReview as $entry): ?><p><?= e(ucfirst($entry['status'])) ?> · <?= e($entry['reviewed_at'] ?? '') ?><?= $entry['review_notes'] ? ' — ' . e($entry['review_notes']) : '' ?></p><?php endforeach; ?></div><?php endif; ?>
+        </section>
+        <?php endif; ?>
         <section class="card" id="passwordSettings">
             <div class="profile-section-heading"><div class="eyebrow">Security</div><h2>Change password</h2><p class="field-help">Confirm your current password to set a new one.</p></div>
             <?php if ($passwordErrors): ?><div class="alert alert-error" role="alert"><ul class="form-errors"><?php foreach ($passwordErrors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>

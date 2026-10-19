@@ -15,7 +15,7 @@ $stmt = db()->prepare("
     SELECT c.*, u.full_name as teacher_name, u.role as teacher_role, cr.course_name
     FROM ics c
     JOIN users u ON c.teacher_id = u.user_id
-    JOIN courses cr ON c.course_id = cr.course_id
+    LEFT JOIN courses cr ON c.course_id = cr.course_id
     WHERE c.ics_id = ?
 ");
 $stmt->execute([$ics_id]);
@@ -194,10 +194,10 @@ $items = $stmt_items->fetchAll();
                     <div><strong>Received by:</strong></div>
 
                     <div class="sig-block">
-                        <span class="sig-name"><?= e($ics['teacher_name']) ?></span>
+                        <span class="sig-name"><?= e($ics['recipient_name_snapshot'] ?: $ics['teacher_name']) ?></span>
                         <span class="sig-label">Signature Over Printed Name</span>
                         <span class="legacy-119">
-                            <?= e(strtoupper($ics['teacher_role'] === 'teacher' ? 'TEACHER / TVL FACULTY' : $ics['teacher_role'])) ?>
+                            <?= e($ics['recipient_position_office_snapshot'] ?: 'Teacher / Office not recorded') ?>
                         </span>
                         <span class="sig-label">Position/Office</span>
                         

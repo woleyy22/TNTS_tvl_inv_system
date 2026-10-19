@@ -23,10 +23,10 @@ function require_login(): array
     // No custom inactivity logout; normal PHP session security still applies.
 
     // make sure the account is still active (for example, a teacher who left)
-    $st = db()->prepare('SELECT status FROM users WHERE user_id = ?');
+    $st = db()->prepare('SELECT status, registration_status FROM users WHERE user_id = ?');
     $st->execute([(int)$u['id']]);
     $row = $st->fetch();
-    if (!$row || $row['status'] !== 'active') {
+    if (!$row || ($row['status'] !== 'active' || $row['registration_status'] !== 'approved')) {
         session_unset();
         session_destroy();
         session_start();

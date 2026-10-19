@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__.'/includes/db.php';require_once __DIR__.'/includes/auth.php';require_once __DIR__.'/includes/functions.php';
-$u=require_role(['supply_officer','tvl_head']);$err='';$msg='';
+$u=require_role(['supply_officer']);$err='';$msg='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
  try{
   if(empty($_POST['csrf'])||!hash_equals($_SESSION['p2csrf']??'',$_POST['csrf']))throw new RuntimeException('Invalid form session. Refresh the page.');

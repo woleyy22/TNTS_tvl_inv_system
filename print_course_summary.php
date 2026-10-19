@@ -19,7 +19,7 @@ if ($course_id > 0) {
 }
 
 // Query detailed items under selected course or all courses
-$where_sql = ($course_id > 0) ? "WHERE c.course_id = $course_id AND c.status = 'active'" : "WHERE c.status = 'active'";
+$where_sql = ($course_id > 0) ? "WHERE ii.course_id = $course_id AND c.status = 'active'" : "WHERE c.status = 'active'";
 
 $sql = "
     SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, c.ics_number, c.date_issued,
@@ -30,7 +30,7 @@ $sql = "
     FROM ics_items ii
     JOIN ics c ON ii.ics_id = c.ics_id
     JOIN inventory_items i ON ii.item_id = i.item_id
-    JOIN courses cr ON c.course_id = cr.course_id
+    LEFT JOIN courses cr ON ii.course_id = cr.course_id
     JOIN users u ON c.teacher_id = u.user_id
     $where_sql
     ORDER BY cr.course_name ASC, i.item_name ASC
@@ -116,7 +116,7 @@ $items = db()->query($sql)->fetchAll();
                         $grand_value += $line_total ?? 0;
                 ?>
                     <tr>
-                        <td><strong><?= e($item['course_name']) ?></strong></td>
+                        <td><strong><?= e($item['course_name']??'Unclassified') ?></strong></td>
                         <td>
                             <strong><?= e($item['item_name']) ?></strong>
                             <?php if (!empty($item['description'])): ?>

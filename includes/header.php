@@ -17,11 +17,18 @@ $currentPage = basename($_SERVER['SCRIPT_NAME']);
 $parentPages = ['delivery_view.php' => 'receiving.php', 'inspection.php' => 'receiving.php'];
 if (isset($parentPages[$currentPage])) { $currentPage = $parentPages[$currentPage]; }
 $visibleMenu = nav_items($user['role']);
+if ($user['role'] === 'tvl_head') { $visibleMenu[] = ['accounts.php','Accounts (View Only)','users',['tvl_head']]; }
+// Phase 4.4: approval queue is available to either authorized reviewer.
+if (in_array($user['role'], ['supply_officer','tvl_head'], true)) {
+    $visibleMenu[] = ['approvals.php', 'Registration Approvals', 'users', ['supply_officer','tvl_head']];
+    $visibleMenu[] = ['personnel_reviews.php', 'Personnel Changes', 'users', ['supply_officer','tvl_head']];
+}
+
 $menuGroups = [
     'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php', 'ics_returns.php']],
     'operations' => ['Operations & Tracking', 'repeat', ['item_maintenance.php', 'borrow.php', 'transfers.php', 'condemnation.php']],
     'records' => ['Reports & Records', 'file', ['reports.php', 'history.php']],
-    'administration' => ['Administration', 'users', ['courses.php', 'accounts.php']],
+    'administration' => ['Administration', 'users', ['courses.php', 'accounts.php', 'approvals.php', 'personnel_reviews.php']],
 ];
 ?>
 <!DOCTYPE html>

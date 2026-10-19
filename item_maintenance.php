@@ -88,7 +88,7 @@ $stmt = db()->prepare("
      COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0) AS approved_condemned
     FROM ics_items ii JOIN ics c ON ii.ics_id=c.ics_id
     JOIN inventory_items i ON i.item_id=ii.item_id
-    LEFT JOIN courses cr ON cr.course_id=c.course_id
+    LEFT JOIN courses cr ON cr.course_id=ii.course_id
     JOIN ics_condition_balances cb ON cb.ics_item_id=ii.ics_item_id
     WHERE c.teacher_id=? AND c.status='active' AND i.item_category IN ('equipment','non_consumable')
       AND (cb.qty_serviceable+cb.qty_for_repair+cb.qty_damaged)>0

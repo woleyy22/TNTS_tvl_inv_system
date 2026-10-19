@@ -5,8 +5,8 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/inventory_aggregation.php';
 
 $user = current_user();
-if (!$user || !in_array($user['role'], ['supply_officer', 'tvl_head'], true)) {
-    die("Unauthorized access. Only the Supply Officer or TVL Head can inspect deliveries.");
+if (!$user || !in_array($user['role'], ['supply_officer'], true)) {
+    die("Unauthorized access. Only the Supply Officer can accept deliveries.");
 }
 
 $delivery_id = (int)($_GET['id'] ?? 0);

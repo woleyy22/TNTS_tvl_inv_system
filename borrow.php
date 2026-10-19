@@ -26,6 +26,7 @@ $lendingColumns="
  COALESCE((SELECT SUM(b.quantity) FROM borrow_logs b WHERE b.ics_item_id=ii.ics_item_id AND b.status='borrowed'),0) AS borrowed_qty";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($role === 'tvl_head') { http_response_code(403); exit('TVL Head inventory access is view-only.'); }
     csrf_check();
     try {
         if (isset($_POST['borrow_item'])) {
