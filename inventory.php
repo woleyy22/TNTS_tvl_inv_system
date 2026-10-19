@@ -52,6 +52,9 @@ if($role==='teacher'||$view==='issued'){
   COALESCE((SELECT SUM(rl.qty_for_repair+rl.qty_damaged) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) returned_unserviceable,
   COALESCE((SELECT SUM(rl.qty_for_repair) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) central_repair,
   COALESCE((SELECT SUM(rl.qty_damaged) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) central_damaged,
+  COALESCE((SELECT SUM(a.quantity) FROM central_condition_restorations a WHERE a.item_id=i.item_id AND a.from_condition='for_repair'),0) restored_repair,
+  COALESCE((SELECT SUM(a.quantity) FROM central_condition_restorations a WHERE a.item_id=i.item_id AND a.from_condition='damaged'),0) restored_damaged,
+  COALESCE((SELECT SUM(z.quantity) FROM central_condition_disposals z WHERE z.item_id=i.item_id),0) central_disposed,
   COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn
   FROM inventory_items i LEFT JOIN item_classifications cl ON cl.classification_id=i.classification_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE 1=1";
   if($category){$sql.=' AND i.item_category=?';$params[]=$category;}
@@ -75,8 +78,12 @@ foreach($items as &$i){
  $i['category_label']=$catLabels[$i['item_category']]??'Unknown';$i['is_supply']=in_array($i['item_category'],['consumable','expiring_material'],true);
  if(isset($i['gross_issued'])){
   $i['net_issued']=$i['is_supply']?(int)$i['gross_issued']:max(0,(int)$i['active_balance']-(int)$i['disposed']);
-  $i['available']=max(0,(int)$i['quantity']-(int)$i['withdrawn']-($i['is_supply']?(int)$i['gross_issued']:((int)$i['active_balance']))-(int)$i['returned_unserviceable']);
+  $i['central_repair']=max(0,(int)$i['central_repair']-(int)$i['restored_repair']);
+  $i['central_damaged']=max(0,(int)$i['central_damaged']-(int)$i['restored_damaged']-(int)$i['central_disposed']);
+  $i['returned_unserviceable']=$i['central_repair']+$i['central_damaged'];
+  $i['available']=max(0,(int)$i['quantity']-(int)$i['withdrawn']-($i['is_supply']?(int)$i['gross_issued']:((int)$i['active_balance']))-(int)$i['returned_unserviceable']-(int)$i['central_disposed']);
   $i['serviceable']=max(0,(int)$i['net_issued']-(int)$i['repair_qty']-(int)$i['damaged_qty']);
+  $i['disposed']+=(int)$i['central_disposed'];
   $i['low_stock']=$i['low_stock_threshold']!==null && $i['available']<=(int)$i['low_stock_threshold'];
  }else{
   $i['net_issued']=$i['is_supply']?(int)$i['qty_issued']:max(0,(int)$i['qty_issued']-(int)$i['qty_returned']-(int)$i['disposed_qty']);
@@ -159,7 +166,7 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
 <?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?7:8; ?>
 <div class="content-header p34-header">
   <div><h2>Inventory Management</h2><p class="p34-sub">Category-specific stock and accountability overview</p></div>
-  <?php if($isAdmin): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage classifications</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
+  <?php if($isAdmin): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage classifications</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
 </div>
 <?php if($isAdmin): ?>
 <nav class="p34-actions" style="margin-bottom:14px" aria-label="Inventory views">
