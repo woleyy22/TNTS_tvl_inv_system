@@ -30,7 +30,8 @@ if (empty($items)) {
 }
 
 $inspection_error = '';
-$existing_masters = db()->query('SELECT item_id, item_name, description, unit, item_type, quantity FROM inventory_items ORDER BY item_name, item_id')->fetchAll(PDO::FETCH_ASSOC);
+$existing_masters = db()->query('SELECT item_id, item_name, description, unit, item_type, item_category, quantity FROM inventory_items ORDER BY item_name, item_id')->fetchAll(PDO::FETCH_ASSOC);
+$classifications = db()->query('SELECT classification_id, classification_name FROM item_classifications WHERE is_active=1 ORDER BY classification_name')->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle Inspection Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -68,14 +69,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($qty_accepted > 0) {
                 // Classification is internal inventory metadata, NOT a required delivery field.
                 // It must be chosen explicitly at inspection, never guessed from unit cost.
-                $item_type = (string)($_POST['inventory_type'][$item_id] ?? '');
-                if (!in_array($item_type, ['equipment', 'supply'], true)) {
-                    throw new RuntimeException('Select Equipment or Supply for accepted item: ' . $item['item_name']);
+                $category = (string)($_POST['inventory_category'][$item_id] ?? '');
+                if (!in_array($category, ['equipment','non_consumable','consumable','expiring_material'], true)) throw new RuntimeException('Select a valid tracking category for: '.$item['item_name']);
+                $item_type = in_array($category,['equipment','non_consumable'],true) ? 'equipment' : 'supply';
+                $classification = (int)($_POST['classification_id'][$item_id] ?? 0);
+                if ($classification > 0) {
+                    $cl=db()->prepare('SELECT 1 FROM item_classifications WHERE classification_id=? AND is_active=1'); $cl->execute([$classification]);
+                    if (!$cl->fetchColumn()) throw new RuntimeException('Invalid classification for: '.$item['item_name']);
                 }
+                $batchNumber=trim((string)($_POST['batch_number'][$item_id]??''));
+                $expirationDate=trim((string)($_POST['expiration_date'][$item_id]??''));
+                if ($expirationDate !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expirationDate) || !checkdate((int)substr($expirationDate,5,2),(int)substr($expirationDate,8,2),(int)substr($expirationDate,0,4)))) throw new RuntimeException('Invalid expiration date.');
 
                 // A single master item may be referenced by several accepted delivery batches.
                 $masterId = aggregate_accepted_delivery_item(db(), $item, $qty_accepted, $item_type,
-                    (string)($_POST['master_choice'][$item_id] ?? 'auto'));
+                    (string)($_POST['master_choice'][$item_id] ?? 'auto'), $category, $classification ?: null, $batchNumber ?: null, $expirationDate ?: null);
 
             }
         }
@@ -133,14 +141,14 @@ require_once __DIR__ . '/includes/header.php';
 
         <div class="legacy-074">Exact matches automatically join an existing inventory item. If a similar item already exists, explicitly select it or choose to create a separate item. Costs remain recorded per delivery.</div>
         <h3 class="legacy-066">Items to Accept</h3>
-        <p class="legacy-067">Verify accepted quantities. Classify each accepted item for internal inventory tracking; Equipment/Supply does not need to appear on the delivery record or source Excel file.</p>
+        <p class="legacy-067">Verify accepted quantities. Select a tracking category for each accepted item. Batch and expiry details are optional, and useful for supplies.</p>
 
         <table class="legacy-068 tnts-inspection-table">
             <tr class="legacy-069">
                 <th class="legacy-070">Item Name</th>
                 <th class="legacy-070">Qty Delivered</th>
                 <th class="legacy-071">Qty Accepted *</th>
-                <th class="legacy-071">Inventory Classification *</th><th class="legacy-071">Inventory Matching</th>
+                <th class="legacy-071">Tracking Category *</th><th class="legacy-071">Custom Classification / Batch</th><th class="legacy-071">Inventory Matching</th>
             </tr>
             <?php foreach ($items as $item): ?>
                 <tr>
@@ -158,11 +166,18 @@ require_once __DIR__ . '/includes/header.php';
                                class="legacy-073">
                     </td>
                     <td class="legacy-072">
-                        <select name="inventory_type[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073 inspection-type" aria-label="Inventory classification for <?= e($item['item_name']) ?>">
-                            <option value="">Select for accepted items</option>
-                            <option value="equipment" <?= ($_POST['inventory_type'][$item['delivery_item_id']] ?? '') === 'equipment' ? 'selected' : '' ?>>Equipment</option>
-                            <option value="supply" <?= ($_POST['inventory_type'][$item['delivery_item_id']] ?? '') === 'supply' ? 'selected' : '' ?>>Supply</option>
+                        <select name="inventory_category[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073 inspection-type" required>
+                            <option value="">Choose category</option>
+                            <?php foreach (['equipment'=>'Equipment','non_consumable'=>'Non-Consumable','consumable'=>'Consumable','expiring_material'=>'Expiring Material'] as $k=>$v): ?>
+                            <option value="<?= e($k) ?>" <?= ($_POST['inventory_category'][$item['delivery_item_id']] ?? '') === $k ? 'selected' : '' ?>><?= e($v) ?></option>
+                            <?php endforeach; ?>
                         </select>
+                    </td>
+                    <td class="legacy-072">
+                        <select name="classification_id[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073"><option value="">No custom classification</option>
+                        <?php foreach($classifications as $cl): ?><option value="<?= (int)$cl['classification_id'] ?>" <?= (int)($_POST['classification_id'][$item['delivery_item_id']]??0)===(int)$cl['classification_id']?'selected':'' ?>><?= e($cl['classification_name']) ?></option><?php endforeach; ?></select>
+                        <input class="legacy-073" name="batch_number[<?= (int)$item['delivery_item_id'] ?>]" placeholder="Batch number (optional)" maxlength="80" value="<?= e($_POST['batch_number'][$item['delivery_item_id']]??'') ?>">
+                        <label class="legacy-037">Optional expiry</label><input class="legacy-073" type="date" name="expiration_date[<?= (int)$item['delivery_item_id'] ?>]" value="<?= e($_POST['expiration_date'][$item['delivery_item_id']]??'') ?>">
                     </td>
                     <td class="legacy-072">
                        <select name="master_choice[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073">
@@ -204,7 +219,7 @@ inspectionForm.addEventListener('submit', e => {
     select.style.borderColor = '';
     if (qty > 0 && !select.value) { select.style.borderColor = '#b91c1c'; invalid = true; }
   });
-  if (invalid) { e.preventDefault(); alert('Select Equipment or Supply for each accepted item before confirming inspection.'); }
+  if (invalid) { e.preventDefault(); alert('Select a tracking category for every accepted item.'); }
 });
 </script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

@@ -28,7 +28,7 @@ if (!$ics) {
 // Teachers may print only their own active ICS. Custodians/head may see archived versions.
 $viewerId = (int)($user['user_id'] ?? $user['id']);
 if ($user['role'] === 'teacher' &&
-    ((int)$ics['teacher_id'] !== $viewerId || $ics['status'] !== 'active')) {
+    ((int)$ics['teacher_id'] !== $viewerId)) {
     http_response_code(403);
     exit('Access denied to this ICS document.');
 }

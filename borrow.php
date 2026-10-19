@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/ics_accountability.php';
 
 $user = require_login();
 $role = $user['role'];
@@ -10,27 +11,19 @@ $uid = (int)$user['id'];
 // The same stock calculation is used by the dropdown and the POST validation.
 function borrow_stock_quantities(array $item): array
 {
-    $issued = max(0, (int)$item['qty_issued']);
-    $repair = max(0, (int)$item['repair_qty']);
-    $damaged = max(0, (int)$item['damaged_qty']);
-    $condemned = max(0, (int)$item['approved_condemned']);
-    // Existing damaged logs remain after condemnation approval. These quantities
-    // overlap; do not deduct the same damaged units twice. Cover approvals with
-    // no damage log by using the larger unavailable pool.
-    $unavailable = $repair + max($damaged, $condemned);
-    $serviceable = max(0, $issued - $unavailable);
-    if (($item['item_condition'] ?? 'serviceable') !== 'serviceable' && $unavailable === 0) {
-        // Legacy whole-line condition without quantity logs: do not offer it.
-        $serviceable = 0;
-    }
-    return ['serviceable_qty' => $serviceable, 'lendable_qty' => max(0, $serviceable - max(0, (int)$item['borrowed_qty']))];
+    $serviceable=max(0,(int)($item['current_serviceable']??0));
+    if(!in_array($item['item_category']??'', ['equipment','non_consumable'],true) || !empty($item['needs_review']))$serviceable=0;
+    return ['serviceable_qty'=>$serviceable,
+      'lendable_qty'=>max(0,$serviceable-max(0,(int)$item['borrowed_qty']))];
 }
 
-$lendingColumns = "
-    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) AS repair_qty,
-    COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) AS damaged_qty,
-    COALESCE((SELECT SUM(co.quantity) FROM condemnations co WHERE co.ics_item_id = ii.ics_item_id AND co.status = 'approved'), 0) AS approved_condemned,
-    COALESCE((SELECT SUM(b.quantity) FROM borrow_logs b WHERE b.ics_item_id = ii.ics_item_id AND b.status = 'borrowed'), 0) AS borrowed_qty";
+$lendingColumns="
+ COALESCE((SELECT cb.qty_serviceable FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS current_serviceable,
+ COALESCE((SELECT cb.qty_for_repair FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS repair_qty,
+ COALESCE((SELECT cb.qty_damaged FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS damaged_qty,
+ COALESCE((SELECT cb.needs_review FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS needs_review,
+ COALESCE((SELECT SUM(co.quantity) FROM condemnations co WHERE co.ics_item_id=ii.ics_item_id AND co.status='approved' AND co.outcome='disposed'),0) AS approved_condemned,
+ COALESCE((SELECT SUM(b.quantity) FROM borrow_logs b WHERE b.ics_item_id=ii.ics_item_id AND b.status='borrowed'),0) AS borrowed_qty";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -57,8 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active' FOR UPDATE");
             $lock->execute([$ics_item_id, $uid]);
             if (!$lock->fetch()) { throw new InvalidArgumentException('This item is no longer assigned to your active ICS.'); }
-            $check = db()->prepare("SELECT ii.qty_issued, ii.item_condition, $lendingColumns FROM ics_items ii WHERE ii.ics_item_id = ?");
+            $check = db()->prepare("SELECT ii.qty_issued,ii.item_condition,i.item_category,$lendingColumns FROM ics_items ii JOIN inventory_items i ON i.item_id=ii.item_id WHERE ii.ics_item_id = ?");
             $check->execute([$ics_item_id]);
+            $state=ics31_state(db(),(int)$ics_item_id,true);
+            if(!$state['is_equipment'] || $state['needs_review'])throw new InvalidArgumentException('Item is not eligible for lending until the Supply Officer verifies its condition.');
             $available = borrow_stock_quantities($check->fetch())['lendable_qty'];
             if ($quantity > $available) { throw new InvalidArgumentException("Only $available serviceable unit(s) are currently available to lend. Refresh the form and reduce the quantity."); }
             db()->prepare("INSERT INTO borrow_logs (ics_item_id, borrower_id, quantity, program_purpose, date_borrowed, status) VALUES (?, ?, ?, ?, ?, 'borrowed')")
@@ -97,9 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $teachers = db()->query("SELECT user_id, full_name FROM users WHERE role = 'teacher' AND status = 'active' ORDER BY full_name")->fetchAll();
 $my_lendable_items = [];
 if ($role === 'teacher') {
-    $stmt = db()->prepare("SELECT ii.ics_item_id, ii.item_condition, i.item_name, i.unit, ii.qty_issued, c.ics_number, $lendingColumns
+    $stmt = db()->prepare("SELECT ii.ics_item_id, ii.item_condition, i.item_name, i.unit,i.item_category, ii.qty_issued, c.ics_number, $lendingColumns
         FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id JOIN inventory_items i ON ii.item_id = i.item_id
-        WHERE c.teacher_id = ? AND c.status = 'active' ORDER BY i.item_name, c.ics_number");
+        WHERE c.teacher_id = ? AND c.status = 'active' AND i.item_category IN ('equipment','non_consumable') ORDER BY i.item_name, c.ics_number");
     $stmt->execute([$uid]);
     foreach ($stmt->fetchAll() as $item) {
         $item = array_merge($item, borrow_stock_quantities($item));

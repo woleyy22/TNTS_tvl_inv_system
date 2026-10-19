@@ -20,16 +20,24 @@ $courses = $stmt->fetchAll();
 $teacher_course_rows = db()->query("SELECT tc.user_id, tc.course_id FROM teacher_courses tc JOIN users u ON u.user_id = tc.user_id WHERE u.role = 'teacher' AND u.status = 'active'")->fetchAll(PDO::FETCH_ASSOC);
 // Fetch available inventory (items with unissued stock > 0)
 $stmt = db()->query("
-    SELECT i.*, 
-           (i.quantity - COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id = co.ics_item_id WHERE ii.item_id = i.item_id AND co.status = 'approved' AND co.outcome = 'disposed'), 0) - COALESCE((SELECT SUM(ii.qty_issued - COALESCE((SELECT SUM(co2.quantity) FROM condemnations co2 WHERE co2.ics_item_id = ii.ics_item_id AND co2.status = 'approved' AND co2.outcome = 'disposed'),0)) FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id WHERE ii.item_id = i.item_id AND c.status = 'active'), 0)) as available_qty
-    FROM inventory_items i
-    HAVING available_qty > 0
-    ORDER BY i.item_name
+ SELECT i.*,
+ (i.quantity
+  - COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0)
+  - CASE WHEN i.item_category IN ('consumable','expiring_material') THEN
+      COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii WHERE ii.item_id=i.item_id),0)
+    ELSE
+      COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id),0)
+      + COALESCE((SELECT SUM(rl.qty_for_repair+rl.qty_damaged) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0)
+
+    END) AS available_qty
+ FROM inventory_items i
+ HAVING available_qty>0 ORDER BY i.item_name
 ");
 $inventory = $stmt->fetchAll();
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
     $teacher_id = (int)($_POST['teacher_id'] ?? 0);
     $course_id = (int)($_POST['course_id'] ?? 0);
     $date_issued = $_POST['date_issued'] ?? date('Y-m-d');
@@ -60,28 +68,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Inside ics_issue.php POST handler
 db()->beginTransaction();
 try {
+    // Save each item category before inserting ICS lines. Do not run extra
+    // queries between an INSERT and reading its auto-increment ID.
+    $categoryByItem = [];
     // Validate each requested item quantity against live unissued stock
     foreach ($items_to_issue as $item_id => $qty_to_issue) {
-        $stmt_check = db()->prepare("
-            SELECT i.item_name, i.quantity,
-                   COALESCE((SELECT SUM(ii.qty_issued) 
-                             FROM ics_items ii 
-                             JOIN ics c ON ii.ics_id = c.ics_id 
-                             WHERE ii.item_id = i.item_id AND c.status = 'active'), 0) AS total_issued,
-                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id WHERE ii.item_id=i.item_id AND co.status='approved' AND co.outcome='disposed'),0) AS disposed_all,
-                   COALESCE((SELECT SUM(co.quantity) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='active' AND co.status='approved' AND co.outcome='disposed'),0) AS disposed_active
-            FROM inventory_items i
-            WHERE i.item_id = ?
-            FOR UPDATE
-        ");
-        $stmt_check->execute([$item_id]);
-        $stock = $stmt_check->fetch();
-
-        if (!$stock) {
-            throw new Exception("Invalid inventory item selected.");
-        }
-
-        $available_qty = $stock['quantity'] - $stock['disposed_all'] - ($stock['total_issued'] - $stock['disposed_active']);
+        $stmt_check = db()->prepare("SELECT i.item_name, i.item_category, i.quantity,
+        (SELECT COALESCE(SUM(w.quantity),0) FROM inventory_withdrawals w WHERE w.item_id=i.item_id) AS withdrawn,
+        (SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii WHERE ii.item_id=i.item_id) AS issued_all,
+        (SELECT COALESCE(SUM(ii.qty_issued-ii.qty_returned),0) FROM ics_items ii WHERE ii.item_id=i.item_id) AS active_balance,
+        COALESCE((SELECT SUM(rl.qty_for_repair+rl.qty_damaged) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) AS returned_unserviceable,
+        (SELECT COALESCE(SUM(co.quantity),0) FROM condemnations co JOIN ics_items ii ON ii.ics_item_id=co.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='closed' AND co.status='approved' AND co.outcome='disposed') AS closed_disposals
+        FROM inventory_items i WHERE i.item_id=? FOR UPDATE");
+        $stmt_check->execute([$item_id]); $stock=$stmt_check->fetch();
+        if (!$stock) throw new Exception('Invalid inventory item selected.');
+        $categoryByItem[(int)$item_id] = (string)$stock['item_category'];
+        $used = in_array($stock['item_category'], ['consumable','expiring_material'],true) ? (int)$stock['issued_all'] : ((int)$stock['active_balance']+(int)$stock['returned_unserviceable']);
+        $available_qty=(int)$stock['quantity']-(int)$stock['withdrawn']-$used;
         if ($qty_to_issue > $available_qty) {
             throw new Exception("Cannot issue {$qty_to_issue} unit(s) of '{$stock['item_name']}'. Only {$available_qty} unit(s) available in central inventory.");
         }
@@ -97,8 +100,18 @@ try {
 
     // Insert line items
     $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, item_condition) VALUES (?, ?, ?, 'serviceable')");
+    $newBalance=db()->prepare('INSERT INTO ics_condition_balances (ics_item_id,qty_serviceable,qty_for_repair,qty_damaged,needs_review) VALUES (?, ?, 0, 0, 0)');
     foreach ($items_to_issue as $item_id => $qty_to_issue) {
         $insert_item->execute([$ics_id, $item_id, $qty_to_issue]);
+        // The FK must point to THIS newly inserted ICS line, not to a stale
+        // lastInsertId() value from a later statement (or another line).
+        $newIcsItemId = (int) db()->lastInsertId();
+        if ($newIcsItemId <= 0) {
+            throw new RuntimeException('Could not identify the new ICS item. Issuance has been canceled safely.');
+        }
+        if (in_array($categoryByItem[(int)$item_id], ['equipment','non_consumable'], true)) {
+            $newBalance->execute([$newIcsItemId, $qty_to_issue]);
+        }
     }
 
     db()->commit();
@@ -116,6 +129,7 @@ $active = 'ics';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
+<div class="card" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px"><a class="legacy-028" href="<?= e(url('ics_issue.php')) ?>">Issue ICS</a><a href="<?= e(url('ics_returns.php')) ?>" class="legacy-028">Retrieve / Close ICS</a></div>
 <div class="content-header legacy-050">
     <h2>Issue Inventory Custodian Slip (ICS)</h2>
     <p class="legacy-037">Assign available inventory items to a specific teacher and course.</p>
@@ -123,6 +137,7 @@ require_once __DIR__ . '/includes/header.php';
 
 <?php if (!empty($_GET['error'])): ?><div class="legacy-181" role="alert"><?= e($_GET['error']) ?></div><?php endif; ?>
 <form method="POST" class="card legacy-148">
+    <?= csrf_field() ?>
     
     <div class="legacy-149">
         <div class="legacy-049">
@@ -173,7 +188,7 @@ require_once __DIR__ . '/includes/header.php';
                         <strong><?= e($item['item_name']) ?></strong><br>
                         <small class="legacy-037"><?= e(display_unit_cost($item['unit_cost'])) ?> / <?= e($item['unit']) ?></small>
                     </td>
-                    <td class="legacy-072"><?= e(ucfirst($item['item_type'])) ?></td>
+                    <td class="legacy-072"><?= e(ucwords(str_replace('_',' ',$item['item_category']))) ?></td>
                     <td class="legacy-153">
                         <?= e($item['available_qty']) ?> <?= e($item['unit']) ?>
                     </td>

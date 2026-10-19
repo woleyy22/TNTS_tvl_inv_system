@@ -30,6 +30,10 @@ $stmt_items = db()->prepare("
 ");
 $stmt_items->execute([$delivery_id]);
 $items = $stmt_items->fetchAll();
+$stmtIar=db()->prepare('SELECT r.*,u.full_name AS inspector_name FROM inspection_reports r LEFT JOIN users u ON u.user_id=r.inspected_by WHERE r.delivery_id=? ORDER BY r.iar_id DESC LIMIT 1');
+$stmtIar->execute([$delivery_id]);$iar=$stmtIar->fetch(PDO::FETCH_ASSOC) ?: [];
+$isComplete=($delivery['status']==='accepted');
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -70,7 +74,7 @@ $items = $stmt_items->fetchAll();
                 </td>
                 <td>
                     <strong>IAR No.:</strong> 
-                    <span class="meta-line legacy-009">IAR-<?= date('Y', strtotime($delivery['date_received'])) ?>-<?= sprintf('%03d', $delivery['delivery_id']) ?></span>
+                    <span class="meta-line legacy-009"><?= e($iar['iar_number']??'Pending IAR') ?></span>
                 </td>
             </tr>
             <tr>
@@ -149,20 +153,20 @@ $items = $stmt_items->fetchAll();
                 <td>
                     <div><strong>INSPECTION</strong></div>
                     <div class="legacy-016">
-                        Date Inspected: <u><?= e(date('m/d/Y', strtotime($delivery['date_received']))) ?></u>
+                        Date Inspected: <u><?= e(!empty($iar['date_inspected'])?date('m/d/Y',strtotime($iar['date_inspected'])):'__________') ?></u>
                     </div>
                     <div class="legacy-017">
-                        [✓] Inspected, verified and found in order as to quantity and specifications.
+                        [<?= $isComplete?'✓':' ' ?>] Inspected, verified and found in order as to quantity and specifications.
                     </div>
 
                     <div class="sig-block">
-                        <span class="sig-name">REYNALD ACE</span>
+                        <span class="sig-name"><?= e($iar['inspector_name']??'____________________') ?></span>
                         <span class="sig-label">Signature Over Printed Name</span>
                         <span class="legacy-018">PROPERTY CUSTODIAN</span>
                         <span class="sig-label">Inspection Officer / Chair</span>
                         
                         <div class="sig-date">
-                            <?= e(date('m/d/Y', strtotime($delivery['date_received']))) ?>
+                            <?= e(!empty($iar['date_inspected'])?date('m/d/Y',strtotime($iar['date_inspected'])):'__________') ?>
                         </div>
                         <span class="sig-label">Date Inspected</span>
                     </div>
@@ -175,12 +179,12 @@ $items = $stmt_items->fetchAll();
                         Date Received: <u><?= e(date('m/d/Y', strtotime($delivery['date_received']))) ?></u>
                     </div>
                     <div class="legacy-017">
-                        [✓] Complete Delivery & Accepted<br>
-                        [ &nbsp; ] Partial Delivery (Please see remarks)
+                        [<?= $isComplete?'✓':' ' ?>] Complete Delivery & Accepted<br>
+                        [<?= !$isComplete?'✓':' ' ?>] Partial Delivery (Please see remarks)
                     </div>
 
                     <div class="sig-block">
-                        <span class="sig-name">ARNOLD G. ANGELES</span>
+                        <span class="sig-name"><?= e($delivery['receiver_name']??'____________________') ?></span>
                         <span class="sig-label">Signature Over Printed Name</span>
                         <span class="legacy-018">SUPPLY OFFICER I</span>
                         <span class="sig-label">Property Custodian / Supply Office</span>

@@ -146,7 +146,7 @@
         document.body.append(details);
         details.querySelectorAll('button').forEach(button => button.addEventListener('click', () => close(details.id)));
         details.addEventListener('click', event => { if (event.target === details) close(details.id); });
-        if (/\/(inventory|item_maintenance)\.php$/.test(location.pathname)) {
+        if (/\/item_maintenance\.php$/.test(location.pathname)) {
             document.querySelectorAll('main table').forEach(table => {
                 const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
                 if (!headers.length) return;

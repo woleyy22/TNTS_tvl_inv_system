@@ -3,6 +3,7 @@ ob_start(); // Prevent header redirect failures
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/ics_accountability.php';
 
 $user = current_user();
 if (!$user || $user['role'] !== 'teacher') {
@@ -16,148 +17,86 @@ $uid = (int)($user['user_id'] ?? $user['id']);
 // This follows the aggregate convention also used by borrow.php.
 function maintenance_stock_quantities(array $item): array
 {
-    $issued = max(0, (int)$item['qty_issued']);
-    $repair = max(0, (int)($item['repair_qty'] ?? $item['current_repair_qty'] ?? 0));
-    $reportedDamaged = max(0, (int)($item['damaged_qty'] ?? $item['current_damaged_qty'] ?? 0));
-    $disposed = max(0, (int)($item['approved_condemned'] ?? 0));
-    $damaged = max(0, $reportedDamaged - $disposed);
     return [
-        'serviceable' => max(0, $issued - $repair - $damaged - $disposed),
-        'repair' => $repair,
-        'damaged' => $damaged,
-        'disposed' => $disposed,
+        'serviceable' => (int)$item['qty_serviceable'],
+        'repair' => (int)$item['qty_for_repair'],
+        'damaged' => (int)$item['qty_damaged'],
+        'disposed' => (int)$item['approved_condemned'],
     ];
 }
 
-// Handle Issue Reporting AND Condition Resolution (Server-Side Validation First)
+// Update current custody AND legacy repair history in one database transaction.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_issue'])) {
-    $ics_item_id       = (int)$_POST['ics_item_id'];
-    $affected_qty      = (int)$_POST['affected_qty'];
-    $new_condition     = trim($_POST['item_condition']);
-    $issue_description = trim($_POST['issue_description']);
-
-    if (!$ics_item_id || $affected_qty <= 0 || empty($new_condition) || empty($issue_description)) {
-        header("Location: item_maintenance.php?error=" . urlencode("All fields are required and affected quantity must be at least 1."));
-        exit;
-    }
-
-    // Fetch item details and active condition counts BEFORE opening a transaction
-    $check = db()->prepare("
-        SELECT ii.*, c.ics_number,
-               COALESCE((SELECT SUM(quantity) FROM condemnations WHERE ics_item_id = ii.ics_item_id AND status = 'approved'), 0) as approved_condemned,
-               COALESCE((SELECT SUM(quantity_affected) FROM repair_logs WHERE ics_item_id = ii.ics_item_id AND condition_status = 'for_repair'), 0) as current_repair_qty,
-               COALESCE((SELECT SUM(quantity_affected) FROM repair_logs WHERE ics_item_id = ii.ics_item_id AND condition_status = 'damaged'), 0) as current_damaged_qty
-        FROM ics_items ii 
-        JOIN ics c ON ii.ics_id = c.ics_id 
-        WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active'
-    ");
-    $check->execute([$ics_item_id, $uid]);
-    $itemData = $check->fetch();
-    
-    if (!$itemData) {
-        header("Location: item_maintenance.php?error=" . urlencode("Invalid item selection."));
-        exit;
-    }
-
-    $serviceable_qty = maintenance_stock_quantities($itemData)['serviceable'];
-
-    // STRICT VALIDATION CHECKS
-    if ($new_condition === 'serviceable') {
-        if ($itemData['current_repair_qty'] < $affected_qty) {
-            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You can only restore up to the amount currently marked as 'For Repair'."));
-            exit;
-        }
-    } else {
-        if ($serviceable_qty < $affected_qty) {
-            header("Location: item_maintenance.php?error=" . urlencode("Action Blocked: You do not have enough Serviceable units available to report an issue."));
-            exit;
-        }
-    }
-
-    // EXECUTE DB WRITES
-    db()->beginTransaction();
+    csrf_check();
+    $icsItemId=(int)($_POST['ics_item_id']??0);
+    $rawQty=(string)($_POST['affected_qty']??'');
+    $condition=(string)($_POST['item_condition']??'');
+    $description=trim((string)($_POST['issue_description']??''));
     try {
-        if ($new_condition === 'serviceable') {
-            
-            // UX FIX: PARTIAL DEDUCTION LOGIC
-            // Sequentially deduct the restored quantity from open 'for_repair' stacks so we don't wipe out the whole log
-            $restoring = $affected_qty;
-            $stmt_open = db()->prepare("SELECT repair_id, quantity_affected FROM repair_logs WHERE ics_item_id = ? AND condition_status = 'for_repair' ORDER BY date_reported ASC");
-            $stmt_open->execute([$ics_item_id]);
-            $open_repairs = $stmt_open->fetchAll();
-            
-            foreach($open_repairs as $rep) {
-                if ($restoring <= 0) break;
-                
-                if ($rep['quantity_affected'] <= $restoring) {
-                    // Fully resolve this specific stack
-                    db()->prepare("UPDATE repair_logs SET action_taken = ?, condition_status = 'resolved' WHERE repair_id = ?")
-                      ->execute(["Repaired/Serviced: " . $issue_description, $rep['repair_id']]);
-                    $restoring -= $rep['quantity_affected'];
-                } else {
-                    // Partially resolve: reduce the quantity of this stack, leaving the rest "For Repair"
-                    $remaining_broken = $rep['quantity_affected'] - $restoring;
-                    db()->prepare("UPDATE repair_logs SET quantity_affected = ? WHERE repair_id = ?")
-                      ->execute([$remaining_broken, $rep['repair_id']]);
-                    $restoring = 0;
-                }
+        if(!ctype_digit($rawQty) || strlen($rawQty)>9 || (int)$rawQty<1 || strlen($description)<3 || !in_array($condition,['for_repair','damaged','serviceable'],true))
+            throw new RuntimeException('Choose an item, enter a positive whole-number quantity and describe the action.');
+        $qty=(int)$rawQty;
+        $pdo=db();$pdo->beginTransaction();
+        $st=$pdo->prepare("SELECT c.teacher_id,c.status FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.ics_item_id=? FOR UPDATE");
+        $st->execute([$icsItemId]);$record=$st->fetch(PDO::FETCH_ASSOC);
+        if(!$record || (int)$record['teacher_id']!==$uid || $record['status']!=='active')
+            throw new RuntimeException('You cannot modify equipment that is no longer on your active ICS.');
+        $state=ics31_state($pdo,$icsItemId,true);
+        if(!$state['is_equipment'] || $state['remaining_qty']<1)throw new RuntimeException('Only equipment still under your accountability can be reported.');
+        if($state['needs_review'])throw new RuntimeException('The Supply Officer must verify this ICS balance before maintenance changes can be recorded.');
+        $pools=['serviceable'=>$state['qty_serviceable'],'repair'=>$state['qty_for_repair'],'damaged'=>$state['qty_damaged']];
+        if($condition==='serviceable') {
+            if($qty>$pools['repair'])throw new RuntimeException('Only '.$pools['repair'].' unit(s) currently need repair.');
+            $pools['repair']-=$qty;$pools['serviceable']+=$qty;
+            // Reduce legacy open-repair stacks too; other v5.6 modules still read them.
+            $open=$pdo->prepare("SELECT repair_id,quantity_affected FROM repair_logs WHERE ics_item_id=? AND condition_status='for_repair' ORDER BY repair_id FOR UPDATE");
+            $open->execute([$icsItemId]);$toResolve=$qty;
+            foreach($open->fetchAll(PDO::FETCH_ASSOC) as $rep){
+                if(!$toResolve)break;
+                $take=min($toResolve,(int)$rep['quantity_affected']);
+                if($take===(int)$rep['quantity_affected'])$pdo->prepare("UPDATE repair_logs SET condition_status='resolved',action_taken=? WHERE repair_id=?")->execute(['Repaired: '.$description,$rep['repair_id']]);
+                else $pdo->prepare('UPDATE repair_logs SET quantity_affected=quantity_affected-? WHERE repair_id=?')->execute([$take,$rep['repair_id']]);
+                $toResolve-=$take;
             }
-
-            // Log restoration record history
-            $stmt_log = db()->prepare("
-                INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, quantity_affected, condition_status, date_reported) 
-                VALUES (?, ?, ?, 'Returned to Serviceable Status', ?, 'serviceable', NOW())
-            ");
-            $stmt_log->execute([$ics_item_id, $uid, "Equipment restored/repaired", $affected_qty]);
-
+            $stmt=$pdo->prepare("INSERT INTO repair_logs (ics_item_id,reported_by,issue,action_taken,date_reported,quantity_affected,condition_status) VALUES (?,?,?,'Returned to Serviceable Status',CURRENT_DATE(),?,'serviceable')");
+            $stmt->execute([$icsItemId,$uid,$description,$qty]);
         } else {
-            // Log issue for repair or damaged
-            $stmt = db()->prepare("
-                INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, quantity_affected, condition_status, date_reported) 
-                VALUES (?, ?, ?, 'Pending maintenance review', ?, ?, NOW())
-            ");
-            $stmt->execute([$ics_item_id, $uid, $issue_description, $affected_qty, $new_condition]);
-
-            // Auto-queue condemnation if marked damaged
-            if ($new_condition === 'damaged') {
-                $form_number = 'CF-' . date('Y') . '-' . rand(100, 999);
-                $stmt_cond = db()->prepare("
-                    INSERT INTO condemnations (form_number, ics_item_id, quantity, reason, requested_by, status, outcome) 
-                    VALUES (?, ?, ?, ?, ?, 'requested', 'Pending Custodian Review')
-                ");
-                $stmt_cond->execute([$form_number, $ics_item_id, $affected_qty, $issue_description, $uid]);
+            if($qty>$pools['serviceable'])throw new RuntimeException('Only '.$pools['serviceable'].' serviceable unit(s) are available to report.');
+            $pools['serviceable']-=$qty;
+            $pools[$condition==='for_repair'?'repair':'damaged']+=$qty;
+            $stmt=$pdo->prepare("INSERT INTO repair_logs (ics_item_id,reported_by,issue,action_taken,date_reported,quantity_affected,condition_status) VALUES (?,?,?,'Pending maintenance review',CURRENT_DATE(),?,?)");
+            $stmt->execute([$icsItemId,$uid,$description,$qty,$condition]);
+            if($condition==='damaged') {
+                $formNumber=generate_document_number('condemnation');
+                $pdo->prepare("INSERT INTO condemnations (form_number,ics_item_id,quantity,reason,requested_by,status,outcome) VALUES (?,?,?,?,?,'requested',NULL)")->execute([$formNumber,$icsItemId,$qty,$description,$uid]);
             }
         }
-
-        // Audit Trail
-        db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Updated Item Maintenance Status', 'Maintenance', ?, ?)")
-            ->execute([$uid, $ics_item_id, "Updated $affected_qty unit(s) status to $new_condition: $issue_description"]);
-
-        db()->commit();
-        header("Location: item_maintenance.php?success=1");
-        exit;
-    } catch (Exception $e) {
-        db()->rollBack();
-        header("Location: item_maintenance.php?error=" . urlencode("Error processing request: " . $e->getMessage()));
-        exit;
+        ics31_save($pdo,$icsItemId,$pools);
+        log_action($uid,'Updated Item Maintenance Status','Maintenance',$icsItemId,"Changed $qty accountable unit(s) to $condition: $description");
+        $pdo->commit();
+        header('Location: item_maintenance.php?success=1');exit;
+    } catch(Throwable $ex) {
+        if(db()->inTransaction())db()->rollBack();
+        header('Location: item_maintenance.php?error='.urlencode($ex->getMessage()));exit;
     }
 }
 
 // Fetch teacher's accountable items
 $stmt = db()->prepare("
-    SELECT ii.*, i.item_name, i.description, i.unit, c.ics_number, cr.course_name,
-           COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) as repair_qty,
-           COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) as damaged_qty,
-           COALESCE((SELECT SUM(quantity) FROM condemnations WHERE ics_item_id = ii.ics_item_id AND status = 'approved'), 0) as approved_condemned
-    FROM ics_items ii
-    JOIN ics c ON ii.ics_id = c.ics_id
-    JOIN inventory_items i ON ii.item_id = i.item_id
-    JOIN courses cr ON c.course_id = cr.course_id
-    WHERE c.teacher_id = ? AND c.status = 'active'
-    ORDER BY c.date_issued DESC
+    SELECT ii.*,i.item_name,i.description,i.unit,c.ics_number,cr.course_name,
+     cb.qty_serviceable,cb.qty_for_repair,cb.qty_damaged,cb.needs_review,
+     COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0) AS approved_condemned
+    FROM ics_items ii JOIN ics c ON ii.ics_id=c.ics_id
+    JOIN inventory_items i ON i.item_id=ii.item_id
+    LEFT JOIN courses cr ON cr.course_id=c.course_id
+    JOIN ics_condition_balances cb ON cb.ics_item_id=ii.ics_item_id
+    WHERE c.teacher_id=? AND c.status='active' AND i.item_category IN ('equipment','non_consumable')
+      AND (cb.qty_serviceable+cb.qty_for_repair+cb.qty_damaged)>0
+    ORDER BY c.date_issued DESC,ii.ics_item_id DESC
 ");
 $stmt->execute([$uid]);
-$items = $stmt->fetchAll();
+$items=$stmt->fetchAll(PDO::FETCH_ASSOC);
+foreach($items as &$i){$i['repair_qty']=$i['qty_for_repair'];$i['damaged_qty']=$i['qty_damaged'];$i['currently_accountable']=(int)$i['qty_serviceable']+(int)$i['qty_for_repair']+(int)$i['qty_damaged'];}unset($i);
 
 // Fetch repair logs (Ordering active "for_repair" items to the top for UX)
 $stmt_repairs = db()->prepare("
@@ -202,13 +141,13 @@ require_once __DIR__ . '/includes/header.php';
 <!-- Section 1: Detailed Quantity Breakdown by Condition -->
 <div class="card legacy-191">
     <h3 class="legacy-192">Accountable Inventory Quantity Breakdown</h3>
-    <p class="field-help">Total issued = Serviceable + For repair + Damaged + Disposed. Damaged excludes disposed units. Disposed follows the existing approved-condemnation records.</p>
+    <p class="field-help">Original ICS issued = already retrieved + disposed + current teacher accountability. Only current accountable equipment may be reported for maintenance.</p>
     <table class="legacy-031">
         <thead>
             <tr class="legacy-032">
                 <th class="legacy-033">ICS No. / Course</th>
                 <th class="legacy-033">Item Details</th>
-                <th class="legacy-033">Total Issued</th>
+                <th class="legacy-033">Original ICS</th><th class="legacy-033">Already retrieved</th><th class="legacy-033">Currently accountable</th>
                 <th class="legacy-087">Serviceable</th>
                 <th class="legacy-088">For Repair</th>
                 <th class="legacy-089">Damaged</th>
@@ -218,7 +157,7 @@ require_once __DIR__ . '/includes/header.php';
         <tbody>
             <?php if (empty($items)): ?>
                 <tr>
-                    <td colspan="7" class="legacy-035">No items assigned to your account.</td>
+                    <td colspan="9" class="legacy-035">No equipment currently under your active accountability.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($items as $item): 
@@ -234,9 +173,9 @@ require_once __DIR__ . '/includes/header.php';
                             <strong><?= e($item['item_name']) ?></strong><br>
                             <small class="legacy-037"><?= e($item['description']) ?></small>
                         </td>
-                        <td class="legacy-091"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td>
-                        <td class="legacy-092"><?= $serviceable_qty ?></td>
-                        <td class="legacy-093"><?= e($item['repair_qty']) ?></td>
+                        <td class="legacy-091"><?= e($item['qty_issued']) ?> <?= e($item['unit']) ?></td><td class="legacy-033"><?= (int)$item['qty_returned'] ?></td><td class="legacy-033"><strong><?= (int)$item['currently_accountable'] ?></strong></td>
+                        <td class="legacy-092"><?= $serviceable_qty ?><?php if($item['needs_review']):?><br><small style="color:#a15f00">Awaiting custodian verification</small><?php endif;?></td>
+                        <td class="legacy-093"><?= (int)$item['repair_qty'] ?></td>
                         <td class="legacy-094"><?= $stock['damaged'] ?></td>
                         <td class="legacy-033"><?= $stock['disposed'] ?></td>
                     </tr>
@@ -298,6 +237,7 @@ require_once __DIR__ . '/includes/header.php';
         <h3>Report an issue or record a repair</h3>
         <p class="modal-intro">Choose your equipment, tell us what happened, and enter the number of units affected.</p>
         <form method="POST" id="maintenanceForm">
+            <?= csrf_field() ?>
             <section class="form-section">
                 <div class="section-heading"><span class="step-number">1</span><h4>Choose equipment</h4></div>
                 <div class="field">
@@ -309,8 +249,8 @@ require_once __DIR__ . '/includes/header.php';
                             $stock = maintenance_stock_quantities($mi);
                             $serv_qty = $stock['serviceable'];
                         ?>
-                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$serv_qty ?>" data-repair="<?= (int)$mi['repair_qty'] ?>" data-damaged="<?= $stock['damaged'] ?>" data-condemned="<?= (int)$mi['approved_condemned'] ?>" data-unit="<?= e($mi['unit']) ?>">
-                                <?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?>
+                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-issued="<?= (int)$mi['currently_accountable'] ?>" data-serviceable="<?= (int)$serv_qty ?>" data-repair="<?= (int)$mi['repair_qty'] ?>" data-damaged="<?= $stock['damaged'] ?>" data-condemned="<?= (int)$mi['approved_condemned'] ?>" data-review="<?= (int)$mi['needs_review'] ?>" data-unit="<?= e($mi['unit']) ?>">
+                                <?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?><?= $mi['needs_review'] ? ' (Verification Required)' : '' ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -364,7 +304,7 @@ function updateLiveItemDetails() {
     card.hidden = !select.value;
     if (select.value) {
         const option = select.options[select.selectedIndex];
-        document.getElementById('badge_total').textContent = option.dataset.issued + ' ' + option.dataset.unit;
+        document.getElementById('badge_total').textContent = option.dataset.issued + ' ' + option.dataset.unit + ' currently accountable';
         ['serviceable', 'repair', 'damaged', 'condemned'].forEach(key => {
             document.getElementById('badge_' + key).textContent = option.dataset[key] || '0';
         });
@@ -377,8 +317,9 @@ function adjustQuantityLimits() {
     const actions = Array.from(document.querySelectorAll('#maintenanceForm input[name="item_condition"]'));
     const working = option ? Number(option.dataset.serviceable) : 0;
     const repair = option ? Number(option.dataset.repair) : 0;
+    const review = option && option.dataset.review === '1';
     actions.forEach(action => {
-        action.disabled = !option || (action.value === 'serviceable' ? repair : working) <= 0;
+        action.disabled = !option || review || (action.value === 'serviceable' ? repair : working) <= 0;
         action.closest('label').classList.toggle('choice-disabled', action.disabled);
     });
     const selected = actions.find(action => action.checked);

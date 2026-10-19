@@ -15,6 +15,6 @@ define('BASE_URL', '/tnts');
 define('APP_NAME', 'TNTS Inventory System');
 
 // Seconds of inactivity before a user is logged out automatically
-define('SESSION_TIMEOUT', 1800);
+// Custom inactivity logout removed in v5.7; PHP session lifetime still applies.
 
 date_default_timezone_set('Asia/Manila');

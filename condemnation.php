@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/ics_accountability.php';
 
 $user = current_user();
 if (!$user) {
@@ -30,24 +31,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_condemnation'
         try {
             db()->beginTransaction();
             // Serialize requests for the same ICS item to prevent two simultaneous over-requests.
-            $check = db()->prepare("SELECT ii.qty_issued, ii.item_condition FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.ics_item_id=? AND c.teacher_id=? AND c.status='active' FOR UPDATE");
-            $check->execute([$ics_item_id, $uid]);
-            $row = $check->fetch(PDO::FETCH_ASSOC);
-            if (!$row) throw new RuntimeException('The selected item is no longer accountable to your active ICS.');
-            $sum = db()->prepare("SELECT COALESCE(SUM(quantity),0) FROM condemnations WHERE ics_item_id=? AND status <> 'rejected'");
-            $sum->execute([$ics_item_id]);
-            $remaining = (int)$row['qty_issued'] - (int)$sum->fetchColumn();
-            if ($quantity > $remaining) throw new RuntimeException("Quantity exceeds the available balance ($remaining remaining).");
-            $form_number = generate_document_number('condemnation');
-            db()->prepare("INSERT INTO condemnations (form_number, ics_item_id, quantity, reason, requested_by, status, outcome) VALUES (?, ?, ?, ?, ?, 'requested', NULL)")
-                ->execute([$form_number, $ics_item_id, $quantity, $reason, $uid]);
-            $new_id = (int)db()->lastInsertId();
-            // Mark precisely the requested quantity damaged in the condition ledger.
-            // Do not change the whole ICS line when only some units are affected.
-            db()->prepare("INSERT INTO repair_logs (ics_item_id, reported_by, issue, action_taken, date_reported, quantity_affected, condition_status) VALUES (?, ?, ?, 'Pending condemnation review', CURRENT_DATE(), ?, 'damaged')")
-                ->execute([$ics_item_id, $uid, 'Condemnation request #' . $new_id . ': ' . $reason, $quantity]);
-            if ($quantity === (int)$row['qty_issued'] && $remaining === (int)$row['qty_issued']) {
-                db()->prepare("UPDATE ics_items SET item_condition = 'damaged' WHERE ics_item_id = ?")->execute([$ics_item_id]);
+            $check=db()->prepare("SELECT ii.ics_item_id FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.ics_item_id=? AND c.teacher_id=? AND c.status='active' FOR UPDATE");
+            $check->execute([$ics_item_id,$uid]);
+            if(!$check->fetchColumn())throw new RuntimeException('Item is no longer under your active accountability.');
+            $balance=ics31_state(db(),$ics_item_id,true);
+            if(!$balance['is_equipment'] || $balance['needs_review'])throw new RuntimeException('This equipment requires Supply Officer verification first.');
+            $sum=db()->prepare("SELECT COALESCE(SUM(quantity),0) FROM condemnations WHERE ics_item_id=? AND status='requested'");
+            $sum->execute([$ics_item_id]);$pending=(int)$sum->fetchColumn();
+            $remaining=max(0,$balance['remaining_qty']-$pending);
+            if($quantity>$remaining)throw new RuntimeException("Quantity exceeds current available accountability ($remaining remaining).");
+            $form_number=generate_document_number('condemnation');
+            db()->prepare("INSERT INTO condemnations (form_number,ics_item_id,quantity,reason,requested_by,status,outcome) VALUES (?,?,?,?,?,'requested',NULL)")
+              ->execute([$form_number,$ics_item_id,$quantity,$reason,$uid]);
+            $new_id=(int)db()->lastInsertId();
+            // Keep existing damaged equipment damaged; only move working units when newly reported as damaged.
+            $unclaimedDamaged=max(0,$balance['qty_damaged']-$pending);
+            $newDamage=max(0,$quantity-$unclaimedDamaged);
+            if($newDamage>$balance['qty_serviceable'])throw new RuntimeException('Insufficient serviceable/damaged equipment for this request.');
+            if($newDamage>0){
+                ics31_save(db(),$ics_item_id,[
+                  'serviceable'=>$balance['qty_serviceable']-$newDamage,
+                  'repair'=>$balance['qty_for_repair'],
+                  'damaged'=>$balance['qty_damaged']+$newDamage,
+                ]);
+                db()->prepare("INSERT INTO repair_logs (ics_item_id,reported_by,issue,action_taken,date_reported,quantity_affected,condition_status) VALUES (?, ?, ?, 'Pending condemnation review', CURRENT_DATE(), ?, 'damaged')")
+                  ->execute([$ics_item_id,$uid,'Condemnation request #'.$new_id.': '.$reason,$newDamage]);
             }
             db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Requested Condemnation', 'Condemnation', ?, ?)")
                 ->execute([$uid, $new_id, "Requested condemnation for qty $quantity. Reason: $reason"]);
@@ -67,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_condemnation']
         die("Unauthorized access. Only Property Custodians can approve condemnations.");
     }
 
+    csrf_check();
     $condemnation_id = (int)$_POST['condemnation_id'];
     $decision = $_POST['decision'] ?? $_POST['action_condemnation'];
 
@@ -77,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_condemnation']
     db()->beginTransaction();
     try {
         // Fetch existing condemnation record and verify status is still 'requested'
-        $stmt_check = db()->prepare("SELECT status FROM condemnations WHERE condemnation_id = ? FOR UPDATE");
+        $stmt_check = db()->prepare("SELECT status,ics_item_id,quantity FROM condemnations WHERE condemnation_id = ? FOR UPDATE");
         $stmt_check->execute([$condemnation_id]);
         $existing = $stmt_check->fetch();
 
@@ -94,6 +103,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_condemnation']
             throw new RuntimeException('Confirm that these units were physically disposed before recording disposal.');
         }
         $outcome = $decision === 'approved' ? 'disposed' : null;
+        if($decision==='approved') {
+            $state=ics31_state(db(),(int)$existing['ics_item_id'],true);
+            $disposeQty=(int)$existing['quantity'];
+            if($disposeQty>$state['remaining_qty'])throw new RuntimeException('Cannot dispose of units already returned or previously disposed.');
+            $take=['damaged'=>$state['qty_damaged'],'serviceable'=>$state['qty_serviceable'],'repair'=>$state['qty_for_repair']];
+            $remainingDispose=$disposeQty;
+            foreach(['damaged','serviceable','repair'] as $key){$deduct=min($take[$key],$remainingDispose);$take[$key]-=$deduct;$remainingDispose-=$deduct;}
+            if($remainingDispose)throw new RuntimeException('Not enough equipment remains accountable for this disposition.');
+            ics31_save(db(),(int)$existing['ics_item_id'],[
+                'serviceable'=>$take['serviceable'], 'repair'=>$take['repair'], 'damaged'=>$take['damaged']
+            ]);
+        }
 
         $stmt = db()->prepare("
             UPDATE condemnations 
@@ -133,12 +154,12 @@ if ($role === 'teacher') {
 
     // Fetch items eligible for condemnation request
     $stmt_items = db()->prepare("
-        SELECT ii.ics_item_id, i.item_name, i.unit, ii.qty_issued, ii.item_condition, c.ics_number,
-               COALESCE((SELECT SUM(quantity) FROM condemnations WHERE ics_item_id = ii.ics_item_id AND status <> 'rejected'), 0) as condemned_qty
-        FROM ics_items ii
-        JOIN ics c ON ii.ics_id = c.ics_id
-        JOIN inventory_items i ON ii.item_id = i.item_id
-        WHERE c.teacher_id = ? AND c.status = 'active'
+        SELECT ii.ics_item_id,i.item_name,i.unit,ii.qty_issued,ii.item_condition,c.ics_number,
+          (cb.qty_serviceable+cb.qty_for_repair+cb.qty_damaged) AS accountable_qty, cb.qty_serviceable,cb.qty_damaged,cb.needs_review,
+          COALESCE((SELECT SUM(quantity) FROM condemnations WHERE ics_item_id=ii.ics_item_id AND status='requested'),0) AS pending_qty
+        FROM ics_items ii JOIN ics c ON ii.ics_id=c.ics_id JOIN inventory_items i ON i.item_id=ii.item_id
+        JOIN ics_condition_balances cb ON cb.ics_item_id=ii.ics_item_id
+        WHERE c.teacher_id=? AND c.status='active' AND i.item_category IN ('equipment','non_consumable')
     ");
     $stmt_items->execute([$uid]);
     $my_items = $stmt_items->fetchAll();
@@ -231,6 +252,7 @@ require_once __DIR__ . '/includes/header.php';
                             <td class="legacy-034">
                                 <?php if ($con['status'] === 'requested'): ?>
                                     <form method="POST" class="legacy-211">
+                                        <?= csrf_field() ?>
                                         <input type="hidden" name="condemnation_id" value="<?= $con['condemnation_id'] ?>">
                                         <label><input type="checkbox" name="confirm_disposed" value="1"> I confirm these units have been physically disposed of</label><button type="submit" name="action_condemnation" value="approved" class="legacy-212">Approve</button>
                                         <button type="submit" name="action_condemnation" value="rejected" class="legacy-213">Reject</button>
@@ -259,7 +281,7 @@ require_once __DIR__ . '/includes/header.php';
                 <select name="ics_item_id" id="condemn_item" required class="legacy-047">
                     <option value="">-- Choose Damaged / Broken Item --</option>
                     <?php foreach ($my_items as $mi): 
-                        $avail_condemn = $mi['qty_issued'] - $mi['condemned_qty'];
+                        $avail_condemn = $mi['needs_review'] ? 0 : max(0,(int)$mi['accountable_qty']-(int)$mi['pending_qty']);
                         if ($avail_condemn > 0):
                     ?>
                         <option value="<?= $mi['ics_item_id'] ?>" data-max="<?= (int)$avail_condemn ?>" <?= (int)($_POST['ics_item_id'] ?? 0) === (int)$mi['ics_item_id'] ? 'selected' : '' ?>>

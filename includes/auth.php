@@ -20,15 +20,7 @@ function require_login(): array
         redirect('login.php');
     }
 
-    // automatic logout after a period of inactivity
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
-        session_unset();
-        session_destroy();
-        session_start();
-        flash('error', 'You were logged out because of inactivity.');
-        redirect('login.php');
-    }
-    $_SESSION['last_activity'] = time();
+    // No custom inactivity logout; normal PHP session security still applies.
 
     // make sure the account is still active (for example, a teacher who left)
     $st = db()->prepare('SELECT status FROM users WHERE user_id = ?');

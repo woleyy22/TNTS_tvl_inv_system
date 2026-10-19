@@ -36,17 +36,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
         die("Supplier Name and Date Received are required.");
     }
 
-    $stmt = db()->prepare("
-        INSERT INTO deliveries (po_number, dr_number, supplier_name, date_received, received_by, status) 
-        VALUES (?, ?, ?, ?, ?, 'pending_inspection')
-    ");
-    $stmt->execute([$po_number, $dr_number, $supplier_name, $date_received, $active_user_id]);
-    
-    $delivery_id = db()->lastInsertId();
-
-    // Log the action
-    db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Created Delivery', 'Receiving', ?, ?)")
-        ->execute([$active_user_id, $delivery_id, "Logged new delivery from $supplier_name"]);
+    // Permanent document number, reserved transactionally for the actual received date.
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $date_received);
+    if (!$date || $date->format('Y-m-d') !== $date_received) {
+        die('Invalid Date Received.');
+    }
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        $year = (int)$date->format('Y');
+        $seed = $pdo->prepare('INSERT INTO receiving_number_sequences (receive_year, last_number) VALUES (?,0) ON DUPLICATE KEY UPDATE receive_year=receive_year');
+        $seed->execute([$year]);
+        $lock = $pdo->prepare('SELECT last_number FROM receiving_number_sequences WHERE receive_year=? FOR UPDATE');
+        $lock->execute([$year]);
+        $next = (int)$lock->fetchColumn() + 1;
+        $number = sprintf('REC-%04d-%03d', $year, $next);
+        $pdo->prepare('UPDATE receiving_number_sequences SET last_number=? WHERE receive_year=?')->execute([$next,$year]);
+        $stmt = $pdo->prepare("INSERT INTO deliveries (receiving_number, po_number, dr_number, supplier_name, date_received, received_by, status)
+                               VALUES (?, ?, ?, ?, ?, ?, 'pending_inspection')");
+        $stmt->execute([$number, $po_number, $dr_number, $supplier_name, $date_received, $active_user_id]);
+        $delivery_id = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Created Delivery', 'Receiving', ?, ?)")
+            ->execute([$active_user_id, $delivery_id, 'Receiving '.$number.' from '.$supplier_name]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Receiving create failed: '.$error->getMessage());
+        http_response_code(500);
+        die('Could not save delivery. Verify the Phase 2.1 database migration is installed and try again.');
+    }
 
     // Redirect to the view page where they will add individual items to this delivery
     header("Location: delivery_view.php?id=" . $delivery_id);
@@ -95,9 +113,9 @@ require_once __DIR__ . '/includes/header.php';
                         <td colspan="6" class="legacy-035">No deliveries logged yet.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($deliveries as $rowIndex => $d): ?>
+                    <?php foreach ($deliveries as $d): ?>
                         <tr class="legacy-036">
-                            <td class="legacy-033"><?= e(sprintf('REC-%03d', $rowIndex + 1)) ?></td>
+                            <td class="legacy-033"><?= e($d['receiving_number']) ?></td>
                             <td class="legacy-033"><strong><?= e($d['supplier_name']) ?></strong></td>
                             <td class="legacy-033"><?= e(date('M d, Y', strtotime($d['date_received']))) ?></td>
                             <td class="legacy-033">

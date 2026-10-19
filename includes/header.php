@@ -18,7 +18,7 @@ $parentPages = ['delivery_view.php' => 'receiving.php', 'inspection.php' => 'rec
 if (isset($parentPages[$currentPage])) { $currentPage = $parentPages[$currentPage]; }
 $visibleMenu = nav_items($user['role']);
 $menuGroups = [
-    'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php']],
+    'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php', 'ics_returns.php']],
     'operations' => ['Operations & Tracking', 'repeat', ['item_maintenance.php', 'borrow.php', 'transfers.php', 'condemnation.php']],
     'records' => ['Reports & Records', 'file', ['reports.php', 'history.php']],
     'administration' => ['Administration', 'users', ['courses.php', 'accounts.php']],
