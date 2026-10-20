@@ -4,7 +4,7 @@ function ics31_is_equipment(string $category): bool {
     return in_array($category, ['equipment', 'non_consumable'], true);
 }
 function ics31_state(PDO $pdo, int $icsItemId, bool $lock = false): array {
-    $stmt = $pdo->prepare('SELECT ii.ics_item_id, ii.ics_id, ii.qty_issued, ii.qty_returned, i.item_id, i.item_name, i.unit, i.item_category, '
+    $stmt = $pdo->prepare('SELECT ii.ics_item_id, ii.ics_id, ii.qty_issued, ii.qty_returned, ii.qty_transferred_out, i.item_id, i.item_name, i.unit, i.item_category, '
       . 'b.qty_serviceable, b.qty_for_repair, b.qty_damaged, b.needs_review, '
       . "COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0) AS disposed_qty "
       . 'FROM ics_items ii JOIN inventory_items i ON i.item_id=ii.item_id '
@@ -15,7 +15,7 @@ function ics31_state(PDO $pdo, int $icsItemId, bool $lock = false): array {
     if (!$row) throw new RuntimeException('ICS item does not exist.');
     $row['is_equipment'] = ics31_is_equipment($row['item_category']);
     $row['disposed_qty'] = (int)$row['disposed_qty'];
-    $row['remaining_qty'] = max(0, (int)$row['qty_issued'] - (int)$row['qty_returned'] - $row['disposed_qty']);
+    $row['remaining_qty'] = max(0, (int)$row['qty_issued'] - (int)$row['qty_returned'] - (int)$row['qty_transferred_out'] - $row['disposed_qty']);
     foreach (['qty_serviceable', 'qty_for_repair', 'qty_damaged', 'needs_review'] as $k) $row[$k] = (int)($row[$k] ?? 0);
     if ($row['is_equipment'] && $row['qty_serviceable']+$row['qty_for_repair']+$row['qty_damaged'] !== $row['remaining_qty']) {
         throw new RuntimeException('Condition totals require reconciliation for '.$row['item_name'].'. Please contact the Supply Officer.');

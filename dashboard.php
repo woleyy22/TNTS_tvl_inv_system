@@ -27,15 +27,30 @@ $active = 'dashboard';
 $cards = [];
 
 if ($isTeacher) {
-    $mine = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
-         WHERE i.teacher_id = ? AND i.status = 'active'", [$uid]);
-    $repair = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
-         WHERE i.teacher_id = ? AND i.status = 'active' AND ii.item_condition = 'for_repair'", [$uid]);
-    $damaged = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
-         WHERE i.teacher_id = ? AND i.status = 'active' AND ii.item_condition = 'damaged'", [$uid]);
+    // Phase 5.4: account for both originally issued and transfer-origin ICS lines.
+    // Condition balances are current physical custody, not historical issue totals.
+    $custodyStmt = $pdo->prepare("SELECT ii.ics_item_id, ii.qty_issued, ii.qty_returned,
+            ii.qty_transferred_out, inv.item_category,
+            COALESCE(b.qty_serviceable,0) AS serviceable,
+            COALESCE(b.qty_for_repair,0) AS for_repair,
+            COALESCE(b.qty_damaged,0) AS damaged_qty,
+            COALESCE((SELECT SUM(c.quantity) FROM condemnations c
+              WHERE c.ics_item_id=ii.ics_item_id AND c.status='approved' AND c.outcome='disposed'),0) AS disposed
+        FROM ics_items ii JOIN ics i ON i.ics_id=ii.ics_id
+        JOIN inventory_items inv ON inv.item_id=ii.item_id
+        LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id
+        WHERE i.teacher_id=? AND i.status='active'");
+    $custodyStmt->execute([$uid]);
+    $mine=0; $repair=0; $damaged=0;
+    foreach ($custodyStmt->fetchAll(PDO::FETCH_ASSOC) as $custody) {
+        $held=max(0,(int)$custody['qty_issued']-(int)$custody['qty_returned']
+                      -(int)$custody['qty_transferred_out']-(int)$custody['disposed']);
+        $mine += $held;
+        if(in_array($custody['item_category'],['equipment','non_consumable'],true)) {
+            $repair += (int)$custody['for_repair'];
+            $damaged += (int)$custody['damaged_qty'];
+        }
+    }
     $borrowed = (int)db_scalar(
         "SELECT COALESCE(SUM(quantity),0) FROM borrow_logs WHERE borrower_id = ? AND status = 'borrowed'", [$uid]);
 
@@ -47,13 +62,13 @@ if ($isTeacher) {
     $onRecord = (int)db_scalar('SELECT COALESCE(SUM(quantity),0) FROM inventory_items');
     $unique = (int)db_scalar('SELECT COUNT(*) FROM inventory_items');
     $issued = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id WHERE i.status = 'active'");
+        "SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id WHERE i.status = 'active'");
     $icsCount = (int)db_scalar("SELECT COUNT(*) FROM ics WHERE status = 'active'");
     $repair = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
+        "SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
          WHERE i.status = 'active' AND ii.item_condition = 'for_repair'");
     $damaged = (int)db_scalar(
-        "SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
+        "SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END),0) FROM ics_items ii JOIN ics i ON i.ics_id = ii.ics_id
          WHERE i.status = 'active' AND ii.item_condition = 'damaged'");
     $pendingDeliveries = (int)db_scalar("SELECT COUNT(*) FROM deliveries WHERE status <> 'accepted'");
     
@@ -79,7 +94,7 @@ $myItems = [];
 
 if ($isTeacher) {
     $st = $pdo->prepare(
-        "SELECT inv.item_name, ii.qty_issued, ii.item_condition, i.ics_number
+        "SELECT inv.item_name, ii.qty_issued, ii.qty_returned, ii.qty_transferred_out, ii.item_condition, i.ics_number
          FROM ics_items ii
          JOIN ics i ON i.ics_id = ii.ics_id
          JOIN inventory_items inv ON inv.item_id = ii.item_id
@@ -89,7 +104,7 @@ if ($isTeacher) {
     $myItems = $st->fetchAll();
 } else {
     $byCourse = $pdo->query(
-        "SELECT c.course_name, COALESCE(SUM(ii.qty_issued),0) AS qty
+        "SELECT c.course_name, COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END),0) AS qty
          FROM courses c
          LEFT JOIN ics i ON i.course_id = c.course_id AND i.status = 'active'
          LEFT JOIN ics_items ii ON ii.ics_id = i.ics_id
@@ -162,7 +177,7 @@ include __DIR__ . '/includes/header.php';
                     <?php foreach ($myItems as $r): ?>
                         <tr>
                             <td><?= e($r['item_name']) ?></td>
-                            <td><?= e($r['qty_issued']) ?></td>
+                            <td><?= e(max(0,(int)$r['qty_issued']-(int)$r['qty_returned']-(int)$r['qty_transferred_out'])) ?></td>
                             <td><?= condition_pill($r['item_condition']) ?></td>
                             <td><?= e($r['ics_number']) ?></td>
                         </tr>

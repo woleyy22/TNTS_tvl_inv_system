@@ -17,7 +17,7 @@ $select="SELECT i.item_id,i.item_name,i.unit,i.item_category,i.quantity,
  COALESCE((SELECT SUM(a.quantity) FROM central_condition_restorations a WHERE a.item_id=i.item_id AND a.from_condition='for_repair'),0) restore_repair,
  COALESCE((SELECT SUM(a.quantity) FROM central_condition_restorations a WHERE a.item_id=i.item_id AND a.from_condition='damaged'),0) restore_damaged,
  COALESCE((SELECT SUM(z.quantity) FROM central_condition_disposals z WHERE z.item_id=i.item_id),0) central_disposed,
- COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id),0) active_balance,
+ COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id AND ii.transfer_origin_request_id IS NULL),0) active_balance,
  COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn
  FROM inventory_items i WHERE i.item_category IN ('equipment','non_consumable')";
 $error='';

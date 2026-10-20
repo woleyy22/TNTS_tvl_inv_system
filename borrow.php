@@ -1,307 +1,107 @@
 <?php
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
-require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/includes/ics_accountability.php';
-
-$user = require_login();
-$role = $user['role'];
-$uid = (int)$user['id'];
-
-// The same stock calculation is used by the dropdown and the POST validation.
-function borrow_stock_quantities(array $item): array
-{
-    $serviceable=max(0,(int)($item['current_serviceable']??0));
-    if(!in_array($item['item_category']??'', ['equipment','non_consumable'],true) || !empty($item['needs_review']))$serviceable=0;
-    return ['serviceable_qty'=>$serviceable,
-      'lendable_qty'=>max(0,$serviceable-max(0,(int)$item['borrowed_qty']))];
-}
-
-$lendingColumns="
- COALESCE((SELECT cb.qty_serviceable FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS current_serviceable,
- COALESCE((SELECT cb.qty_for_repair FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS repair_qty,
- COALESCE((SELECT cb.qty_damaged FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS damaged_qty,
- COALESCE((SELECT cb.needs_review FROM ics_condition_balances cb WHERE cb.ics_item_id=ii.ics_item_id),0) AS needs_review,
- COALESCE((SELECT SUM(co.quantity) FROM condemnations co WHERE co.ics_item_id=ii.ics_item_id AND co.status='approved' AND co.outcome='disposed'),0) AS approved_condemned,
- COALESCE((SELECT SUM(b.quantity) FROM borrow_logs b WHERE b.ics_item_id=ii.ics_item_id AND b.status='borrowed'),0) AS borrowed_qty";
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($role === 'tvl_head') { http_response_code(403); exit('TVL Head inventory access is view-only.'); }
-    csrf_check();
-    try {
-        if (isset($_POST['borrow_item'])) {
-            if ($role !== 'teacher') { throw new InvalidArgumentException('Only teachers can lend equipment.'); }
-            $ics_item_id = filter_var($_POST['ics_item_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            $borrower_id = filter_var($_POST['borrower_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            $purpose = isset($_POST['program_purpose']) && is_string($_POST['program_purpose']) ? trim($_POST['program_purpose']) : '';
-            $purposeLength = preg_match_all('/./us', $purpose);
-            $date_borrowed = isset($_POST['date_borrowed']) && is_string($_POST['date_borrowed']) ? $_POST['date_borrowed'] : '';
-            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $date_borrowed);
-            if (!$ics_item_id || !$borrower_id || !$quantity || $purpose === '' || ($purposeLength === false || $purposeLength > 200) || !$date || $date->format('Y-m-d') !== $date_borrowed) {
-                throw new InvalidArgumentException('Choose equipment and a teacher, enter a whole-number quantity, a valid date and a purpose of up to 200 characters.');
-            }
-            if ($borrower_id === $uid) { throw new InvalidArgumentException('Choose another teacher as the borrower.'); }
-            $st = db()->prepare("SELECT user_id FROM users WHERE user_id = ? AND role = 'teacher' AND status = 'active'");
-            $st->execute([$borrower_id]);
-            if (!$st->fetch()) { throw new InvalidArgumentException('The selected teacher is no longer available. Refresh the page and choose another teacher.'); }
-            db()->beginTransaction();
-            // Serialize simultaneous lending requests for the same accountable item.
-            $lock = db()->prepare("SELECT ii.ics_item_id FROM ics_items ii JOIN ics c ON c.ics_id = ii.ics_id
-                WHERE ii.ics_item_id = ? AND c.teacher_id = ? AND c.status = 'active' FOR UPDATE");
-            $lock->execute([$ics_item_id, $uid]);
-            if (!$lock->fetch()) { throw new InvalidArgumentException('This item is no longer assigned to your active ICS.'); }
-            $check = db()->prepare("SELECT ii.qty_issued,ii.item_condition,i.item_category,$lendingColumns FROM ics_items ii JOIN inventory_items i ON i.item_id=ii.item_id WHERE ii.ics_item_id = ?");
-            $check->execute([$ics_item_id]);
-            $state=ics31_state(db(),(int)$ics_item_id,true);
-            if(!$state['is_equipment'] || $state['needs_review'])throw new InvalidArgumentException('Item is not eligible for lending until the Supply Officer verifies its condition.');
-            $available = borrow_stock_quantities($check->fetch())['lendable_qty'];
-            if ($quantity > $available) { throw new InvalidArgumentException("Only $available serviceable unit(s) are currently available to lend. Refresh the form and reduce the quantity."); }
-            db()->prepare("INSERT INTO borrow_logs (ics_item_id, borrower_id, quantity, program_purpose, date_borrowed, status) VALUES (?, ?, ?, ?, ?, 'borrowed')")
-                ->execute([$ics_item_id, $borrower_id, $quantity, $purpose, $date_borrowed]);
-            $borrowId = (int)db()->lastInsertId();
-            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Lent Equipment', 'Borrow', ?, ?)")
-                ->execute([$uid, $borrowId, "Lent qty $quantity for $purpose"]);
-            db()->commit();
-            redirect('borrow.php?success=1');
-        } elseif (isset($_POST['return_item'])) {
-            $borrowId = filter_var($_POST['borrow_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            if (!$borrowId) { throw new InvalidArgumentException('Choose a valid loan record.'); }
-            db()->beginTransaction();
-            $st = db()->prepare("SELECT b.borrow_id, b.status, b.borrower_id, c.teacher_id FROM borrow_logs b
-                JOIN ics_items ii ON ii.ics_item_id = b.ics_item_id JOIN ics c ON c.ics_id = ii.ics_id
-                WHERE b.borrow_id = ? FOR UPDATE");
-            $st->execute([$borrowId]);
-            $loan = $st->fetch();
-            if (!$loan || ($role === 'teacher' && (int)$loan['teacher_id'] !== $uid && (int)$loan['borrower_id'] !== $uid)) {
-                throw new InvalidArgumentException('You cannot update this loan record.');
-            }
-            if ($loan['status'] !== 'borrowed') { throw new InvalidArgumentException('This equipment has already been marked as returned.'); }
-            db()->prepare("UPDATE borrow_logs SET status = 'returned', date_returned = NOW() WHERE borrow_id = ?")->execute([$borrowId]);
-            db()->prepare("INSERT INTO history_logs (user_id, action, module, record_id, details) VALUES (?, 'Returned Equipment', 'Borrow', ?, ?)")
-                ->execute([$uid, $borrowId, 'Item returned from borrower.']);
-            db()->commit();
-            redirect('borrow.php?returned=1');
-        } else { throw new InvalidArgumentException('Choose a valid lending action.'); }
-    } catch (Throwable $ex) {
-        if (db()->inTransaction()) { db()->rollBack(); }
-        flash('error', $ex instanceof InvalidArgumentException ? $ex->getMessage() : 'The loan could not be saved. Please refresh and try again.');
-        redirect('borrow.php');
+require_once __DIR__.'/includes/db.php';
+require_once __DIR__.'/includes/auth.php';
+require_once __DIR__.'/includes/functions.php';
+require_once __DIR__.'/includes/borrow_workflow.php';
+$user=require_login();$uid=(int)$user['id'];$role=$user['role'];$pdo=db();
+if($_SERVER['REQUEST_METHOD']==='POST'){
+ if($role==='tvl_head'){http_response_code(403);exit('View-only access.');}
+ csrf_check();
+ try{
+  $action=(string)($_POST['action']??'');$rid=(int)($_POST['request_id']??0);
+  $pdo->beginTransaction();
+  if($action==='request'){
+   $line=(int)($_POST['ics_item_id']??0);$qty=filter_var($_POST['quantity']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);$purpose=trim((string)($_POST['purpose']??''));$due=(string)($_POST['expected_return_date']??'');
+   if(!$line||!$qty||mb_strlen($purpose)>250||$purpose===''||!borrow6_date($due)||$due<date('Y-m-d'))throw new InvalidArgumentException('Choose an item, a valid quantity, a purpose and a current or future return date.');
+   $s=borrow6_state($pdo,$line,true);$borrower=$role==='teacher'?$uid:(int)($_POST['borrower_id']??0);
+   if($borrower===(int)$s['teacher_id'])throw new InvalidArgumentException('Cannot borrow from your own ICS.');
+   $check=$pdo->prepare("SELECT COUNT(*) FROM users WHERE user_id=? AND role='teacher' AND status='active' AND registration_status='approved'");$check->execute([$borrower]);if(!$check->fetchColumn())throw new InvalidArgumentException('Borrower must be an active approved teacher.');
+   if($qty>$s['available'])throw new InvalidArgumentException('Only '.$s['available'].' currently available to borrow.');
+   $pdo->prepare('INSERT INTO borrow_requests(ics_item_id,lender_id,borrower_id,quantity,purpose,expected_return_date) VALUES(?,?,?,?,?,?)')->execute([$line,$s['teacher_id'],$borrower,$qty,$purpose,$due]);
+   $rid=(int)$pdo->lastInsertId();borrow6_event($pdo,$rid,$uid,'Requested','Quantity '.$qty.'; due '.$due);
+  }else{
+   $st=$pdo->prepare('SELECT * FROM borrow_requests WHERE request_id=? FOR UPDATE');$st->execute([$rid]);$r=$st->fetch(PDO::FETCH_ASSOC);if(!$r)throw new InvalidArgumentException('Request not found.');
+   $isHolder=(int)$r['lender_id']===$uid;$isBorrower=(int)$r['borrower_id']===$uid;$isAdmin=$role==='supply_officer';
+   $actorAllowed=$isHolder||$isAdmin;
+   if($action==='cancel'){
+    if(!($isBorrower||$isAdmin)||$r['status']!=='requested')throw new InvalidArgumentException('Only the requester can cancel an open request.');
+    $pdo->prepare("UPDATE borrow_requests SET status='cancelled',completed_at=NOW() WHERE request_id=?")->execute([$rid]);borrow6_event($pdo,$rid,$uid,'Cancelled');
+   }elseif($action==='approve'||$action==='decline'){
+    if(!$actorAllowed||$r['status']!=='requested')throw new InvalidArgumentException('Only the accountable holder can decide a pending request.');
+    $s=borrow6_state($pdo,(int)$r['ics_item_id'],true);
+    if($action==='approve'){
+     // This request is already reserved; exclude it from queued quantity when checking.
+     if((int)$r['quantity']>($s['available']+(int)$r['quantity']))throw new InvalidArgumentException('Not enough units remain available.');
+     $pdo->prepare("UPDATE borrow_requests SET status='approved',approved_at=NOW(),reviewed_by=? WHERE request_id=?")->execute([$uid,$rid]);borrow6_event($pdo,$rid,$uid,'Approved');
+    }else{
+     $reason=trim((string)($_POST['notes']??''));if($reason==='')throw new InvalidArgumentException('Provide a reason for declining.');
+     $pdo->prepare("UPDATE borrow_requests SET status='declined',completed_at=NOW(),reviewed_by=?,notes=? WHERE request_id=?")->execute([$uid,mb_substr($reason,0,500),$rid]);borrow6_event($pdo,$rid,$uid,'Declined',$reason);
     }
-}
-
-$teachers = db()->query("SELECT user_id, full_name FROM users WHERE role = 'teacher' AND status = 'active' ORDER BY full_name")->fetchAll();
-$my_lendable_items = [];
-if ($role === 'teacher') {
-    $stmt = db()->prepare("SELECT ii.ics_item_id, ii.item_condition, i.item_name, i.unit,i.item_category, ii.qty_issued, c.ics_number, $lendingColumns
-        FROM ics_items ii JOIN ics c ON ii.ics_id = c.ics_id JOIN inventory_items i ON ii.item_id = i.item_id
-        WHERE c.teacher_id = ? AND c.status = 'active' AND i.item_category IN ('equipment','non_consumable') ORDER BY i.item_name, c.ics_number");
-    $stmt->execute([$uid]);
-    foreach ($stmt->fetchAll() as $item) {
-        $item = array_merge($item, borrow_stock_quantities($item));
-        if ($item['lendable_qty'] > 0) { $my_lendable_items[] = $item; }
+   }elseif($action==='release'){
+    if(!$actorAllowed||$r['status']!=='approved')throw new InvalidArgumentException('Only the accountable holder can release an approved request.');
+    $s=borrow6_state($pdo,(int)$r['ics_item_id'],true);
+    if((int)$r['quantity']>$s['available']+(int)$r['quantity'])throw new InvalidArgumentException('Insufficient serviceable stock for release.');
+    $pdo->prepare("INSERT INTO borrow_logs(ics_item_id,borrower_id,quantity,program_purpose,date_borrowed,status) VALUES(?,?,?,?,CURDATE(),'borrowed')")->execute([$r['ics_item_id'],$r['borrower_id'],$r['quantity'],mb_substr($r['purpose'],0,200)]);
+    $bid=(int)$pdo->lastInsertId();$pdo->prepare("UPDATE borrow_requests SET status='borrowed',borrow_id=?,released_at=NOW() WHERE request_id=?")->execute([$bid,$rid]);borrow6_event($pdo,$rid,$uid,'Released','Loan #'.$bid);
+   }elseif($action==='return_request'){
+    if(!$isBorrower||!in_array($r['status'],['borrowed','partially_returned'],true))throw new InvalidArgumentException('Only the borrower may submit an active return.');
+    $outstanding=(int)$r['quantity']-(int)$r['returned_qty'];
+    $srv=(int)($_POST['return_serviceable']??0);$rep=(int)($_POST['return_repair']??0);$dam=(int)($_POST['return_damaged']??0);$total=$srv+$rep+$dam;
+    if($srv<0||$rep<0||$dam<0||$total<1||$total>$outstanding)throw new InvalidArgumentException('Return quantities must be positive and no greater than the amount outstanding.');
+    if(borrow6_scalar($pdo,"SELECT COUNT(*) FROM borrow_return_requests WHERE request_id=? AND status='pending'",[$rid]))throw new InvalidArgumentException('A return is already awaiting verification.');
+    $pdo->prepare('INSERT INTO borrow_return_requests(request_id,quantity,qty_serviceable,qty_for_repair,qty_damaged) VALUES(?,?,?,?,?)')->execute([$rid,$total,$srv,$rep,$dam]);borrow6_event($pdo,$rid,$uid,'Return submitted','Qty '.$total);
+   }elseif($action==='verify_return'||$action==='reject_return'){
+    if(!$actorAllowed||!in_array($r['status'],['borrowed','partially_returned'],true))throw new InvalidArgumentException('Only the holder can verify an active return.');
+    $returnId=(int)($_POST['return_id']??0);$rs=$pdo->prepare("SELECT * FROM borrow_return_requests WHERE return_id=? AND request_id=? FOR UPDATE");$rs->execute([$returnId,$rid]);$ret=$rs->fetch(PDO::FETCH_ASSOC);
+    if(!$ret||$ret['status']!=='pending')throw new InvalidArgumentException('Return is no longer pending.');
+    if($action==='reject_return'){
+     $note=trim((string)($_POST['notes']??''));if($note==='')throw new InvalidArgumentException('Provide a reason for rejecting the return.');
+     $pdo->prepare("UPDATE borrow_return_requests SET status='rejected',reviewed_by=?,reviewed_at=NOW(),notes=? WHERE return_id=?")->execute([$uid,mb_substr($note,0,500),$returnId]);borrow6_event($pdo,$rid,$uid,'Return rejected',$note);
+    }else{
+     $state=ics31_state($pdo,(int)$r['ics_item_id'],true);$bad=(int)$ret['qty_for_repair']+(int)$ret['qty_damaged'];
+     if($bad>0){
+      if($state['qty_serviceable']<$bad)throw new InvalidArgumentException('Insufficient serviceable balance to reclassify damaged returns. Contact Supply Officer.');
+      $pdo->prepare('UPDATE ics_condition_balances SET qty_serviceable=qty_serviceable-?,qty_for_repair=qty_for_repair+?,qty_damaged=qty_damaged+? WHERE ics_item_id=?')->execute([$bad,$ret['qty_for_repair'],$ret['qty_damaged'],$r['ics_item_id']]);
+     }
+     $newReturned=(int)$r['returned_qty']+(int)$ret['quantity'];$outstanding=(int)$r['quantity']-$newReturned;
+     if($outstanding<0)throw new InvalidArgumentException('Return exceeds borrowed balance.');
+     $pdo->prepare("UPDATE borrow_return_requests SET status='verified',reviewed_by=?,reviewed_at=NOW() WHERE return_id=?")->execute([$uid,$returnId]);
+     $pdo->prepare("UPDATE borrow_requests SET returned_qty=?,status=?,completed_at=IF(?=0,NOW(),NULL) WHERE request_id=?")->execute([$newReturned,$outstanding===0?'returned':'partially_returned',$outstanding,$rid]);
+     $pdo->prepare("UPDATE borrow_logs SET quantity=?,status=?,date_returned=IF(?=0,CURDATE(),NULL) WHERE borrow_id=?")->execute([$outstanding,$outstanding===0?'returned':'borrowed',$outstanding,$r['borrow_id']]);
+     borrow6_event($pdo,$rid,$uid,'Return verified','Qty '.$ret['quantity'].'; serviceable '.$ret['qty_serviceable'].'; repair '.$ret['qty_for_repair'].'; damaged '.$ret['qty_damaged']);
     }
+   }else throw new InvalidArgumentException('Unknown borrowing action.');
+  }
+  $pdo->commit();flash('success','Borrowing action saved.');redirect('borrow.php');
+ }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();flash('error',$e instanceof InvalidArgumentException?$e->getMessage():'Could not process request. Review data and try again.');redirect('borrow.php');}
 }
-
-// Fetch active borrow logs
-if ($role === 'teacher') {
-    $stmt = db()->prepare("
-        SELECT b.*, i.item_name, i.unit, c.ics_number, u.full_name as borrower_name, lender_user.full_name as lender_name
-        FROM borrow_logs b
-        JOIN ics_items ii ON b.ics_item_id = ii.ics_item_id
-        JOIN ics c ON ii.ics_id = c.ics_id
-        JOIN inventory_items i ON ii.item_id = i.item_id
-        JOIN users u ON b.borrower_id = u.user_id
-        JOIN users lender_user ON c.teacher_id = lender_user.user_id
-        WHERE c.teacher_id = ? OR b.borrower_id = ?
-        ORDER BY b.date_borrowed DESC
-    ");
-    $stmt->execute([$uid, $uid]);
-    $borrow_logs = $stmt->fetchAll();
-} else {
-    $stmt = db()->query("
-        SELECT b.*, i.item_name, i.unit, c.ics_number, u.full_name as borrower_name, lender_user.full_name as lender_name
-        FROM borrow_logs b
-        JOIN ics_items ii ON b.ics_item_id = ii.ics_item_id
-        JOIN ics c ON ii.ics_id = c.ics_id
-        JOIN inventory_items i ON ii.item_id = i.item_id
-        JOIN users u ON b.borrower_id = u.user_id
-        JOIN users lender_user ON c.teacher_id = lender_user.user_id
-        ORDER BY b.date_borrowed DESC
-    ");
-    $borrow_logs = $stmt->fetchAll();
-}
-
-$pageTitle = 'Borrow & Return Log';
-$active = 'borrow';
-require_once __DIR__ . '/includes/header.php';
+$teachers=$pdo->query("SELECT user_id,full_name FROM users WHERE role='teacher' AND status='active' AND registration_status='approved' ORDER BY full_name")->fetchAll();
+$lines=$pdo->query("SELECT ii.ics_item_id,i.item_id,i.item_name,i.item_category,i.unit,c.ics_number,c.date_issued,c.teacher_id,u.full_name AS holder_name,co.course_name FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id JOIN users u ON u.user_id=c.teacher_id JOIN inventory_items i ON i.item_id=ii.item_id LEFT JOIN courses co ON co.course_id=ii.course_id WHERE c.status='active' AND i.item_category IN('equipment','non_consumable') ORDER BY i.item_name,u.full_name,c.ics_number")->fetchAll();
+$items=[];foreach($lines as $line){try{$state=borrow6_state($pdo,(int)$line['ics_item_id']);}catch(Throwable $ex){continue;}$line=array_merge($line,['accountable'=>$state['condition']['remaining_qty'],'serviceable'=>$state['serviceable'],'borrowed'=>$state['borrowed'],'reserved'=>$state['queued']+$state['transfer_reserved'],'available'=>$state['available']]);$id=(int)$line['item_id'];if(!isset($items[$id]))$items[$id]=['item'=>$line,'lines'=>[],'accountable'=>0,'serviceable'=>0,'borrowed'=>0,'reserved'=>0,'available'=>0];foreach(['accountable','serviceable','borrowed','reserved','available'] as $k)$items[$id][$k]+=$line[$k];$items[$id]['lines'][]=$line;}
+$sql="SELECT br.*, i.item_name,i.unit,c.ics_number,lu.full_name lender_name,bu.full_name borrower_name FROM borrow_requests br JOIN ics_items ii ON ii.ics_item_id=br.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id JOIN users lu ON lu.user_id=br.lender_id JOIN users bu ON bu.user_id=br.borrower_id";
+$args=[];if($role==='teacher'){$sql.=' WHERE br.borrower_id=? OR br.lender_id=?';$args=[$uid,$uid];}$sql.=' ORDER BY br.requested_at DESC,br.request_id DESC';$st=$pdo->prepare($sql);$st->execute($args);$requests=$st->fetchAll();
+$pendingReturns=$pdo->query("SELECT r.*,br.lender_id,br.borrower_id FROM borrow_return_requests r JOIN borrow_requests br ON br.request_id=r.request_id WHERE r.status='pending'")->fetchAll();$returnMap=[];foreach($pendingReturns as $r)$returnMap[$r['request_id']]=$r;
+$pageTitle='Borrow & Return';$active='borrow';require __DIR__.'/includes/header.php';
 ?>
-
-<div class="content-header legacy-026">
-    <div>
-        <h2>Borrow & Return Log</h2>
-        <p class="legacy-027">Track equipment lent out during school programs while maintaining primary accountability.</p>
-    </div>
-    <?php if ($role === 'teacher'): ?>
-        <button onclick="openBorrowModal()" class="legacy-028">+ Lend Item</button>
-    <?php endif; ?>
-</div>
-
-<?php if (isset($_GET['success'])): ?>
-    <div class="legacy-029">
-        Equipment lending recorded successfully! Note: You remain accountable on your ICS.
-    </div>
-<?php endif; ?>
-
-<?php if (isset($_GET['returned'])): ?>
-    <div class="legacy-029">
-        Equipment successfully marked as returned!
-    </div>
-<?php endif; ?>
-
-<div class="card legacy-030">
-    <table class="legacy-031">
-        <thead>
-            <tr class="legacy-032">
-                <th class="legacy-033">Item Details</th>
-                <th class="legacy-033">Lender (ICS Holder)</th>
-                <th class="legacy-033">Borrower</th>
-                <th class="legacy-033">Qty</th>
-                <th class="legacy-033">Program / Purpose</th>
-                <th class="legacy-033">Date Borrowed</th>
-                <th class="legacy-033">Status</th>
-                <th class="legacy-034">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($borrow_logs)): ?>
-                <tr>
-                    <td colspan="8" class="legacy-035">No borrow or lend records found.</td>
-                </tr>
-            <?php else: ?>
-                <?php foreach ($borrow_logs as $log): ?>
-                    <tr class="legacy-036">
-                        <td class="legacy-033">
-                            <strong><?= e($log['item_name']) ?></strong><br>
-                            <small class="legacy-037">ICS: <?= e($log['ics_number']) ?></small>
-                        </td>
-                        <td class="legacy-033"><?= e($log['lender_name']) ?></td>
-                        <td class="legacy-038"><?= e($log['borrower_name']) ?></td>
-                        <td class="legacy-033"><?= e($log['quantity']) ?> <?= e($log['unit']) ?></td>
-                        <td class="legacy-033"><?= e($log['program_purpose']) ?></td>
-                        <td class="legacy-033"><?= e(date('M d, Y', strtotime($log['date_borrowed']))) ?></td>
-                        <td class="legacy-033">
-                            <span class="status-badge <?= $log['status'] === 'borrowed' ? 'status-warning' : 'status-success' ?>">
-                                <?= e(ucfirst($log['status'])) ?>
-                            </span>
-                        </td>
-                        <td class="legacy-034">
-                            <?php if ($log['status'] === 'borrowed'): ?>
-                                <form method="POST" class="legacy-039">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="borrow_id" value="<?= $log['borrow_id'] ?>">
-                                    <button type="submit" name="return_item" onclick="return confirm('Mark this item as returned?')" class="legacy-040">
-                                        Mark Returned
-                                    </button>
-                                </form>
-                            <?php else: ?>
-                                <span class="legacy-041"><?= e(date('M d, Y', strtotime($log['date_returned']))) ?></span>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
-</div>
-
-<!-- Lend Item Modal -->
-<?php if ($role === 'teacher'): ?>
-<div id="borrowModal" class="modal-overlay" hidden>
-    <section class="guided-modal">
-        <div class="eyebrow">Borrow &amp; return</div>
-        <h3>Lend equipment to a teacher</h3>
-        <p class="modal-intro">Record who will use the equipment, how many units they need, and the purpose of the loan.</p>
-        <form method="POST" id="lendingForm">
-            <?= csrf_field() ?>
-            <section class="form-section">
-                <div class="section-heading"><span class="step-number">1</span><h4>Select equipment</h4></div>
-                <div class="field"><label for="lendItem">Equipment from your active ICS <span class="required-mark">*</span></label>
-                    <select name="ics_item_id" id="lendItem" required class="input" onchange="updateLendingDetails()" data-initial-focus aria-describedby="lendEquipmentHelp">
-                        <option value="">Select equipment to lend</option>
-                        <?php foreach ($my_lendable_items as $mi):
-                            $avail = $mi['lendable_qty'];
-                            if ($avail > 0):
-                        ?>
-                            <option value="<?= (int)$mi['ics_item_id'] ?>" data-available="<?= (int)$avail ?>" data-issued="<?= (int)$mi['qty_issued'] ?>" data-serviceable="<?= (int)$mi['serviceable_qty'] ?>" data-borrowed="<?= (int)$mi['borrowed_qty'] ?>" data-unit="<?= e($mi['unit']) ?>" data-item="<?= e($mi['item_name']) ?>" data-ics="<?= e($mi['ics_number']) ?>"><?= e($mi['item_name']) ?> — <?= e($mi['ics_number']) ?></option>
-                        <?php endif; endforeach; ?>
-                    </select>
-                    <small id="lendEquipmentHelp" class="field-help">Only serviceable units that are not already on loan are available.</small>
-                </div>
-                <div id="lendAvailability" class="equipment-snapshot" hidden><div class="snapshot-heading"><span id="lendReference"></span><strong id="lendAvailable"></strong></div><p class="field-help" id="lendAvailabilityNote"></p></div>
-                <p class="form-notice" id="lendEmpty" hidden>No serviceable equipment is currently available to lend from your active custody records.</p>
-            </section>
-            <section class="form-section">
-                <div class="section-heading"><span class="step-number">2</span><h4>Choose the borrower and quantity</h4></div>
-                <div class="field"><label for="lendTeacher">Borrowing teacher <span class="required-mark">*</span></label>
-                    <select name="borrower_id" id="lendTeacher" required class="input" onchange="updateLendingSummary()">
-                        <option value="">Select a teacher</option>
-                        <?php foreach ($teachers as $t): if ($t['user_id'] != $uid): ?>
-                            <option value="<?= (int)$t['user_id'] ?>"><?= e($t['full_name']) ?></option>
-                        <?php endif; endforeach; ?>
-                    </select>
-                    <small class="field-help">Your own account is excluded from this list.</small>
-                </div>
-                <p class="form-notice" id="lendNoTeachers" hidden>No other active teacher is available. Contact your Supply Officer.</p>
-                <div class="guided-form-grid">
-                    <div class="field"><label for="lendQuantity">Units to lend <span class="required-mark">*</span></label><input type="number" name="quantity" id="lendQuantity" min="1" step="1" value="1" required class="input" oninput="updateLendingSummary()" aria-describedby="lendQuantityHelp"><small id="lendQuantityHelp" class="field-help">Choose equipment to see the limit.</small></div>
-                    <div class="field"><label for="lendDate">Date borrowed <span class="required-mark">*</span></label><input type="date" name="date_borrowed" id="lendDate" value="<?= date('Y-m-d') ?>" required class="input"></div>
-                </div>
-            </section>
-            <section class="form-section">
-                <div class="section-heading"><span class="step-number">3</span><h4>Describe the purpose</h4></div>
-                <div class="field"><label for="lendPurpose">Program or purpose <span class="required-mark">*</span></label><textarea name="program_purpose" id="lendPurpose" rows="2" maxlength="200" required class="input" placeholder="For example: equipment demonstration for the TLE school fair."></textarea></div>
-            </section>
-            <div class="form-review" id="lendSummary" aria-live="polite">Select equipment and a borrowing teacher to review this loan.</div>
-            <div class="modal-actions"><button type="button" onclick="closeBorrowModal()" class="btn btn-outline">Cancel</button><button type="submit" name="borrow_item" id="lendSubmit" class="btn btn-primary" disabled>Confirm equipment loan</button></div>
-        </form>
-    </section>
+<div class="p6-screen">
+<header class="p6-heading"><div><h2>Borrow &amp; Return</h2><p>Browse equipment currently accountable to teachers. ICS ownership stays unchanged while borrowed.</p></div><a class="btn btn-outline" href="#p6-history">Borrowing records ↓</a></header>
+<div class="p6-stats"><div><small>Item types</small><strong><?=count($items)?></strong></div><div><small>Total serviceable</small><strong><?=array_sum(array_column($items,'serviceable'))?></strong></div><div><small>Available to borrow</small><strong><?=array_sum(array_column($items,'available'))?></strong></div><div><small>Currently borrowed</small><strong><?=array_sum(array_column($items,'borrowed'))?></strong></div></div>
+<section class="card p6-panel"><div class="p6-panel-title"><h3>Issued item inventory</h3><span>Expand an item to see its ICS holders and borrowable quantities.</span></div>
+<div class="p6-filters"><label>Search <input id="p6-search" placeholder="Item, teacher, ICS number" class="input"></label><label>Category <select id="p6-cat" class="input"><option value="">All categories</option><option value="equipment">Equipment</option><option value="non_consumable">Non-Consumable</option></select></label><label>Availability <select id="p6-av" class="input"><option value="">All</option><option value="yes">Available</option><option value="no">Unavailable</option></select></label><label>Course <select id="p6-course" class="input"><option value="">All courses</option><option value="none">Unclassified</option><?php foreach($pdo->query('SELECT course_name FROM courses ORDER BY course_name')->fetchAll() as $c):?><option value="<?=e($c['course_name'])?>"><?=e($c['course_name'])?></option><?php endforeach;?></select></label></div>
+<div class="p6-scroll"><table class="p6-table" id="p6-items"><thead><tr><?php foreach(['Item','Category','Course(s)','Accountable','Total Serviceable','Borrowed','Available to Borrow','ICS Holders'] as $col):?><th><button type="button" class="p6-sort" data-sort="<?=e($col)?>"><?=e($col)?> <span class="p6ui-sort-indicator" aria-hidden="true">–</span></button></th><?php endforeach;?><th>Details</th></tr></thead><tbody><?php foreach($items as $entry):$item=$entry['item'];$courses=array_values(array_unique(array_map(static fn($l)=>$l['course_name']?:'Unclassified',$entry['lines'])));$courseText=implode(', ',$courses);?><tr class="p6-item-row" data-category="<?=e($item['item_category'])?>" data-course="<?=e($courseText)?>" data-search="<?=e(strtolower($item['item_name'].' '.implode(' ',array_column($entry['lines'],'holder_name')).' '.implode(' ',array_column($entry['lines'],'ics_number'))))?>" data-available="<?=$entry['available']?>"><td><strong><?=e($item['item_name'])?></strong></td><td><?=e(ucwords(str_replace('_',' ',$item['item_category'])))?></td><td><?=e($courseText)?></td><td><?=$entry['accountable']?> <?=e($item['unit'])?></td><td><?=$entry['serviceable']?></td><td><?=$entry['borrowed']?></td><td><strong class="p6-green"><?=$entry['available']?></strong></td><td><?=count($entry['lines'])?></td><td><button type="button" class="p6-open btn btn-outline" aria-expanded="false">View details ▾</button></td></tr><tr class="p6-detail-row" hidden><td colspan="9"><div class="p6-details"><h4><?=e($item['item_name'])?> — accountable teachers</h4><div class="p6-holder-grid"><?php foreach($entry['lines'] as $h):?><div class="p6-holder"><div class="p6-holder-top"><strong><?=e($h['holder_name'])?></strong><span class="p6-pill"><?=$h['available']?> borrowable</span></div><small><?=e($h['ics_number'])?> · <?=e($h['course_name']?:'Unclassified')?></small><p>Accountable <b><?=$h['accountable']?></b> · Serviceable <b><?=$h['serviceable']?></b> · Borrowed <b><?=$h['borrowed']?></b> · Reserved <b><?=$h['reserved']?></b></p><?php if($role==='teacher'&&$uid===(int)$h['teacher_id']):?><small>Your own ICS — you cannot borrow from yourself.</small><?php elseif($role==='tvl_head'):?><small>View only</small><?php elseif($h['available']>0):?><button type="button" class="btn btn-primary p6-request-btn" data-line="<?=$h['ics_item_id']?>" data-name="<?=e($item['item_name'])?>" data-holder="<?=e($h['holder_name'])?>" data-ics="<?=e($h['ics_number'])?>" data-max="<?=$h['available']?>">Request to borrow</button><?php else:?><small>Not currently available.</small><?php endif;?></div><?php endforeach;?></div></div></td></tr><?php endforeach;?></tbody></table></div>
+<?php if(!$items):?><p>No active equipment or non-consumable items are currently accountable to teachers.</p><?php endif;?></section>
+<section class="card p6-panel" id="p6-request" hidden><h3>Send Borrow Request</h3><p id="p6-selected"></p><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="request"><input type="hidden" name="ics_item_id" id="p6-line"><div class="p6-form-grid"><?php if($role==='supply_officer'):?><label>Borrower <select class="input" name="borrower_id" required><option value="">Choose teacher</option><?php foreach($teachers as $t):?><option value="<?=$t['user_id']?>"><?=e($t['full_name'])?></option><?php endforeach;?></select></label><?php endif;?><label>Quantity to borrow <input class="input" type="number" min="1" name="quantity" id="p6-qty" required value="1"></label><label>Expected return date <input class="input" type="date" name="expected_return_date" min="<?=date('Y-m-d')?>" required></label></div><label class="p6-range-label">Quantity slider <input type="range" min="1" value="1" id="p6-range"><small id="p6-range-status"></small></label><label>Purpose <textarea class="input" name="purpose" maxlength="250" rows="2" required placeholder="e.g. Laboratory demonstration"></textarea></label><div class="p6-actions"><button class="btn btn-primary">Send Borrow Request</button><button class="btn btn-outline" type="button" id="p6-cancel">Cancel</button></div></form></section>
+<section class="card p6-panel" id="p6-history"><div class="p6-panel-title"><h3>Requests, active loans &amp; returns</h3><span>Request → Holder approval → Release → Return verification</span></div><div class="p6-filters"><label>Search records <input class="input" id="p6-log-search" placeholder="Item, holder or borrower"></label><label>Status <select class="input" id="p6-log-status"><option value="">All statuses</option><?php foreach(['requested','approved','borrowed','partially_returned','returned','declined','cancelled'] as $s):?><option value="<?=$s?>"><?=e(ucwords(str_replace('_',' ',$s)))?></option><?php endforeach;?></select></label><label>Sort <select class="input" id="p6-log-order"><option value="new">Newest first</option><option value="old">Oldest first</option></select></label></div><div class="p6-scroll"><table class="p6-table" id="p6-records"><thead><tr><th>Item / ICS</th><th>Holder → Borrower</th><th>Qty / Returned</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody><?php foreach($requests as $r):$isHolder=(int)$r['lender_id']===$uid;$isBorrower=(int)$r['borrower_id']===$uid;$canHolder=$isHolder||$role==='supply_officer';$out=(int)$r['quantity']-(int)$r['returned_qty'];$pending=$returnMap[$r['request_id']]??null;?><tr class="p6-record" data-status="<?=e($r['status'])?>" data-search="<?=e(strtolower($r['item_name'].' '.$r['ics_number'].' '.$r['lender_name'].' '.$r['borrower_name']))?>"><td><strong><?=e($r['item_name'])?></strong><br><small><?=e($r['ics_number'])?></small></td><td><?=e($r['lender_name'])?> → <?=e($r['borrower_name'])?></td><td><?=$r['quantity']?> / <?=$r['returned_qty']?> <?=e($r['unit'])?></td><td><?=e($r['expected_return_date'])?><?php if(in_array($r['status'],['borrowed','partially_returned'],true)&&$r['expected_return_date']<date('Y-m-d')):?><br><span class="p6-overdue">Overdue</span><?php endif;?></td><td><span class="p6-pill"><?=e(ucwords(str_replace('_',' ',$r['status'])))?></span></td><td><div class="p6-inline-actions"><?php if($r['status']==='requested'&&$canHolder):?><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><button name="action" value="approve" class="btn btn-primary">Approve</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><input class="input" name="notes" placeholder="Decline reason" required><button name="action" value="decline" class="btn btn-outline">Decline</button></form><?php elseif($r['status']==='requested'&&($isBorrower||$role==='supply_officer')):?><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><button name="action" value="cancel" class="btn btn-outline">Cancel</button></form><?php endif;?><?php if($r['status']==='approved'&&$canHolder):?><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><button name="action" value="release" class="btn btn-primary">Confirm Release</button></form><?php endif;?><?php if(in_array($r['status'],['borrowed','partially_returned'],true)&&$isBorrower&&!$pending):?><details><summary>Return items</summary><form method="post" class="p6-return-form"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><label>Serviceable <input class="input" type="number" min="0" max="<?=$out?>" value="<?=$out?>" name="return_serviceable"></label><label>For repair <input class="input" type="number" min="0" max="<?=$out?>" value="0" name="return_repair"></label><label>Damaged <input class="input" type="number" min="0" max="<?=$out?>" value="0" name="return_damaged"></label><small>Maximum outstanding: <?=$out?></small><button class="btn btn-primary" name="action" value="return_request">Submit for verification</button></form></details><?php endif;?><?php if($pending):?><?php if($canHolder):?><details><summary>Verify return (<?=$pending['quantity']?>)</summary><p>Serviceable <?=$pending['qty_serviceable']?> · Repair <?=$pending['qty_for_repair']?> · Damaged <?=$pending['qty_damaged']?></p><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><input type="hidden" name="return_id" value="<?=$pending['return_id']?>"><button name="action" value="verify_return" class="btn btn-primary">Verify Return</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="request_id" value="<?=$r['request_id']?>"><input type="hidden" name="return_id" value="<?=$pending['return_id']?>"><input class="input" name="notes" placeholder="Reason" required><button name="action" value="reject_return" class="btn btn-outline">Reject</button></form></details><?php else:?><small>Return awaiting holder verification</small><?php endif;?><?php endif;?></div></td></tr><?php endforeach;?></tbody></table></div><?php if(!$requests):?><p>No borrowing requests yet.</p><?php endif;?></section>
 </div>
 <script>
-function openBorrowModal() { updateLendingDetails(); TNTSUI.open('borrowModal'); }
-function closeBorrowModal() { TNTSUI.close('borrowModal'); }
-function updateLendingDetails() {
-    const item = document.getElementById('lendItem');
-    const option = item.value ? item.options[item.selectedIndex] : null;
-    const quantity = document.getElementById('lendQuantity');
-    document.getElementById('lendAvailability').hidden = !option;
-    document.getElementById('lendEmpty').hidden = item.options.length > 1;
-    document.getElementById('lendNoTeachers').hidden = document.getElementById('lendTeacher').options.length > 1;
-    quantity.disabled = !option;
-    if (option) {
-        const maximum = Number(option.dataset.available);
-        quantity.max = String(maximum);
-        quantity.value = String(Math.max(1, Math.min(maximum, Number(quantity.value) || 1)));
-        document.getElementById('lendReference').textContent = 'ICS: ' + option.dataset.ics;
-        document.getElementById('lendAvailable').textContent = maximum + ' ' + option.dataset.unit + ' serviceable & available';
-        document.getElementById('lendAvailabilityNote').textContent = option.dataset.issued + ' issued · ' + option.dataset.serviceable + ' serviceable · ' + option.dataset.borrowed + ' currently on loan';
-        document.getElementById('lendQuantityHelp').textContent = 'Enter 1 to ' + maximum + ' ' + option.dataset.unit + '.';
-    } else {
-        quantity.removeAttribute('max');
-        document.getElementById('lendQuantityHelp').textContent = 'Choose equipment to see the limit.';
-    }
-    updateLendingSummary();
-}
-function updateLendingSummary() {
-    const item = document.getElementById('lendItem');
-    const teacher = document.getElementById('lendTeacher');
-    const quantity = document.getElementById('lendQuantity');
-    const valid = !!item.value && Number.isInteger(Number(quantity.value)) && Number(quantity.value) >= 1 && Number(quantity.value) <= Number(quantity.max);
-    quantity.setCustomValidity(valid || !item.value ? '' : 'Enter a whole number from 1 to ' + quantity.max + '.');
-    document.getElementById('lendSubmit').disabled = !valid || !teacher.value;
-    document.getElementById('lendSummary').textContent = valid && teacher.value ? 'Lend ' + Number(quantity.value) + ' ' + item.options[item.selectedIndex].dataset.unit + ' of ' + item.options[item.selectedIndex].dataset.item + ' to ' + teacher.options[teacher.selectedIndex].textContent.trim() + '.' : 'Select equipment, a teacher, and a valid quantity to review this loan.';
-}
+(()=>{const $=id=>document.getElementById(id),rows=[...document.querySelectorAll('.p6-item-row')],search=$('p6-search'),category=$('p6-cat'),availability=$('p6-av'),course=$('p6-course');let sortKey='',sortDir=1;function filter(){rows.forEach(r=>{const match=r.dataset.search.includes(search.value.toLowerCase())&&(!category.value||r.dataset.category===category.value)&&(!availability.value||(availability.value==='yes'?+r.dataset.available>0:+r.dataset.available===0))&&(!course.value||(course.value==='none'?r.dataset.course.includes('Unclassified'):r.dataset.course.includes(course.value)));r.hidden=!match;if(!match)r.nextElementSibling.hidden=true;});} [search,category,availability,course].forEach(el=>el.addEventListener('input',filter));rows.forEach(r=>r.querySelector('.p6-open').addEventListener('click',()=>{const d=r.nextElementSibling;d.hidden=!d.hidden;r.querySelector('.p6-open').setAttribute('aria-expanded',String(!d.hidden));}));document.querySelectorAll('.p6-sort').forEach(btn=>btn.addEventListener('click',()=>{sortDir=sortKey===btn.dataset.sort?-sortDir:1;sortKey=btn.dataset.sort;const ix=[...btn.closest('tr').children].indexOf(btn.closest('th'));rows.sort((a,b)=>{const A=a.cells[ix].innerText.trim(),B=b.cells[ix].innerText.trim();return sortDir*(Number.isNaN(+A)||Number.isNaN(+B)?A.localeCompare(B):(+A)-(+B));});const tbody=$('p6-items').tBodies[0];rows.forEach(r=>{tbody.append(r,r.nextElementSibling);});}));const qty=$('p6-qty'),range=$('p6-range');document.querySelectorAll('.p6-request-btn').forEach(b=>b.addEventListener('click',()=>{$('p6-request').hidden=false;$('p6-line').value=b.dataset.line;$('p6-selected').textContent=b.dataset.name+' · '+b.dataset.holder+' · '+b.dataset.ics+' · '+b.dataset.max+' available';qty.max=b.dataset.max;range.max=b.dataset.max;qty.value=range.value=1;$('p6-range-status').textContent='1 of '+b.dataset.max;$('p6-request').scrollIntoView({behavior:'smooth',block:'center'});}));range.addEventListener('input',()=>{qty.value=range.value;$('p6-range-status').textContent=range.value+' of '+range.max;});qty.addEventListener('input',()=>{range.value=qty.value;$('p6-range-status').textContent=qty.value+' of '+range.max;});$('p6-cancel').addEventListener('click',()=>$('p6-request').hidden=true);const ls=$('p6-log-search'),st=$('p6-log-status'),ord=$('p6-log-order'),log=[...document.querySelectorAll('.p6-record')];function logs(){log.forEach(r=>r.hidden=!(r.dataset.search.includes(ls.value.toLowerCase())&&(!st.value||st.value===r.dataset.status)));const tb=$('p6-records').tBodies[0],arr=ord.value==='old'?[...log].reverse():log;arr.forEach(r=>tb.append(r));}[ls,st,ord].forEach(x=>x.addEventListener('input',logs));})();
 </script>
-<?php endif; ?>
+<script>
+// Phase 6 visual refinements: a dash is neutral, arrows mark active direction.
+(()=>{let active=null,dir='asc';document.querySelectorAll('#p6-items .p6-sort').forEach(btn=>{btn.setAttribute('aria-label','Sort by '+btn.dataset.sort);btn.addEventListener('click',()=>{if(active===btn){dir=dir==='asc'?'desc':'asc';}else{active=btn;dir='asc';}document.querySelectorAll('#p6-items .p6-sort').forEach(b=>{const indicator=b.querySelector('.p6ui-sort-indicator');if(indicator)indicator.textContent=b===active?(dir==='asc'?'↑':'↓'):'–';b.setAttribute('aria-sort',b===active?(dir==='asc'?'ascending':'descending'):'none');});});});})();
+</script>
+<?php require __DIR__.'/includes/footer.php'; ?>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<script>
+(()=>{const update=(el)=>{if(!el)return;const min=Number(el.min)||0,max=Number(el.max)||1,value=Number(el.value)||min;const percent=Math.max(0,Math.min(100,(value-min)/(max-min||1)*100));el.style.setProperty('--slider-progress',percent+'%')};const bind=(id)=>{const el=document.getElementById(id);if(!el)return;['input','change'].forEach(name=>el.addEventListener(name,()=>update(el)));new MutationObserver(()=>update(el)).observe(el,{attributes:true,attributeFilter:['max','min','disabled']});update(el)};bind('p6-range');bind('p511Range');})();
+</script>

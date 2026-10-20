@@ -11,7 +11,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   // serialize all disposition operations, and prevent simultaneously changing unissued balances.
   db()->query('SELECT lock_id FROM inventory_aggregation_lock WHERE lock_id=1 FOR UPDATE')->fetchColumn();
   $st=db()->prepare('SELECT item_name,quantity FROM inventory_items WHERE item_id=? FOR UPDATE');$st->execute([$id]);$item=$st->fetch();if(!$item)throw new RuntimeException('Item not found.');
-  $st=db()->prepare("SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=? AND c.status='active'");$st->execute([$id]);$issued=(int)$st->fetchColumn();
+  $st=db()->prepare("SELECT COALESCE(SUM(ii.qty_issued),0) FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=? AND c.status='active' AND ii.transfer_origin_request_id IS NULL");$st->execute([$id]);$issued=(int)$st->fetchColumn();
   $st=db()->prepare('SELECT COALESCE(SUM(quantity),0) FROM inventory_withdrawals WHERE item_id=?');$st->execute([$id]);$withdrawn=(int)$st->fetchColumn();
   $free=(int)$item['quantity']-$issued-$withdrawn;if($qty>$free)throw new RuntimeException('Insufficient unissued stock. Available: '.max(0,$free).'. Issued items must be retrieved and reconciled first.');
   db()->prepare('INSERT INTO inventory_withdrawals(item_id,quantity,withdrawal_type,reason,destination,document_reference,approved_document_on_file,recorded_by) VALUES(?,?,?,?,?,?,?,?)')->execute([$id,$qty,$type,$reason,$dest?:null,$doc?:null,$approved,(int)$u['id']]);
@@ -20,7 +20,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
  }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();$err=$e->getMessage();}
 }
 $_SESSION['p2wdcsrf']=bin2hex(random_bytes(16));$token=$_SESSION['p2wdcsrf'];
-$items=db()->query("SELECT i.item_id,i.item_name,i.unit,i.quantity,COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='active'),0) issued,COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn FROM inventory_items i ORDER BY i.item_name")->fetchAll();
+$items=db()->query("SELECT i.item_id,i.item_name,i.unit,i.quantity,COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='active' AND ii.transfer_origin_request_id IS NULL),0) issued,COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn FROM inventory_items i ORDER BY i.item_name")->fetchAll();
 $history=db()->query('SELECT w.*,i.item_name,u.full_name FROM inventory_withdrawals w JOIN inventory_items i ON i.item_id=w.item_id JOIN users u ON u.user_id=w.recorded_by ORDER BY w.withdrawal_id DESC LIMIT 100')->fetchAll();
 $pageTitle='Stock Withdrawal';$active='inventory';require __DIR__.'/includes/header.php'; ?>
 <div class="content-header"><h2>Withdraw Inventory / Property Disposition</h2><p>For authorized donations, returns to supplier, and other documented removals from <strong>unissued stock only</strong>.</p></div>

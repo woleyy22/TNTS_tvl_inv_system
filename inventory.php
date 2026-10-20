@@ -52,11 +52,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='change_item
 }
 $items=[];$params=[];$where=[];
 if($role==='teacher'||$view==='issued'){
-  $sql="SELECT ii.ics_item_id,ii.qty_issued,ii.qty_returned,i.item_id,i.item_name,i.description,i.unit,i.item_category,i.low_stock_threshold,c.ics_number,c.date_issued,rd.first_received,rd.last_received,co.course_name,ii.course_id AS item_course_id,c.teacher_id, c.recipient_position_office_snapshot AS position_office,u.full_name AS teacher_name,
+  $sql="SELECT ii.ics_item_id,ii.qty_issued,ii.qty_returned,ii.qty_transferred_out,i.item_id,i.item_name,i.description,i.unit,i.item_category,i.low_stock_threshold,c.ics_number,c.date_issued,rd.first_received,rd.last_received,co.course_name,ii.course_id AS item_course_id,c.teacher_id, c.recipient_position_office_snapshot AS position_office,u.full_name AS teacher_name,
     COALESCE(b.qty_for_repair,0) repair_qty, COALESCE(b.qty_serviceable,0) serviceable_balance, COALESCE(b.needs_review,0) needs_review,
     COALESCE(b.qty_damaged,0) damaged_qty,
     COALESCE((SELECT SUM(quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0) disposed_qty
-    FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id JOIN users u ON u.user_id=c.teacher_id LEFT JOIN courses co ON co.course_id=ii.course_id LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE c.status='active' AND (i.item_category IN ('consumable','expiring_material') OR ii.qty_issued>ii.qty_returned+COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0))";
+    FROM ics_items ii JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id JOIN users u ON u.user_id=c.teacher_id LEFT JOIN courses co ON co.course_id=ii.course_id LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE c.status='active' AND (i.item_category IN ('consumable','expiring_material') OR ii.qty_issued>ii.qty_returned+ii.qty_transferred_out+COALESCE((SELECT SUM(x.quantity) FROM condemnations x WHERE x.ics_item_id=ii.ics_item_id AND x.status='approved' AND x.outcome='disposed'),0))";
   if($role==='teacher'){$sql.=' AND c.teacher_id=?';$params[]=$uid;}
   elseif($teacher){$sql.=' AND c.teacher_id=?';$params[]=$teacher;}
   if($course){$sql.=' AND ii.course_id=?';$params[]=$course;}
@@ -72,8 +72,8 @@ if($role==='teacher'||$view==='issued'){
   (SELECT COUNT(*) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id) batch_count,
   (SELECT MIN(b.expiration_date) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id AND b.expiration_date IS NOT NULL AND b.expiration_date>=CURDATE()) next_expiry,
   (SELECT COUNT(*) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id AND b.expiration_date IS NOT NULL AND b.expiration_date<CURDATE()) expired_batches,
-  COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii WHERE ii.item_id=i.item_id),0) gross_issued,
-  COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id),0) active_balance,
+  COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii WHERE ii.item_id=i.item_id AND ii.transfer_origin_request_id IS NULL),0) gross_issued,
+  COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id AND ii.transfer_origin_request_id IS NULL),0) active_balance,
   COALESCE((SELECT SUM(x.quantity) FROM condemnations x JOIN ics_items ii ON ii.ics_item_id=x.ics_item_id JOIN ics c ON c.ics_id=ii.ics_id WHERE ii.item_id=i.item_id AND c.status='closed' AND x.status='approved' AND x.outcome='disposed'),0) closed_disposals,
   COALESCE((SELECT SUM(x.quantity) FROM condemnations x JOIN ics_items ii ON ii.ics_item_id=x.ics_item_id WHERE ii.item_id=i.item_id AND x.status='approved' AND x.outcome='disposed'),0) disposed,
   COALESCE((SELECT SUM(b.qty_for_repair) FROM ics_condition_balances b JOIN ics_items ii ON ii.ics_item_id=b.ics_item_id WHERE ii.item_id=i.item_id),0) repair_qty,
@@ -121,7 +121,7 @@ foreach($items as &$i){
   $i['disposed']+=(int)$i['central_disposed'];
   $i['low_stock']=$i['low_stock_threshold']!==null && $i['available']<=(int)$i['low_stock_threshold'];
  }else{
-  $i['net_issued']=$i['is_supply']?(int)$i['qty_issued']:max(0,(int)$i['qty_issued']-(int)$i['qty_returned']-(int)$i['disposed_qty']);
+  $i['net_issued']=$i['is_supply']?(int)$i['qty_issued']:max(0,(int)$i['qty_issued']-(int)$i['qty_returned']-(int)$i['qty_transferred_out']-(int)$i['disposed_qty']);
   $i['serviceable']=$i['is_supply']?0:(int)$i['serviceable_balance'];
  }
 }unset($i);
@@ -133,23 +133,35 @@ if ($role==='teacher' || $view==='issued') {
         $ids=array_values(array_unique(array_map(static fn($r)=>(int)$r['ics_item_id'],$items)));
         $placeholders=implode(',',array_fill(0,count($ids),'?'));
         $expirySql="SELECT a.ics_item_id,
-          SUM(GREATEST(0,a.qty_issued-a.qty_returned)) AS allocated_held,
-          SUM(CASE WHEN b.expiration_date < CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_expired,
-          SUM(CASE WHEN b.expiration_date >= CURDATE() AND b.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_soon,
-          SUM(CASE WHEN b.expiration_date IS NULL OR b.expiration_date >= CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_not_expired,
-          SUM(CASE WHEN b.expiration_date IS NULL THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_no_expiry
+          SUM(GREATEST(0,a.qty_issued-a.qty_returned-a.qty_transferred_out)) AS allocated_held,
+          SUM(CASE WHEN b.expiration_date < CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned-a.qty_transferred_out) ELSE 0 END) AS qty_expired,
+          SUM(CASE WHEN b.expiration_date >= CURDATE() AND b.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN GREATEST(0,a.qty_issued-a.qty_returned-a.qty_transferred_out) ELSE 0 END) AS qty_soon,
+          SUM(CASE WHEN b.expiration_date IS NULL OR b.expiration_date >= CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned-a.qty_transferred_out) ELSE 0 END) AS qty_not_expired,
+          SUM(CASE WHEN b.expiration_date IS NULL THEN GREATEST(0,a.qty_issued-a.qty_returned-a.qty_transferred_out) ELSE 0 END) AS qty_no_expiry
           FROM ics_batch_allocations a JOIN inventory_receipt_batches b ON b.batch_id=a.batch_id
           WHERE a.ics_item_id IN ($placeholders) GROUP BY a.ics_item_id";
         $stExpiry=db()->prepare($expirySql);$stExpiry->execute($ids);
         foreach($stExpiry->fetchAll(PDO::FETCH_ASSOC) as $total){$allocationTotals[(int)$total['ics_item_id']]=$total;}
     }
+    // Live borrowed quantities only. Completed/returned loans do not count.
+    $borrowedByIcs=[];
+    if (!empty($ids)) {
+        $stBorrowed=db()->prepare("SELECT ics_item_id, COALESCE(SUM(quantity),0) AS borrowed_qty
+            FROM borrow_logs WHERE status='borrowed' AND ics_item_id IN ($placeholders)
+            GROUP BY ics_item_id");
+        $stBorrowed->execute($ids);
+        foreach($stBorrowed->fetchAll(PDO::FETCH_ASSOC) as $loan){
+            $borrowedByIcs[(int)$loan['ics_item_id']]=(int)$loan['borrowed_qty'];
+        }
+    }
     foreach($items as &$icsRow){
         $v=$allocationTotals[(int)$icsRow['ics_item_id']]??[];
+        $icsRow['borrowed_qty']=(int)($borrowedByIcs[(int)$icsRow['ics_item_id']]??0);
         $icsRow['expiry_expired']=(int)($v['qty_expired']??0);
         $icsRow['expiry_soon']=(int)($v['qty_soon']??0);
         $icsRow['expiry_not_expired']=(int)($v['qty_not_expired']??0);
         $icsRow['expiry_unknown']=(int)($v['qty_no_expiry']??0);
-        $icsRow['expiry_unattributed']=max(0,(int)$icsRow['qty_issued']-(int)$icsRow['qty_returned']-(int)($v['allocated_held']??0));
+        $icsRow['expiry_unattributed']=max(0,(int)$icsRow['qty_issued']-(int)$icsRow['qty_returned']-(int)$icsRow['qty_transferred_out']-(int)($v['allocated_held']??0));
     } unset($icsRow);
 }
 $teachers=[];$courses=[];
@@ -216,6 +228,9 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
 .p34-panel .p34-stat.p34-stat-ok{background:#edf8f0;border-color:#b8d9c4;color:#176338}
 .p34-panel .p34-stat.p34-stat-repair{background:#fff6e3;border-color:#e9d39f;color:#865110}
 .p34-panel .p34-stat.p34-stat-damaged{background:#ffefef;border-color:#edc3c3;color:#a32931}
+/* Phase 6: Borrowed uses a purple status without altering serviceable counts. */
+.p34-panel .p34-stat.p34-stat-borrowed{background:#f1ebfc;border-color:#d4c2f0;color:#63358e}
+.p34-panel .p34-stat.p34-stat-borrowed .p34-muted,.p34-panel .p34-stat.p34-stat-borrowed strong{color:#63358e}
 .p34-dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px 15px;margin:8px 0 0}
 .p34-dl>div{border-bottom:1px solid #ebedf1;padding-bottom:7px;min-width:0}
 .p34-dl dt{font-size:.77rem;color:#667085;font-weight:650}
@@ -337,6 +352,7 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
                   <div class="p34-stat p34-stat-ok"><span class="p34-muted">Serviceable</span><strong><?= (int)$i['serviceable'] ?></strong></div>
                   <div class="p34-stat p34-stat-repair"><span class="p34-muted">For Repair</span><strong><?= (int)$i['repair_qty'] ?></strong></div>
                   <div class="p34-stat p34-stat-damaged"><span class="p34-muted">Damaged</span><strong><?= (int)$i['damaged_qty'] ?></strong></div>
+                  <div class="p34-stat p34-stat-borrowed"><span class="p34-muted">Borrowed</span><strong><?= (int)($i['borrowed_qty']??0) ?></strong></div>
                 <?php else: ?>
                   <div class="p34-stat"><span class="p34-muted">Supply Distribution</span><strong>Recorded as issued</strong></div>
                   <div class="p34-stat"><span class="p34-muted">Expired — still recorded</span><strong><?= (int)$i['expiry_expired'] ?></strong></div>

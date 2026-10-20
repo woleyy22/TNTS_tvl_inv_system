@@ -32,8 +32,8 @@ if (in_array($user['role'], ['supply_officer','tvl_head'], true)) {
 
 $menuGroups = [
     'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php', 'ics_returns.php', 'teacher_expiry.php']],
-    'operations' => ['Operations & Tracking', 'repeat', ['item_maintenance.php', 'borrow.php', 'transfers.php', 'condemnation.php']],
-    'records' => ['Reports & Records', 'file', ['reports.php', 'history.php']],
+    'operations' => ['Operations & Tracking', 'repeat', ['item_maintenance.php', 'borrow.php', 'transfers.php', 'transfer_history.php', 'condemnation.php']],
+    'records' => ['Reports & Records', 'file', ['reports.php', 'history.php', 'transfer_audit.php']],
     'administration' => ['Administration', 'users', ['courses.php', 'accounts.php', 'approvals.php', 'personnel_reviews.php','positions_offices.php']],
 ];
 ?>
@@ -69,13 +69,20 @@ $menuGroups = [
                 $groupActive = in_array($currentPage, $group[2], true);
                 ?>
                 <?php if ($user['role'] === 'teacher' && $groupKey === 'stock'): ?>
-                    <details class="nav-group<?= in_array($currentPage,['inventory.php','teacher_expiry.php'],true) ? ' has-active' : '' ?>" data-nav-group="stock" open>
+                    <details class="nav-group p6ui-inventory-group<?= in_array($currentPage,['inventory.php','teacher_expiry.php'],true) ? ' has-active' : '' ?>" data-nav-group="stock" open>
                         <summary class="nav-group-toggle"><?= icon('box') ?><span class="nav-group-label">Inventory</span><span class="nav-chevron" aria-hidden="true">⌄</span></summary>
-                        <div class="nav-submenu">
-                            <?php foreach ([['All My Inventory','inventory.php?view=issued',''],['Equipment','inventory.php?view=issued&amp;category=equipment','equipment'],['Non-Consumable','inventory.php?view=issued&amp;category=non_consumable','non_consumable'],['Consumable','inventory.php?view=issued&amp;category=consumable','consumable'],['Expiring Material','inventory.php?view=issued&amp;category=expiring_material','expiring_material'],['Batches &amp; Expiry','teacher_expiry.php','expiry']] as $groupLink): ?>
-                                <?php $selected = $groupLink[2]==='expiry' ? $currentPage==='teacher_expiry.php' : ($currentPage==='inventory.php' && ($_GET['category']??'')===$groupLink[2]); ?>
-                                <a class="nav-link<?= $selected?' active':'' ?>" href="<?= e(url(str_replace('&amp;','&',$groupLink[1]))) ?>"><?= icon('box') ?><span><?= $groupLink[0] ?></span></a>
-                            <?php endforeach; ?>
+                        <div class="nav-submenu p6ui-inventory-menu">
+                            <a class="nav-link p6ui-inventory-primary<?= $currentPage === 'inventory.php' && empty($_GET['category']) ? ' active':'' ?>" href="<?= e(url('inventory.php?view=issued')) ?>"><?= icon('box') ?><span>All My Inventory</span></a>
+                            <?php $p6uiCategoryActive = $currentPage==='inventory.php' && !empty($_GET['category']); ?>
+                            <details class="p6ui-category-group" <?= $p6uiCategoryActive?'open':'' ?>>
+                                <summary class="p6ui-category-toggle"><span>Browse by category</span><span class="p6ui-chevron" aria-hidden="true">⌄</span></summary>
+                                <div class="p6ui-category-links">
+                                    <?php foreach ([['Equipment','equipment'],['Non-Consumable','non_consumable'],['Consumable','consumable'],['Expiring Material','expiring_material']] as $p6uiLink): ?>
+                                        <a class="nav-link<?= $p6uiCategoryActive && ($_GET['category']??'')===$p6uiLink[1]?' active':'' ?>" href="<?= e(url('inventory.php?view=issued&category='.$p6uiLink[1])) ?>"><span><?= e($p6uiLink[0]) ?></span></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            </details>
+                            <a class="nav-link<?= $currentPage==='teacher_expiry.php'?' active':'' ?>" href="<?= e(url('teacher_expiry.php')) ?>"><?= icon('box') ?><span>Batches &amp; Expiry</span></a>
                         </div>
                     </details>
                     <?php continue; ?>

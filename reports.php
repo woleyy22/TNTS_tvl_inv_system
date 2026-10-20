@@ -155,8 +155,8 @@ if ($tab === 'ics') {
         SELECT cr.course_id, cr.course_name,
                COUNT(DISTINCT c.ics_id) as total_ics_count,
                COUNT(ii.ics_item_id) as total_line_items,
-               COALESCE(SUM(ii.qty_issued), 0) as total_units_issued,
-               COALESCE(SUM(ii.qty_issued * i.unit_cost), 0) as total_monetary_value,
+               COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END), 0) as total_units_issued,
+               COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued * i.unit_cost ELSE 0 END), 0) as total_monetary_value,
                SUM(CASE WHEN ii.ics_item_id IS NOT NULL AND i.unit_cost IS NULL THEN 1 ELSE 0 END) as unpriced_lines,
                COALESCE(SUM(
                    LEAST(ii.qty_issued, 

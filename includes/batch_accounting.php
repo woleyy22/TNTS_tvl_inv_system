@@ -4,15 +4,15 @@ function tnts_batch_balances(PDO $pdo, int $itemId, bool $lock=false): array {
     $sql='SELECT b.batch_id,b.inventory_item_id,b.batch_number,b.expiration_date,b.received_qty,b.course_id,d.receiving_number,d.date_received,co.course_name FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id LEFT JOIN courses co ON co.course_id=b.course_id WHERE b.inventory_item_id=? ORDER BY CASE WHEN b.expiration_date IS NULL THEN 1 ELSE 0 END,b.expiration_date,d.date_received,b.batch_id';
     if ($lock) $sql.=' FOR UPDATE';
     $st=$pdo->prepare($sql);$st->execute([$itemId]);$rows=$st->fetchAll(PDO::FETCH_ASSOC);
-    $aggregate=$pdo->prepare('SELECT COALESCE(SUM(a.qty_issued),0) gross,COALESCE(SUM(a.qty_serviceable_returned),0) good_returns FROM ics_batch_allocations a WHERE a.batch_id=?');
+    $aggregate=$pdo->prepare('SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN a.qty_issued ELSE 0 END),0) gross,COALESCE(SUM(a.qty_serviceable_returned),0) good_returns FROM ics_batch_allocations a JOIN ics_items ii ON ii.ics_item_id=a.ics_item_id WHERE a.batch_id=?');
     foreach($rows as &$b){$aggregate->execute([(int)$b['batch_id']]);$a=$aggregate->fetch(PDO::FETCH_ASSOC);$b['gross_allocated']=(int)$a['gross'];$b['good_returned']=(int)$a['good_returns'];$b['remaining_raw']=max(0,(int)$b['received_qty']-$b['gross_allocated']+$b['good_returned']);$b['expired']=$b['expiration_date']!==null && $b['expiration_date']<date('Y-m-d');}unset($b);
     return $rows;
 }
 /** Reserve older unallocated issues and withdrawals conservatively from FIFO batches. */
 function tnts_batch_issueable(PDO $pdo,int $itemId,int $masterAvailable,bool $isSupply,bool $lock=false): array {
     $rows=tnts_batch_balances($pdo,$itemId,$lock);
-    $s=$pdo->prepare('SELECT COALESCE(SUM(ii.qty_issued),0) gross,COALESCE(SUM(ii.qty_issued-ii.qty_returned),0) active FROM ics_items ii WHERE ii.item_id=?');$s->execute([$itemId]);$whole=$s->fetch(PDO::FETCH_ASSOC);
-    $s=$pdo->prepare('SELECT COALESCE(SUM(a.qty_issued),0) gross,COALESCE(SUM(a.qty_issued-a.qty_returned),0) active FROM ics_batch_allocations a JOIN ics_items ii ON ii.ics_item_id=a.ics_item_id WHERE ii.item_id=?');$s->execute([$itemId]);$linked=$s->fetch(PDO::FETCH_ASSOC);
+    $s=$pdo->prepare('SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END),0) gross,COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued-ii.qty_returned ELSE 0 END),0) active FROM ics_items ii WHERE ii.item_id=?');$s->execute([$itemId]);$whole=$s->fetch(PDO::FETCH_ASSOC);
+    $s=$pdo->prepare('SELECT COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN a.qty_issued ELSE 0 END),0) gross,COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN a.qty_issued-a.qty_returned ELSE 0 END),0) active FROM ics_batch_allocations a JOIN ics_items ii ON ii.ics_item_id=a.ics_item_id WHERE ii.item_id=?');$s->execute([$itemId]);$linked=$s->fetch(PDO::FETCH_ASSOC);
     // Historical ICS had no source-batch identity, including items later returned.
     // Reserve their full original issue quantity rather than guessing where returned
     // physical units belong; a later supervised reconciliation can assign a batch.

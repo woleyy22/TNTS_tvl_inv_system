@@ -22,8 +22,8 @@ $teacher_course_rows = db()->query("SELECT tc.user_id, tc.course_id FROM teacher
 // All inventory is listed for clarity. Only serviceable central quantity may be issued.
 $stockSql = "SELECT i.*,
  COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn,
- COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii WHERE ii.item_id=i.item_id),0) gross_issued,
- COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id),0) active_balance,
+ COALESCE((SELECT SUM(ii.qty_issued) FROM ics_items ii WHERE ii.item_id=i.item_id AND ii.transfer_origin_request_id IS NULL),0) gross_issued,
+ COALESCE((SELECT SUM(ii.qty_issued-ii.qty_returned) FROM ics_items ii WHERE ii.item_id=i.item_id AND ii.transfer_origin_request_id IS NULL),0) active_balance,
  COALESCE((SELECT SUM(x.quantity) FROM condemnations x JOIN ics_items ii ON ii.ics_item_id=x.ics_item_id WHERE ii.item_id=i.item_id AND x.status='approved' AND x.outcome='disposed'),0) disposed,
  COALESCE((SELECT SUM(rl.qty_for_repair) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) returned_repair,
  COALESCE((SELECT SUM(rl.qty_damaged) FROM ics_return_lines rl JOIN ics_items ii ON ii.ics_item_id=rl.ics_item_id WHERE ii.item_id=i.item_id),0) returned_damaged,
@@ -159,7 +159,7 @@ try {
     }
 
     db()->commit();
-    header("Location: inventory.php?success=1");
+    header("Location: ics_issue.php?success=1");
     exit;
 } catch (Exception $e) {
     db()->rollBack();
@@ -180,6 +180,7 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <?php if (!empty($_GET['error'])): ?><div class="legacy-181" role="alert"><?= e($_GET['error']) ?></div><?php endif; ?>
+<?php if (isset($_GET['success'])): ?><div class="p6ui-success" role="status">ICS issued successfully. You can issue another ICS from this page or view the record in Inventory.</div><?php endif; ?>
 <form method="POST" class="card legacy-148 p473-issue-wide">
     <?= csrf_field() ?>
     
@@ -223,6 +224,7 @@ require_once __DIR__ . '/includes/header.php';
     <div class="p36-filters">
       <label>Search<input type="search" id="p36Search" placeholder="Item or category"></label>
       <label>Show<select id="p36Filter"><option value="all">All items</option><option value="available">Available to issue</option><option value="repair">Central For Repair</option><option value="damaged">Central Damaged</option></select></label>
+      <label>Category<select id="p6uiCategory"><option value="all">All categories</option><option value="equipment">Equipment</option><option value="non_consumable">Non-Consumable</option><option value="consumable">Consumable</option><option value="expiring_material">Expiring Material</option></select></label>
       <label>Course purpose<select id="p472CourseFilter"><option value="all">All courses</option><option value="unclassified">Unclassified / Unspecified</option><?php foreach($courses as $course): ?><option value="<?= (int)$course['course_id'] ?>"><?= e($course['course_name']) ?></option><?php endforeach; ?></select></label>
       <label>Sort<select id="p36Sort"><option value="name_asc">Name A–Z</option><option value="name_desc">Name Z–A</option><option value="qty_desc">Available high–low</option><option value="qty_asc">Available low–high</option></select></label>
     </div>
@@ -250,10 +252,10 @@ require_once __DIR__ . '/includes/header.php';
 </style>
 <script>
 const p36Rows=[...document.querySelectorAll('#p36Items .p36-item')];
-function p36Refresh(){const q=document.querySelector('#p36Search').value.toLowerCase(), f=document.querySelector('#p36Filter').value, courseFilter=document.querySelector('#p472CourseFilter').value, sort=document.querySelector('#p36Sort').value, body=document.querySelector('#p36Items tbody');let n=0;
+function p36Refresh(){const q=document.querySelector('#p36Search').value.toLowerCase(), f=document.querySelector('#p36Filter').value, courseFilter=document.querySelector('#p472CourseFilter').value, categoryFilter=document.querySelector('#p6uiCategory').value, sort=document.querySelector('#p36Sort').value, body=document.querySelector('#p36Items tbody');let n=0;
  p36Rows.sort((a,b)=>sort==='name_asc'?a.dataset.name.localeCompare(b.dataset.name):sort==='name_desc'?b.dataset.name.localeCompare(a.dataset.name):sort==='qty_desc'?Number(b.dataset.qty)-Number(a.dataset.qty):Number(a.dataset.qty)-Number(b.dataset.qty));
- for(const row of p36Rows){const ok=(row.dataset.name.includes(q)||row.dataset.cat.includes(q))&&(f==='all'||(f==='available'&&Number(row.dataset.qty)>0)||(f==='repair'&&Number(row.dataset.repair)>0)||(f==='damaged'&&Number(row.dataset.damaged)>0))&&(courseFilter==='all'||(courseFilter==='unclassified'&&(!row.dataset.batchCourses||row.dataset.batchCourses.split(',').includes('0')))||row.dataset.batchCourses.split(',').includes(courseFilter));row.hidden=!ok;if(ok)n++;body.appendChild(row);}document.querySelector('#p36Empty').hidden=n!==0;}
-['p36Search','p36Filter','p472CourseFilter','p36Sort'].forEach(id=>document.getElementById(id).addEventListener('input',p36Refresh));p36Refresh();
+ for(const row of p36Rows){const ok=(row.dataset.name.includes(q)||row.dataset.cat.includes(q))&&(categoryFilter==='all'||row.dataset.cat===categoryFilter)&&(f==='all'||(f==='available'&&Number(row.dataset.qty)>0)||(f==='repair'&&Number(row.dataset.repair)>0)||(f==='damaged'&&Number(row.dataset.damaged)>0))&&(courseFilter==='all'||(courseFilter==='unclassified'&&(!row.dataset.batchCourses||row.dataset.batchCourses.split(',').includes('0')))||row.dataset.batchCourses.split(',').includes(courseFilter));row.hidden=!ok;if(ok)n++;body.appendChild(row);}document.querySelector('#p36Empty').hidden=n!==0;}
+['p36Search','p36Filter','p6uiCategory','p472CourseFilter','p36Sort'].forEach(id=>document.getElementById(id).addEventListener('input',p36Refresh));p36Refresh();
 const p4721Courses = <?= json_encode(array_column($courses, 'course_name', 'course_id'), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 document.querySelectorAll('#p36Items .p36-item').forEach(row=>{
  const batch=row.querySelector('select[name^="batch_choice"]'),course=row.querySelector('.p4721-course'),info=row.querySelector('.p4721-batch-course-label');
