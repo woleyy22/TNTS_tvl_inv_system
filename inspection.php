@@ -31,7 +31,7 @@ if (empty($items)) {
 
 $inspection_error = '';
 $existing_masters = db()->query('SELECT item_id, item_name, description, unit, item_type, item_category, quantity FROM inventory_items ORDER BY item_name, item_id')->fetchAll(PDO::FETCH_ASSOC);
-$classifications = db()->query('SELECT classification_id, classification_name FROM item_classifications WHERE is_active=1 ORDER BY classification_name')->fetchAll(PDO::FETCH_ASSOC);
+$courses = db()->query('SELECT course_id, course_name FROM courses ORDER BY course_name')->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle Inspection Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -72,18 +72,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $category = (string)($_POST['inventory_category'][$item_id] ?? '');
                 if (!in_array($category, ['equipment','non_consumable','consumable','expiring_material'], true)) throw new RuntimeException('Select a valid tracking category for: '.$item['item_name']);
                 $item_type = in_array($category,['equipment','non_consumable'],true) ? 'equipment' : 'supply';
-                $classification = (int)($_POST['classification_id'][$item_id] ?? 0);
-                if ($classification > 0) {
-                    $cl=db()->prepare('SELECT 1 FROM item_classifications WHERE classification_id=? AND is_active=1'); $cl->execute([$classification]);
-                    if (!$cl->fetchColumn()) throw new RuntimeException('Invalid classification for: '.$item['item_name']);
+                // Optional course purpose is kept on the RECEIPT BATCH, not on the shared master item.
+                $courseRaw = trim((string)($_POST['course_id'][$item_id] ?? ''));
+                $courseId = null;
+                if ($courseRaw !== '') {
+                    if (!ctype_digit($courseRaw) || (int)$courseRaw < 1) throw new RuntimeException('Invalid course for: '.$item['item_name']);
+                    $courseId = (int)$courseRaw;
+                    $courseCheck = db()->prepare('SELECT 1 FROM courses WHERE course_id=?');
+                    $courseCheck->execute([$courseId]);
+                    if (!$courseCheck->fetchColumn()) throw new RuntimeException('Selected course was not found for: '.$item['item_name']);
                 }
                 $batchNumber=trim((string)($_POST['batch_number'][$item_id]??''));
+                if (strlen($batchNumber)>80) throw new RuntimeException('Batch number is too long for: '.$item['item_name']);
                 $expirationDate=trim((string)($_POST['expiration_date'][$item_id]??''));
                 if ($expirationDate !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expirationDate) || !checkdate((int)substr($expirationDate,5,2),(int)substr($expirationDate,8,2),(int)substr($expirationDate,0,4)))) throw new RuntimeException('Invalid expiration date.');
 
                 // A single master item may be referenced by several accepted delivery batches.
                 $masterId = aggregate_accepted_delivery_item(db(), $item, $qty_accepted, $item_type,
-                    (string)($_POST['master_choice'][$item_id] ?? 'auto'), $category, $classification ?: null, $batchNumber ?: null, $expirationDate ?: null);
+                    (string)($_POST['master_choice'][$item_id] ?? 'auto'), $category, $courseId, $batchNumber ?: null, $expirationDate ?: null);
 
             }
         }
@@ -119,7 +125,7 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <?php if ($inspection_error): ?><div class="legacy-181" role="alert" style="padding:12px;margin-bottom:16px;color:#8b0000;background:#ffe3e3;border-radius:6px;"><?= e($inspection_error) ?></div><?php endif; ?>
-<div class="card legacy-064">
+<div class="card legacy-064 p471-iar-card">
     <form method="POST" id="inspection_form">
         <div class="legacy-065">
             <div class="legacy-049">
@@ -141,14 +147,14 @@ require_once __DIR__ . '/includes/header.php';
 
         <div class="legacy-074">Exact matches automatically join an existing inventory item. If a similar item already exists, explicitly select it or choose to create a separate item. Costs remain recorded per delivery.</div>
         <h3 class="legacy-066">Items to Accept</h3>
-        <p class="legacy-067">Verify accepted quantities. Select a tracking category for each accepted item. Batch and expiry details are optional, and useful for supplies.</p>
+        <p class="legacy-067">Verify accepted quantities and select a tracking category. Course purpose and batch details are optional; record the expiry date of dated materials when known.</p>
 
-        <table class="legacy-068 tnts-inspection-table">
+        <div class="p471-iar-table-wrap" role="region" aria-label="Inspection item lines" tabindex="0"><table class="legacy-068 tnts-inspection-table p471-iar-table">
             <tr class="legacy-069">
                 <th class="legacy-070">Item Name</th>
                 <th class="legacy-070">Qty Delivered</th>
                 <th class="legacy-071">Qty Accepted *</th>
-                <th class="legacy-071">Tracking Category *</th><th class="legacy-071">Custom Classification / Batch</th><th class="legacy-071">Inventory Matching</th>
+                <th class="legacy-071">Tracking Category *</th><th class="legacy-071">Course Classification (Optional)</th><th class="legacy-071">Batch Number / Expiry</th><th class="legacy-071">Inventory Matching</th>
             </tr>
             <?php foreach ($items as $item): ?>
                 <tr>
@@ -174,10 +180,17 @@ require_once __DIR__ . '/includes/header.php';
                         </select>
                     </td>
                     <td class="legacy-072">
-                        <select name="classification_id[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073"><option value="">No custom classification</option>
-                        <?php foreach($classifications as $cl): ?><option value="<?= (int)$cl['classification_id'] ?>" <?= (int)($_POST['classification_id'][$item['delivery_item_id']]??0)===(int)$cl['classification_id']?'selected':'' ?>><?= e($cl['classification_name']) ?></option><?php endforeach; ?></select>
+                        <select name="course_id[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073" aria-label="Optional course purpose for <?= e($item['item_name']) ?>">
+                            <option value="">Unclassified / No course</option>
+                            <?php foreach($courses as $crs): ?>
+                            <option value="<?= (int)$crs['course_id'] ?>" <?= (int)($_POST['course_id'][$item['delivery_item_id']] ?? 0) === (int)$crs['course_id'] ? 'selected' : '' ?>><?= e($crs['course_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="legacy-037">Purpose of this delivery batch; not a restriction on which teacher may receive it.</small>
+                    </td>
+                    <td class="legacy-072">
                         <input class="legacy-073" name="batch_number[<?= (int)$item['delivery_item_id'] ?>]" placeholder="Batch number (optional)" maxlength="80" value="<?= e($_POST['batch_number'][$item['delivery_item_id']]??'') ?>">
-                        <label class="legacy-037">Optional expiry</label><input class="legacy-073" type="date" name="expiration_date[<?= (int)$item['delivery_item_id'] ?>]" value="<?= e($_POST['expiration_date'][$item['delivery_item_id']]??'') ?>">
+                        <label class="legacy-037">Expiration date (if applicable)</label><input class="legacy-073" type="date" name="expiration_date[<?= (int)$item['delivery_item_id'] ?>]" value="<?= e($_POST['expiration_date'][$item['delivery_item_id']]??'') ?>">
                     </td>
                     <td class="legacy-072">
                        <select name="master_choice[<?= (int)$item['delivery_item_id'] ?>]" class="legacy-073">
@@ -189,11 +202,11 @@ require_once __DIR__ . '/includes/header.php';
                            <?php endif; ?>
                          <?php endforeach; ?>
                        </select>
-                       <small class="legacy-037">Different specs require your confirmation. Different units or classifications cannot be combined.</small>
+                       <small class="legacy-037">Different specs require your confirmation. Different units or tracking categories cannot be combined. Different course purposes can share one master item.</small>
                     </td>
                 </tr>
             <?php endforeach; ?>
-        </table>
+        </table></div>
 
         <div class="legacy-050">
             <label class="legacy-046">Inspection Remarks / Notes (Optional)</label>

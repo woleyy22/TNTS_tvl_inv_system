@@ -1323,3 +1323,65 @@ body.login-page .tnts-login-contact a:hover{text-decoration:none;border-bottom-c
 .p451-row-actions{white-space:nowrap;text-align:right}.p451-row-actions .btn{margin:2px 0 2px 4px;min-height:32px!important;padding:6px 9px!important;font-size:10px!important}.p451-row-actions form{display:inline}.p451-toggle{color:#975b0b;background:#fff7e6;border:1px solid #ecc78e!important}.p451-toggle:hover{background:#ffedc4}.p451-delete{background:#fff0f3!important;border:1px solid #eea5b4!important;color:#b21b40!important}.p451-delete:hover{background:#ffe1e7!important}
 .p451-detail-row[hidden],.p451-add-panel[hidden],.p451-teacher-settings[hidden]{display:none!important}.p451-detail-row td{padding:0!important;background:#faf7f9!important}.p451-expanded{margin:12px;border:1px solid #e8d5dd;border-radius:12px;padding:24px;background:#fff}.p451-expanded-header{padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px}.p451-expanded-header h3{margin:0!important;color:#273447!important}.p451-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px}.p451-form-grid .field{min-width:0}.p451-form-grid .input{width:100%;max-width:none}.p451-account-form label{font-size:12px;font-weight:600}.p451-password-label{font-weight:400!important;margin-top:8px!important}.p451-teacher-settings{margin:12px 0;padding:18px;border:1px solid #eadce2;border-radius:12px;min-width:0}.p451-teacher-settings legend{padding:0 8px;color:var(--maroon);font-size:13px;font-weight:750}.p451-teacher-settings>p{font-size:11px;margin:0 0 16px}.p451-course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px 16px;margin:12px 0}.p451-course-grid .check{display:flex;align-items:flex-start;gap:8px;line-height:1.45;font-size:12px;font-weight:400!important}.p451-course-grid input{margin-top:3px}.p451-form-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}.p451-readonly-grid{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:0}.p451-readonly-grid dt{color:var(--muted)}.p451-readonly-grid dd{margin:0;font-weight:600}.p451-delete-dialog{padding:0;border:0;max-width:min(480px,calc(100vw - 30px));border-radius:16px;box-shadow:0 18px 70px #0005}.p451-delete-dialog::backdrop{background:#1e102288}.p451-delete-form{padding:26px}.p451-delete-form h3{color:#ac1b3c}.p451-delete-form .input{width:100%}.p451-my-courses .p451-course-grid{margin:18px 0}
 @media(max-width:1100px){.p451-filters{grid-template-columns:repeat(2,minmax(180px,1fr))}}@media(max-width:680px){.p451-filters,.p451-form-grid{grid-template-columns:1fr}.p451-expanded{padding:15px;margin:6px}.p451-readonly-grid{grid-template-columns:105px 1fr}}
+
+/* Phase 4.7.1 — Receiving / IAR and batch course management (consolidated CSS). */
+.app-page .p471-iar-card{max-width:100%;width:100%;box-sizing:border-box;min-width:0}
+.p471-iar-table-wrap{max-width:100%;width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #e7eaf1;border-radius:10px;margin-bottom:18px}
+.p471-iar-table.tnts-inspection-table{width:100%;min-width:1180px;table-layout:auto;border-collapse:collapse}
+.p471-iar-table.tnts-inspection-table th{white-space:normal;overflow-wrap:normal;min-width:88px;vertical-align:top!important;color:#465369;font-size:.76rem;padding:12px!important;background:#f5f6f9}
+.p471-iar-table.tnts-inspection-table th:first-child,.p471-iar-table.tnts-inspection-table td:first-child{width:auto;min-width:155px}
+.p471-iar-table.tnts-inspection-table th:nth-child(2),.p471-iar-table.tnts-inspection-table td:nth-child(2){width:105px}
+.p471-iar-table.tnts-inspection-table th:nth-child(3),.p471-iar-table.tnts-inspection-table td:nth-child(3){width:130px}
+.p471-iar-table.tnts-inspection-table th:nth-child(4),.p471-iar-table.tnts-inspection-table td:nth-child(4){width:155px}
+.p471-iar-table.tnts-inspection-table th:nth-child(5),.p471-iar-table.tnts-inspection-table td:nth-child(5){width:210px}
+.p471-iar-table.tnts-inspection-table th:nth-child(6),.p471-iar-table.tnts-inspection-table td:nth-child(6){width:195px}
+.p471-iar-table.tnts-inspection-table th:nth-child(7),.p471-iar-table.tnts-inspection-table td:nth-child(7){width:230px}
+.p471-iar-table.tnts-inspection-table td{vertical-align:top!important;padding:12px 9px!important;border-bottom:1px solid #eef0f4}
+.p471-iar-table.tnts-inspection-table input,.p471-iar-table.tnts-inspection-table select{width:100%!important;min-width:0;box-sizing:border-box;margin:0 0 8px}
+.p471-settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}
+.p471-settings-grid label{display:grid;gap:6px;font-size:.83rem;font-weight:650;color:#344054}
+.p471-settings-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.p471-batch-table{width:100%;min-width:1000px;border-collapse:collapse}
+.p471-batch-table th,.p471-batch-table td{text-align:left;padding:12px 10px;border-bottom:1px solid #e7eaf1;vertical-align:middle;font-size:.82rem}
+.p471-batch-table th{background:#f5f6f9;color:#475467;font-weight:700}
+.p471-batch-table input,.p471-batch-table select{width:100%;min-width:125px}
+.p471-status{display:inline-block;padding:4px 9px;border-radius:99px;background:#e9edf3;color:#475467;font-size:.75rem;font-weight:700}
+.p471-status.expired{background:#ffe2e2;color:#9f2222}.p471-status.soon{background:#fff2d5;color:#854f14}.p471-status.ok{background:#e4f5e9;color:#1a6d42}
+.p471-note{font-size:.8rem;color:#64748b;line-height:1.6}
+@media(max-width:850px){.app-page .p471-iar-card{padding:14px}.p471-iar-table-wrap{margin:0 0 16px}}
+
+/* Phase 4.7.2 — Batch-aware ICS issuance and detail tables */
+.p472-batch-select{width:min(100%,260px);padding:8px;border:1px solid #d7dce5;border-radius:7px;background:white;color:#334155;}
+.p472-batch-select:focus-visible{outline:2px solid #851632;outline-offset:2px;}
+.p472-detail-meta{display:flex;flex-wrap:wrap;gap:18px;margin:12px 0 20px;}
+.p472-detail-meta>div{min-width:130px;}
+.p472-detail-meta small{color:#64748b;}
+
+/* Phase 4.7.3 — category navigation, batch expiry and personnel directory */
+.p473-directory{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.p473-directory .card{min-width:0}.p473-directory .table-wrap{overflow:auto}
+.p473-add,.p473-search{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0 18px}
+.p473-add .input{flex:1;min-width:160px}.p473-search label{width:100%;font-weight:600}.p473-search .input{flex:1;min-width:180px}
+.p473-tabs{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 16px}
+.p473-tab{border:1px solid #e1d3d9;border-radius:10px;padding:10px 13px;background:#fff;color:#65223d;text-decoration:none;font-size:.86rem}
+.p473-tab.is-active{background:#7a173a;color:#fff;border-color:#7a173a}.p473-tab strong{margin-left:5px}
+.p473-expiry{min-width:1090px}.p473-expiry td small{display:block;color:#68748a;margin-top:4px}
+.p473-state{display:inline-block;padding:5px 9px;border-radius:20px;font-size:.78rem;font-weight:700}
+.p473-expired{background:#ffe3e3;color:#9d252d}.p473-soon{background:#fff1cb;color:#7b5017}.p473-usable{background:#e2f7ea;color:#187446}.p473-unknown{background:#edf0f5;color:#555e6c}
+.p473-note{font-size:.86rem;color:#6b7484;margin:14px 0}.p473-legacy{margin-top:18px;padding:14px;border:1px solid #efd7a7;border-radius:12px;background:#fff9ec}.p473-legacy p{margin:7px 0;font-size:.86rem}
+@media(max-width:840px){.p473-directory{grid-template-columns:1fr}}
+
+/* Phase 4.7.3 revised: full-width ICS issuance and visible held-batch expiry statuses */
+.app-page .main:has(.p473-issue-wide){min-width:0}
+.app-page .p473-issue-wide{width:100%;max-width:none!important;min-width:0;margin-inline:0}
+.p473-issue-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #e7eaf1;border-radius:10px}
+.p473-issue-table-wrap #p36Items{width:100%;min-width:1110px;table-layout:auto}
+.p473-issue-table-wrap #p36Items th{white-space:normal;min-width:100px;line-height:1.45}
+.p473-issue-table-wrap #p36Items td{vertical-align:middle}
+.p473-issue-table-wrap #p36Items select{min-width:125px;max-width:220px}
+.p473-status-pill{display:inline-block;font-size:11px;font-weight:700;border-radius:18px;padding:5px 9px;margin:3px 3px 2px 0;white-space:nowrap}
+.p473-pill-expired{color:#982331;background:#fee6e8}.p473-pill-soon{color:#835513;background:#fff1cc}
+.p473-pill-usable{color:#147048;background:#e5f5ec}.p473-pill-unknown{color:#555c70;background:#eef0f5}
+.p473-inline-note{margin-top:10px;font-size:12px;color:#6b7484}
+@media(min-width:1080px){.app-page .main:has(.p473-issue-wide)>.content-header{max-width:none!important}.app-page .main:has(.p473-issue-wide)>.card{max-width:none!important}}
+@media(max-width:850px){.app-page .p473-issue-wide{padding:14px}.p473-issue-table-wrap{margin-bottom:14px}}

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/batch_accounting.php';
 
 $user = current_user();
 if (!$user || $user['role'] !== 'supply_officer') {
@@ -38,6 +39,12 @@ foreach ($inventory as &$item) {
     $item['available_qty'] = max(0, (int)$item['quantity']-(int)$item['withdrawn'] - ($supply?(int)$item['gross_issued']:((int)$item['active_balance']+(int)$item['central_repair']+(int)$item['central_damaged']+(int)$item['central_disposed'])));
 }
 unset($item);
+foreach($inventory as &$item) {
+    $batchInfo=tnts_batch_issueable(db(),(int)$item['item_id'],(int)$item['available_qty'],in_array($item['item_category'],['consumable','expiring_material'],true));
+    $item['batch_info']=$batchInfo;
+    $item['available_qty']=min((int)$item['available_qty'],array_sum(array_column($batchInfo['batches'],'available')));
+}
+unset($item);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -71,6 +78,8 @@ try {
     // Save each item category before inserting ICS lines. Do not run extra
     // queries between an INSERT and reading its auto-increment ID.
     $categoryByItem = [];
+    $chosenBatches=[];
+    $chosenCourses=[];
     // Validate each requested item quantity against live unissued stock
     foreach ($items_to_issue as $item_id => $qty_to_issue) {
         $stmt_check = db()->prepare($stockSql . ' WHERE i.item_id=? FOR UPDATE');
@@ -85,6 +94,29 @@ try {
         if ($qty_to_issue > $available_qty) {
             throw new Exception("Cannot issue {$qty_to_issue} unit(s) of '{$stock['item_name']}'. Only {$available_qty} unit(s) available in central inventory.");
         }
+        $bi=tnts_batch_issueable(db(),(int)$item_id,$available_qty,$supply,true);
+        if($bi['unattributed_remainder']>0) throw new RuntimeException('Unattributed historical stock exceeds tracked batches. Please reconcile this item before issuing.');
+        $preferred=(int)($_POST['batch_choice'][$item_id]??0);
+        $candidates=$bi['batches'];
+        if($preferred>0){
+            $candidates=array_values(array_filter($candidates,static fn($b)=>(int)$b['batch_id']===$preferred));
+            if(!$candidates) throw new RuntimeException('Selected batch no longer belongs to '.$stock['item_name'].'.');
+        }
+        $remain=$qty_to_issue;$alloc=[];
+        foreach($candidates as $batch){
+            $take=min($remain,(int)$batch['available']);
+            if($take>0){$alloc[]=['batch_id'=>(int)$batch['batch_id'],'qty'=>$take];$remain-=$take;}
+            if(!$remain)break;
+        }
+        if($remain>0) throw new RuntimeException('Not enough unexpired batch stock for '.$stock['item_name'].'. Available: '.($qty_to_issue-$remain).'.');
+        $chosenBatches[(int)$item_id]=$alloc;
+        $selectedCourse=(int)($_POST['item_course'][$item_id]??0);
+        if($selectedCourse>0){
+            $cs=db()->prepare('SELECT COUNT(*) FROM courses WHERE course_id=?');$cs->execute([$selectedCourse]);
+            if(!(int)$cs->fetchColumn()) throw new RuntimeException('Invalid course classification for '.$stock['item_name']);
+        }
+        $chosenCourses[(int)$item_id]=$selectedCourse>0?$selectedCourse:null;
+
     }
 
     // Freeze the approved recipient's official details on the historical ICS.
@@ -107,15 +139,19 @@ try {
     $ics_id = db()->lastInsertId();
 
     // Insert line items
-    $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, item_condition) VALUES (?, ?, ?, 'serviceable')");
+    $insert_item = db()->prepare("INSERT INTO ics_items (ics_id, item_id, qty_issued, item_condition, course_id) VALUES (?, ?, ?, 'serviceable', ?)");
     $newBalance=db()->prepare('INSERT INTO ics_condition_balances (ics_item_id,qty_serviceable,qty_for_repair,qty_damaged,needs_review) VALUES (?, ?, 0, 0, 0)');
     foreach ($items_to_issue as $item_id => $qty_to_issue) {
-        $insert_item->execute([$ics_id, $item_id, $qty_to_issue]);
+        $insert_item->execute([$ics_id, $item_id, $qty_to_issue,$chosenCourses[(int)$item_id]]);
         // The FK must point to THIS newly inserted ICS line, not to a stale
         // lastInsertId() value from a later statement (or another line).
         $newIcsItemId = (int) db()->lastInsertId();
         if ($newIcsItemId <= 0) {
             throw new RuntimeException('Could not identify the new ICS item. Issuance has been canceled safely.');
+        }
+        $insAllocation=db()->prepare('INSERT INTO ics_batch_allocations (ics_item_id,batch_id,qty_issued) VALUES (?,?,?)');
+        foreach($chosenBatches[(int)$item_id] as $batchAllocation){
+            $insAllocation->execute([$newIcsItemId,$batchAllocation['batch_id'],$batchAllocation['qty']]);
         }
         if (in_array($categoryByItem[(int)$item_id], ['equipment','non_consumable'], true)) {
             $newBalance->execute([$newIcsItemId, $qty_to_issue]);
@@ -144,7 +180,7 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <?php if (!empty($_GET['error'])): ?><div class="legacy-181" role="alert"><?= e($_GET['error']) ?></div><?php endif; ?>
-<form method="POST" class="card legacy-148">
+<form method="POST" class="card legacy-148 p473-issue-wide">
     <?= csrf_field() ?>
     
     <div class="legacy-149">
@@ -164,6 +200,7 @@ require_once __DIR__ . '/includes/header.php';
         <input type="search" id="p411TeacherInput" class="legacy-047" placeholder="Search and select a teacher..." autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="p411TeacherSuggestions" required>
         <input type="hidden" name="teacher_id" id="ics_teacher" value="">
         <div id="p411TeacherSuggestions" class="p411-options" role="listbox" hidden></div>
+        <p id="p411TeacherCourses" class="p411-help" aria-live="polite">Assigned courses: Select a teacher</p>
         <p id="p411TeacherHelp" class="p411-help">Choose a name from the suggestions; typing alone does not select a teacher.</p>
       </div>
       <div class="legacy-049">
@@ -186,21 +223,24 @@ require_once __DIR__ . '/includes/header.php';
     <div class="p36-filters">
       <label>Search<input type="search" id="p36Search" placeholder="Item or category"></label>
       <label>Show<select id="p36Filter"><option value="all">All items</option><option value="available">Available to issue</option><option value="repair">Central For Repair</option><option value="damaged">Central Damaged</option></select></label>
+      <label>Course purpose<select id="p472CourseFilter"><option value="all">All courses</option><option value="unclassified">Unclassified / Unspecified</option><?php foreach($courses as $course): ?><option value="<?= (int)$course['course_id'] ?>"><?= e($course['course_name']) ?></option><?php endforeach; ?></select></label>
       <label>Sort<select id="p36Sort"><option value="name_asc">Name A–Z</option><option value="name_desc">Name Z–A</option><option value="qty_desc">Available high–low</option><option value="qty_asc">Available low–high</option></select></label>
     </div>
-    <div style="overflow-x:auto"><table class="legacy-068" id="p36Items">
-        <thead><tr class="legacy-069"><th class="legacy-070">Item Name</th><th class="legacy-070">Category</th><th class="legacy-070">Available for ICS</th><th class="legacy-070">Central For Repair / Damaged</th><th class="legacy-152">Qty to Issue</th></tr></thead>
+    <div class="p473-issue-table-wrap"><table class="legacy-068" id="p36Items">
+        <thead><tr class="legacy-069"><th class="legacy-070">Item Name</th><th class="legacy-070">Category</th><th class="legacy-070">Available for ICS</th><th class="legacy-070">Central For Repair / Damaged</th><th class="legacy-070">Source Batch</th><th class="legacy-070">Course Purpose (optional)</th><th class="legacy-152">Qty to Issue</th></tr></thead>
         <tbody>
         <?php foreach ($inventory as $item): ?>
-          <tr class="p36-item" data-name="<?= e(mb_strtolower($item['item_name'])) ?>" data-cat="<?= e(mb_strtolower($item['item_category'])) ?>" data-qty="<?= (int)$item['available_qty'] ?>" data-repair="<?= (int)$item['central_repair'] ?>" data-damaged="<?= (int)$item['central_damaged'] ?>">
+          <tr class="p36-item" data-name="<?= e(mb_strtolower($item['item_name'])) ?>" data-cat="<?= e(mb_strtolower($item['item_category'])) ?>" data-qty="<?= (int)$item['available_qty'] ?>" data-repair="<?= (int)$item['central_repair'] ?>" data-damaged="<?= (int)$item['central_damaged'] ?>" data-batch-courses="<?= e(implode(',',array_unique(array_map(static fn($b)=>(string)((int)($b['course_id']??0)),array_filter($item['batch_info']['batches'],static fn($b)=>(int)($b['received_qty']??0)>0))))) ?>">
             <td class="legacy-072"><strong><?= e($item['item_name']) ?></strong><br><small class="legacy-037"><?= e($item['unit']) ?></small></td>
             <td class="legacy-072"><?= e(ucwords(str_replace('_',' ',$item['item_category']))) ?></td>
             <td class="legacy-153"><strong style="color:#167349"><?= (int)$item['available_qty'] ?></strong> <?= e($item['unit']) ?></td>
             <td class="legacy-072"><span class="p36-repair"><?= (int)$item['central_repair'] ?> repair</span> <span class="p36-damaged"><?= (int)$item['central_damaged'] ?> damaged</span></td>
+            <td class="legacy-072"><select class="p472-batch-select" name="batch_choice[<?= (int)$item['item_id'] ?>]" aria-label="Source batch for <?= e($item['item_name']) ?>"><option value="0">Automatic: earliest usable expiry</option><?php foreach($item['batch_info']['batches'] as $batch): ?><option data-course="<?= (int)($batch['course_id']??0) ?>" value="<?= (int)$batch['batch_id'] ?>" <?= $batch['available']<=0?'disabled':'' ?>><?= e($batch['batch_number']?:('Batch #'.$batch['batch_id'])) ?> · <?= (int)$batch['available'] ?> available · <?= e($batch['expiration_date']??'No expiry') ?><?= $batch['expired']?' (Expired)':'' ?></option><?php endforeach;?></select></td>
+            <td class="legacy-072"><small class="p4721-batch-course-label">Source batch: Unclassified</small><br><select class="p472-batch-select p4721-course" name="item_course[<?= (int)$item['item_id'] ?>]" aria-label="Course for <?= e($item['item_name']) ?>"><option value="">Unclassified</option><?php foreach($courses as $course): ?><option value="<?= (int)$course['course_id'] ?>"><?= e($course['course_name']) ?></option><?php endforeach;?></select><br><small class="p4721-hint">Editable ICS course purpose</small></td>
             <td class="legacy-072"><input type="number" name="issue_qty[<?= (int)$item['item_id'] ?>]" max="<?= (int)$item['available_qty'] ?>" min="0" step="1" value="0" <?= (int)$item['available_qty']===0?'disabled':'' ?> class="legacy-073" aria-label="Quantity of <?= e($item['item_name']) ?> to issue"></td>
           </tr>
         <?php endforeach; ?>
-        <tr id="p36Empty" hidden><td colspan="5">No items match this filter.</td></tr>
+        <tr id="p36Empty" hidden><td colspan="7">No items match this filter.</td></tr>
         </tbody>
     </table></div>
     <button type="submit" class="legacy-154">Issue ICS to Teacher</button>
@@ -210,16 +250,32 @@ require_once __DIR__ . '/includes/header.php';
 </style>
 <script>
 const p36Rows=[...document.querySelectorAll('#p36Items .p36-item')];
-function p36Refresh(){const q=document.querySelector('#p36Search').value.toLowerCase(), f=document.querySelector('#p36Filter').value, sort=document.querySelector('#p36Sort').value, body=document.querySelector('#p36Items tbody');let n=0;
+function p36Refresh(){const q=document.querySelector('#p36Search').value.toLowerCase(), f=document.querySelector('#p36Filter').value, courseFilter=document.querySelector('#p472CourseFilter').value, sort=document.querySelector('#p36Sort').value, body=document.querySelector('#p36Items tbody');let n=0;
  p36Rows.sort((a,b)=>sort==='name_asc'?a.dataset.name.localeCompare(b.dataset.name):sort==='name_desc'?b.dataset.name.localeCompare(a.dataset.name):sort==='qty_desc'?Number(b.dataset.qty)-Number(a.dataset.qty):Number(a.dataset.qty)-Number(b.dataset.qty));
- for(const row of p36Rows){const ok=(row.dataset.name.includes(q)||row.dataset.cat.includes(q))&&(f==='all'||(f==='available'&&Number(row.dataset.qty)>0)||(f==='repair'&&Number(row.dataset.repair)>0)||(f==='damaged'&&Number(row.dataset.damaged)>0));row.hidden=!ok;if(ok)n++;body.appendChild(row);}document.querySelector('#p36Empty').hidden=n!==0;}
-['p36Search','p36Filter','p36Sort'].forEach(id=>document.getElementById(id).addEventListener('input',p36Refresh));p36Refresh();
+ for(const row of p36Rows){const ok=(row.dataset.name.includes(q)||row.dataset.cat.includes(q))&&(f==='all'||(f==='available'&&Number(row.dataset.qty)>0)||(f==='repair'&&Number(row.dataset.repair)>0)||(f==='damaged'&&Number(row.dataset.damaged)>0))&&(courseFilter==='all'||(courseFilter==='unclassified'&&(!row.dataset.batchCourses||row.dataset.batchCourses.split(',').includes('0')))||row.dataset.batchCourses.split(',').includes(courseFilter));row.hidden=!ok;if(ok)n++;body.appendChild(row);}document.querySelector('#p36Empty').hidden=n!==0;}
+['p36Search','p36Filter','p472CourseFilter','p36Sort'].forEach(id=>document.getElementById(id).addEventListener('input',p36Refresh));p36Refresh();
+const p4721Courses = <?= json_encode(array_column($courses, 'course_name', 'course_id'), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+document.querySelectorAll('#p36Items .p36-item').forEach(row=>{
+ const batch=row.querySelector('select[name^="batch_choice"]'),course=row.querySelector('.p4721-course'),info=row.querySelector('.p4721-batch-course-label');
+ let changed=false;
+ function suggest(){
+  const options=[...batch.options].filter(o=>o.value!=='0'&&!o.disabled);
+  const source=batch.value==='0'?options[0]:batch.selectedOptions[0];
+  const sourceCourse=source?.dataset.course||'';
+  info.textContent='Source batch: '+(p4721Courses[sourceCourse]||'Unclassified');
+  if(!changed)course.value=sourceCourse&&p4721Courses[sourceCourse]?sourceCourse:'';
+ }
+ batch.addEventListener('change',()=>{changed=false;suggest();});
+ course.addEventListener('change',()=>{changed=true;});
+ suggest();
+});
 const icsAssignments = <?= json_encode($teacher_course_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 const p411Teachers = <?= json_encode(array_map(static function($t){return ['id'=>(int)$t['user_id'],'name'=>(string)$t['full_name'],'position'=>(string)$t['teaching_position'],'office'=>(string)$t['position_office']];},$teachers), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 const icsTeacher = document.getElementById('ics_teacher');
 const icsCourse = document.getElementById('ics_course');
 const p411Input = document.getElementById('p411TeacherInput');
 const p411Options = document.getElementById('p411TeacherSuggestions');
+const p411CourseText=document.getElementById('p411TeacherCourses');
 const p411Official = document.getElementById('p411OfficialPosition');
 let p411Matches = [], p411Active = -1;
 function p411SyncCourse(id) {
@@ -227,12 +283,14 @@ function p411SyncCourse(id) {
   icsCourse.value='';
 }
 function p411Reset(){
-  icsTeacher.value=''; icsCourse.value=''; p411Official.value='';
+  icsTeacher.value=''; icsCourse.value=''; p411Official.value=''; p411CourseText.textContent='Assigned courses: Select a teacher';
 }
 function p411Select(t){
   icsTeacher.value=String(t.id);
   p411Input.value=t.name;
   p411Official.value=[t.position,t.office].filter(Boolean).join(' / ') || 'Teacher / Office not yet recorded';
+  const assigned=icsAssignments.filter(a=>Number(a.user_id)===Number(t.id)).map(a=>p4721Courses[a.course_id]).filter(Boolean);
+  p411CourseText.textContent='Assigned courses: '+(assigned.length?assigned.join(', '):'None recorded');
   p411SyncCourse(t.id);
   p411Close();
 }

@@ -18,6 +18,12 @@ $parentPages = ['delivery_view.php' => 'receiving.php', 'inspection.php' => 'rec
 if (isset($parentPages[$currentPage])) { $currentPage = $parentPages[$currentPage]; }
 $visibleMenu = nav_items($user['role']);
 if ($user['role'] === 'tvl_head') { $visibleMenu[] = ['accounts.php','Accounts (View Only)','users',['tvl_head']]; }
+if ($user['role'] === 'teacher') {
+    $visibleMenu[] = ['teacher_expiry.php','My Batches & Expiry','box',['teacher']];
+}
+if (in_array($user['role'], ['supply_officer','tvl_head'], true)) {
+    $visibleMenu[] = ['positions_offices.php','Positions & Offices','users',['supply_officer','tvl_head']];
+}
 // Phase 4.4: approval queue is available to either authorized reviewer.
 if (in_array($user['role'], ['supply_officer','tvl_head'], true)) {
     $visibleMenu[] = ['approvals.php', 'Registration Approvals', 'users', ['supply_officer','tvl_head']];
@@ -25,10 +31,10 @@ if (in_array($user['role'], ['supply_officer','tvl_head'], true)) {
 }
 
 $menuGroups = [
-    'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php', 'ics_returns.php']],
+    'stock' => ['Inventory & Stock', 'box', ['receiving.php', 'inventory.php', 'ics_issue.php', 'ics_returns.php', 'teacher_expiry.php']],
     'operations' => ['Operations & Tracking', 'repeat', ['item_maintenance.php', 'borrow.php', 'transfers.php', 'condemnation.php']],
     'records' => ['Reports & Records', 'file', ['reports.php', 'history.php']],
-    'administration' => ['Administration', 'users', ['courses.php', 'accounts.php', 'approvals.php', 'personnel_reviews.php']],
+    'administration' => ['Administration', 'users', ['courses.php', 'accounts.php', 'approvals.php', 'personnel_reviews.php','positions_offices.php']],
 ];
 ?>
 <!DOCTYPE html>
@@ -62,6 +68,18 @@ $menuGroups = [
                 if (!$groupItems) { continue; }
                 $groupActive = in_array($currentPage, $group[2], true);
                 ?>
+                <?php if ($user['role'] === 'teacher' && $groupKey === 'stock'): ?>
+                    <details class="nav-group<?= in_array($currentPage,['inventory.php','teacher_expiry.php'],true) ? ' has-active' : '' ?>" data-nav-group="stock" open>
+                        <summary class="nav-group-toggle"><?= icon('box') ?><span class="nav-group-label">Inventory</span><span class="nav-chevron" aria-hidden="true">⌄</span></summary>
+                        <div class="nav-submenu">
+                            <?php foreach ([['All My Inventory','inventory.php?view=issued',''],['Equipment','inventory.php?view=issued&amp;category=equipment','equipment'],['Non-Consumable','inventory.php?view=issued&amp;category=non_consumable','non_consumable'],['Consumable','inventory.php?view=issued&amp;category=consumable','consumable'],['Expiring Material','inventory.php?view=issued&amp;category=expiring_material','expiring_material'],['Batches &amp; Expiry','teacher_expiry.php','expiry']] as $groupLink): ?>
+                                <?php $selected = $groupLink[2]==='expiry' ? $currentPage==='teacher_expiry.php' : ($currentPage==='inventory.php' && ($_GET['category']??'')===$groupLink[2]); ?>
+                                <a class="nav-link<?= $selected?' active':'' ?>" href="<?= e(url(str_replace('&amp;','&',$groupLink[1]))) ?>"><?= icon('box') ?><span><?= $groupLink[0] ?></span></a>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                    <?php continue; ?>
+                <?php endif; ?>
                 <?php if ($user['role'] === 'teacher' && in_array($groupKey, ['stock', 'records'], true)): ?>
                     <?php foreach ($groupItems as $item): $itemActive = $currentPage === $item[0] || $active === $item[0]; ?>
                         <a href="<?= e(url($item[0])) ?>" title="<?= e($item[1]) ?>" class="nav-link<?= $itemActive ? ' active' : '' ?>" <?= $itemActive ? 'aria-current="page"' : '' ?>><?= icon($item[2]) ?><span><?= e($item[1]) ?></span></a>

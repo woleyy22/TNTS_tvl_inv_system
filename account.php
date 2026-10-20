@@ -168,6 +168,7 @@ if ($profile['role'] === 'teacher') {
     $st->execute([$uid]); $officialReview = $st->fetchAll(PDO::FETCH_ASSOC);
 }
 $teachingPositions = db()->query('SELECT position_name FROM teaching_positions WHERE active=1 ORDER BY sort_order,position_name')->fetchAll(PDO::FETCH_COLUMN);
+$officeChoices = db()->query('SELECT office_name FROM school_offices WHERE active=1 ORDER BY sort_order,office_name')->fetchAll(PDO::FETCH_COLUMN);
 $age = profile_age($values['birthday']);
 require __DIR__ . '/includes/header.php';
 ?>
@@ -232,7 +233,7 @@ require __DIR__ . '/includes/header.php';
               <?= csrf_field() ?><input type="hidden" name="action" value="official_request">
               <div class="guided-form-grid">
                 <div class="field"><label for="p45Position">Teaching position</label><select class="input" id="p45Position" name="teaching_position" required <?= $officialPending ? 'disabled' : '' ?>><option value="">Select position</option><?php foreach ($teachingPositions as $p45Position): ?><option value="<?= e($p45Position) ?>" <?= $officialValues['teaching_position'] === $p45Position ? 'selected' : '' ?>><?= e($p45Position) ?></option><?php endforeach; ?></select></div>
-                <div class="field"><label for="p45Office">Position / Office</label><input class="input" id="p45Office" name="position_office" maxlength="150" value="<?= e($officialValues['position_office'] ?? '') ?>" required <?= $officialPending ? 'disabled' : '' ?>></div>
+                <div class="field"><label for="p45Office">Position / Office</label><datalist id="p473Offices"><?php foreach($officeChoices as $officeChoice): ?><option value="<?= e($officeChoice) ?>"><?php endforeach; ?></datalist><input class="input" list="p473Offices" id="p45Office" name="position_office" maxlength="150" value="<?= e($officialValues['position_office'] ?? '') ?>" required <?= $officialPending ? 'disabled' : '' ?>></div>
                 <div class="field"><label for="p45Level">Teaching level</label><select class="input" id="p45Level" name="teaching_level" required <?= $officialPending ? 'disabled' : '' ?>><option value="JHS" <?= $officialValues['teaching_level'] === 'JHS' ? 'selected' : '' ?>>JHS</option><option value="SHS" <?= $officialValues['teaching_level'] === 'SHS' ? 'selected' : '' ?>>SHS</option><option value="JHS_SHS" <?= $officialValues['teaching_level'] === 'JHS_SHS' ? 'selected' : '' ?>>Both JHS / SHS</option></select></div>
               </div>
               <?php if (!$officialPending): ?><div class="profile-form-actions"><button class="btn btn-primary" type="submit">Submit personnel update</button></div><?php endif; ?>

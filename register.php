@@ -6,6 +6,7 @@ if(!ev_mail_is_configured()){http_response_code(503);exit('SMTP has not been con
 $tracks=$pdo->query('SELECT track_id,track_name FROM academic_tracks WHERE is_active=1 ORDER BY track_name')->fetchAll();
 $courses=$pdo->query('SELECT c.course_id,c.course_name,c.track_id FROM courses c JOIN academic_tracks t ON t.track_id=c.track_id WHERE t.is_active=1 ORDER BY c.course_name')->fetchAll();
 $positions=$pdo->query('SELECT position_name FROM teaching_positions WHERE active=1 ORDER BY sort_order,position_name')->fetchAll(PDO::FETCH_COLUMN);
+$officeChoices=$pdo->query('SELECT office_name FROM school_offices WHERE active=1 ORDER BY sort_order,office_name')->fetchAll(PDO::FETCH_COLUMN);
 $v=['full_name'=>'','email'=>'','teaching_position'=>'','position_office'=>'','teaching_level'=>'','track_id'=>''];$selected=[];
 if($_SERVER['REQUEST_METHOD']==='POST') {
  csrf_check();
@@ -66,7 +67,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
 </div><label class="r42-pass"><input id="r42show" type="checkbox"> Show passwords</label><p class="r42-muted">At least 10 characters, including a letter and a number.</p></div>
 <div class="r42-section"><h2>Official teaching information</h2><div class="r42-grid">
 <label class="r42-field">Teaching position *<select name="teaching_position" required><option value="">Select position</option><?php foreach($positions as $p): ?><option value="<?= e($p) ?>" <?= $v['teaching_position']===$p?'selected':'' ?>><?= e($p) ?></option><?php endforeach; ?></select></label>
-<label class="r42-field">Position / Office *<input name="position_office" maxlength="150" required value="<?= e($v['position_office']) ?>" placeholder="TVL Department / School Office"></label>
+<label class="r42-field">Position / Office *<input list="p473RegisterOffices" name="position_office" maxlength="150" required value="<?= e($v['position_office']) ?>" placeholder="TVL Department / School Office"><datalist id="p473RegisterOffices"><?php foreach($officeChoices as $officeChoice): ?><option value="<?= e($officeChoice) ?>"><?php endforeach; ?></datalist></label>
 <label class="r42-field">Teaching level *<select name="teaching_level" required><option value="">Select level</option><option value="JHS" <?= $v['teaching_level']==='JHS'?'selected':'' ?>>Junior High School</option><option value="SHS" <?= $v['teaching_level']==='SHS'?'selected':'' ?>>Senior High School</option><option value="JHS_SHS" <?= $v['teaching_level']==='JHS_SHS'?'selected':'' ?>>Both JHS and SHS</option></select></label>
 <label class="r42-field">Academic track (optional)<select name="track_id" id="r42track"><option value="">No track selected</option><?php foreach($tracks as $t): ?><option value="<?= (int)$t['track_id'] ?>" <?= (int)$v['track_id']===(int)$t['track_id']?'selected':'' ?>><?= e($t['track_name']) ?></option><?php endforeach; ?></select></label>
 </div></div>

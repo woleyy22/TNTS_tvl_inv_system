@@ -16,7 +16,7 @@ $deleteOrder = [
 ];
 $preserve = [
     'users', 'user_profiles', 'academic_tracks', 'courses', 'teacher_courses',
-    'item_classifications', 'units', 'inventory_aggregation_lock'
+    'units', 'inventory_aggregation_lock'
 ];
 $expected = array_merge($deleteOrder, $preserve);
 $database = (string) db()->query('SELECT DATABASE()')->fetchColumn();

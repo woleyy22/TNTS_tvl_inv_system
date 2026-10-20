@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__.'/includes/db.php'; require_once __DIR__.'/includes/auth.php'; require_once __DIR__.'/includes/functions.php';
+require_once __DIR__.'/includes/db.php'; require_once __DIR__.'/includes/auth.php'; require_once __DIR__.'/includes/functions.php'; require_once __DIR__.'/includes/batch_accounting.php';
 $user=require_login();$role=$user['role'];$uid=(int)$user['id'];
 $isAdmin=in_array($role,['supply_officer','tvl_head'],true);
 $catLabels=['equipment'=>'Equipment','non_consumable'=>'Non-Consumable','consumable'=>'Consumable','expiring_material'=>'Expiring Material'];
@@ -7,7 +7,6 @@ $category=trim((string)($_GET['category']??''));if(!isset($catLabels[$category])
 $search=trim((string)($_GET['search']??''));$view=($_GET['view']??'central')==='issued'?'issued':'central';
 $po=trim((string)($_GET['po_number']??''));$dr=trim((string)($_GET['dr_number']??''));$supplier=trim((string)($_GET['supplier_name']??''));
 $course=(int)($_GET['course_id']??0);$teacher=(int)($_GET['teacher_id']??0);
-$classification=(int)($_GET['classification_id']??0);
 // Dates are supplied as ISO YYYY-MM-DD. Invalid/inverted ranges must not silently become unfiltered reports.
 $dateFrom=trim((string)($_GET['date_from']??''));
 $dateTo=trim((string)($_GET['date_to']??''));
@@ -51,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='change_item
     } catch (Throwable $ex) { if(db()->inTransaction())db()->rollBack();$courseMessage=$ex->getMessage(); }
   }
 }
-$classifications=db()->query('SELECT classification_id,classification_name FROM item_classifications ORDER BY classification_name')->fetchAll();
 $items=[];$params=[];$where=[];
 if($role==='teacher'||$view==='issued'){
   $sql="SELECT ii.ics_item_id,ii.qty_issued,ii.qty_returned,i.item_id,i.item_name,i.description,i.unit,i.item_category,i.low_stock_threshold,c.ics_number,c.date_issued,rd.first_received,rd.last_received,co.course_name,ii.course_id AS item_course_id,c.teacher_id, c.recipient_position_office_snapshot AS position_office,u.full_name AS teacher_name,
@@ -69,7 +67,8 @@ if($role==='teacher'||$view==='issued'){
   if ($dateTo!=='') {$sql.=' AND c.date_issued<=?';$params[]=$dateTo;}
   $sql.=' ORDER BY c.date_issued DESC,ii.ics_item_id DESC';
 } else {
-  $sql="SELECT i.*,cl.classification_name,rd.first_received,rd.last_received,
+  $sql="SELECT i.*,rd.first_received,rd.last_received,
+  COALESCE((SELECT GROUP_CONCAT(DISTINCT crs.course_name ORDER BY crs.course_name SEPARATOR ', ') FROM inventory_receipt_batches rb LEFT JOIN courses crs ON crs.course_id=rb.course_id WHERE rb.inventory_item_id=i.item_id), 'Unclassified') AS course_name,
   (SELECT COUNT(*) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id) batch_count,
   (SELECT MIN(b.expiration_date) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id AND b.expiration_date IS NOT NULL AND b.expiration_date>=CURDATE()) next_expiry,
   (SELECT COUNT(*) FROM inventory_receipt_batches b WHERE b.inventory_item_id=i.item_id AND b.expiration_date IS NOT NULL AND b.expiration_date<CURDATE()) expired_batches,
@@ -86,9 +85,9 @@ if($role==='teacher'||$view==='issued'){
   COALESCE((SELECT SUM(a.quantity) FROM central_condition_restorations a WHERE a.item_id=i.item_id AND a.from_condition='damaged'),0) restored_damaged,
   COALESCE((SELECT SUM(z.quantity) FROM central_condition_disposals z WHERE z.item_id=i.item_id),0) central_disposed,
   COALESCE((SELECT SUM(w.quantity) FROM inventory_withdrawals w WHERE w.item_id=i.item_id),0) withdrawn
-  FROM inventory_items i LEFT JOIN item_classifications cl ON cl.classification_id=i.classification_id LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE 1=1";
+  FROM inventory_items i LEFT JOIN (SELECT b.inventory_item_id, MIN(d.date_received) AS first_received, MAX(d.date_received) AS last_received FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id GROUP BY b.inventory_item_id) rd ON rd.inventory_item_id=i.item_id WHERE 1=1";
   if($category){$sql.=' AND i.item_category=?';$params[]=$category;}
-  if($classification){$sql.=' AND i.classification_id=?';$params[]=$classification;}
+  if($course){$sql.=' AND EXISTS (SELECT 1 FROM inventory_receipt_batches rb WHERE rb.inventory_item_id=i.item_id AND rb.course_id=?)';$params[]=$course;}
   if($search!==''){$sql.=' AND (i.item_name LIKE ? OR i.description LIKE ?)';array_push($params,'%'.$search.'%','%'.$search.'%');}
   foreach(['po_number'=>$po,'dr_number'=>$dr,'supplier_name'=>$supplier] as $field=>$value){if($value!==''){$sql.=" AND EXISTS (SELECT 1 FROM inventory_receipt_batches b JOIN delivery_items di ON di.delivery_item_id=b.delivery_item_id JOIN deliveries d ON d.delivery_id=di.delivery_id WHERE b.inventory_item_id=i.item_id AND d.$field=?)";$params[]=$value;}}
   // A date-range match means ANY delivery of this master item arrived during the range.
@@ -112,6 +111,12 @@ foreach($items as &$i){
   $i['central_damaged']=max(0,(int)$i['central_damaged']-(int)$i['restored_damaged']-(int)$i['central_disposed']);
   $i['returned_unserviceable']=$i['central_repair']+$i['central_damaged'];
   $i['available']=max(0,(int)$i['quantity']-(int)$i['withdrawn']-($i['is_supply']?(int)$i['gross_issued']:((int)$i['active_balance']))-(int)$i['returned_unserviceable']-(int)$i['central_disposed']);
+  // Available central stock is restricted to identifiable, unexpired receiving batches.
+  // Existing unallocated ICS and withdrawals remain conservatively reserved.
+  $batchState=tnts_batch_issueable(db(),(int)$i['item_id'],(int)$i['available'],$i['is_supply']);
+  $i['batch_usable']=array_sum(array_column($batchState['batches'],'available'));
+  $i['available']=min((int)$i['available'],(int)$i['batch_usable']);
+  $i['expired_held_qty']=array_sum(array_map(static fn($b)=>$b['expired']?max(0,$b['remaining_raw']-$b['legacy_reserved']):0,$batchState['batches']));
   $i['serviceable']=max(0,(int)$i['net_issued']-(int)$i['repair_qty']-(int)$i['damaged_qty']);
   $i['disposed']+=(int)$i['central_disposed'];
   $i['low_stock']=$i['low_stock_threshold']!==null && $i['available']<=(int)$i['low_stock_threshold'];
@@ -120,6 +125,33 @@ foreach($items as &$i){
   $i['serviceable']=$i['is_supply']?0:(int)$i['serviceable_balance'];
  }
 }unset($i);
+// Phase 4.7.3 revised: expiry totals for recorded, outstanding ICS allocations.
+// This is status visibility only: never mark these quantities as formally disposed.
+if ($role==='teacher' || $view==='issued') {
+    $allocationTotals=[];
+    if ($items) {
+        $ids=array_values(array_unique(array_map(static fn($r)=>(int)$r['ics_item_id'],$items)));
+        $placeholders=implode(',',array_fill(0,count($ids),'?'));
+        $expirySql="SELECT a.ics_item_id,
+          SUM(GREATEST(0,a.qty_issued-a.qty_returned)) AS allocated_held,
+          SUM(CASE WHEN b.expiration_date < CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_expired,
+          SUM(CASE WHEN b.expiration_date >= CURDATE() AND b.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_soon,
+          SUM(CASE WHEN b.expiration_date IS NULL OR b.expiration_date >= CURDATE() THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_not_expired,
+          SUM(CASE WHEN b.expiration_date IS NULL THEN GREATEST(0,a.qty_issued-a.qty_returned) ELSE 0 END) AS qty_no_expiry
+          FROM ics_batch_allocations a JOIN inventory_receipt_batches b ON b.batch_id=a.batch_id
+          WHERE a.ics_item_id IN ($placeholders) GROUP BY a.ics_item_id";
+        $stExpiry=db()->prepare($expirySql);$stExpiry->execute($ids);
+        foreach($stExpiry->fetchAll(PDO::FETCH_ASSOC) as $total){$allocationTotals[(int)$total['ics_item_id']]=$total;}
+    }
+    foreach($items as &$icsRow){
+        $v=$allocationTotals[(int)$icsRow['ics_item_id']]??[];
+        $icsRow['expiry_expired']=(int)($v['qty_expired']??0);
+        $icsRow['expiry_soon']=(int)($v['qty_soon']??0);
+        $icsRow['expiry_not_expired']=(int)($v['qty_not_expired']??0);
+        $icsRow['expiry_unknown']=(int)($v['qty_no_expiry']??0);
+        $icsRow['expiry_unattributed']=max(0,(int)$icsRow['qty_issued']-(int)$icsRow['qty_returned']-(int)($v['allocated_held']??0));
+    } unset($icsRow);
+}
 $teachers=[];$courses=[];
 if($isAdmin){$teachers=db()->query("SELECT user_id,full_name FROM users WHERE role='teacher' ORDER BY full_name")->fetchAll();$courses=db()->query('SELECT course_id,course_name FROM courses ORDER BY course_name')->fetchAll();}
 if (!$isAdmin) $courses=db()->query('SELECT course_id,course_name FROM courses ORDER BY course_name')->fetchAll();
@@ -197,10 +229,10 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
 @media(max-width:440px){.p34-stat-grid{grid-template-columns:1fr}.p34-panel .p34-stat{min-height:36px}}
 @media(prefers-reduced-motion:reduce){.p34-record{transition:none}}
 </style>
-<?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?7:8; ?>
+<?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?8:9; ?>
 <div class="content-header p34-header">
   <div><h2>Inventory Management</h2><p class="p34-sub">Category-specific stock and accountability overview</p></div>
-  <?php if($role==='supply_officer'): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage classifications</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
+  <?php if($role==='supply_officer'): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage Batches &amp; Expiry</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
 </div>
 <?php if($isAdmin): ?>
 <nav class="p34-actions" style="margin-bottom:14px" aria-label="Inventory views">
@@ -214,13 +246,10 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
     <input type="hidden" name="view" value="<?= e($view) ?>">
     <div class="p34-field"><label for="p34-search">Search</label><input class="legacy-047" id="p34-search" name="search" value="<?= e($search) ?>" placeholder="Item or ICS number"></div>
     <div class="p34-field"><label for="p34-category">Tracking category</label><select class="legacy-047" id="p34-category" name="category"><option value="">All categories</option><?php foreach($catLabels as $key=>$label): ?><option value="<?= e($key) ?>" <?= $category===$key?'selected':'' ?>><?= e($label) ?></option><?php endforeach; ?></select></div>
-    <?php if($isAdmin&&!$issuedView): ?>
-      <div class="p34-field"><label for="p34-class">Classification</label><select class="legacy-047" id="p34-class" name="classification_id"><option value="">All classifications</option><?php foreach($classifications as $cl): ?><option value="<?= (int)$cl['classification_id'] ?>" <?= $classification===(int)$cl['classification_id']?'selected':'' ?>><?= e($cl['classification_name']) ?></option><?php endforeach; ?></select></div>
-    <?php endif; ?>
     <?php if($isAdmin&&$issuedView): ?>
       <div class="p34-field"><label for="p34-teacher">Teacher</label><select class="legacy-047" id="p34-teacher" name="teacher_id"><option value="">All teachers</option><?php foreach($teachers as $t): ?><option value="<?= (int)$t['user_id'] ?>" <?= $teacher===(int)$t['user_id']?'selected':'' ?>><?= e($t['full_name']) ?></option><?php endforeach; ?></select></div>
-      <div class="p34-field"><label for="p34-course">Course</label><select class="legacy-047" id="p34-course" name="course_id"><option value="">All courses</option><?php foreach($courses as $c): ?><option value="<?= (int)$c['course_id'] ?>" <?= $course===(int)$c['course_id']?'selected':'' ?>><?= e($c['course_name']) ?></option><?php endforeach; ?></select></div>
-    <?php endif; ?>
+      <?php endif; ?>
+    <div class="p34-field"><label for="p34-course">Course classification</label><select class="legacy-047" id="p34-course" name="course_id"><option value="">All courses</option><?php foreach($courses as $crs): ?><option value="<?= (int)$crs['course_id'] ?>" <?= $course===(int)$crs['course_id']?'selected':'' ?>><?= e($crs['course_name']) ?></option><?php endforeach; ?></select></div>
     <div class="p34-field"><label for="p34-from"><?= $issuedView?'Issued from':'Delivered from' ?></label><input class="legacy-047" type="date" id="p34-from" name="date_from" value="<?= e($dateFrom) ?>"></div>
     <div class="p34-field"><label for="p34-to"><?= $issuedView?'Issued through':'Delivered through' ?></label><input class="legacy-047" type="date" id="p34-to" name="date_to" value="<?= e($dateTo) ?>"></div>
     <div class="p34-filter-actions"><button class="legacy-028" type="submit">Apply filters</button><a class="p34-view" href="<?= e(url('inventory.php?view='.$view)) ?>">Reset</a></div>
@@ -235,6 +264,7 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
     <thead><tr>
       <th><button type="button" class="p34-sort" data-key="item" data-type="text" data-direction="none">Item <span class="p34-indicator" aria-hidden="true">-</span></button></th>
       <th><button type="button" class="p34-sort" data-key="category" data-type="text" data-direction="none">Tracking category <span class="p34-indicator" aria-hidden="true">-</span></button></th>
+      <th><button type="button" class="p34-sort" data-key="course" data-type="text" data-direction="none">Course <span class="p34-indicator" aria-hidden="true">-</span></button></th>
       <?php if($issuedView): ?>
         <th><button type="button" class="p34-sort" data-key="ics" data-type="text" data-direction="none">ICS / Teacher <span class="p34-indicator" aria-hidden="true">-</span></button></th>
         <th><button type="button" class="p34-sort" data-key="date" data-type="date" data-direction="none">Date Issued <span class="p34-indicator" aria-hidden="true">-</span></button></th>
@@ -254,15 +284,20 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
       $rowKey=$issuedView?'ics-'.$i['ics_item_id']:'stock-'.$i['item_id'];
       $sortCondition=$issuedView?((int)$i['repair_qty']+(int)$i['damaged_qty']):($i['is_supply']?($i['low_stock']?1:0):((int)$i['repair_qty']+(int)$i['damaged_qty']+(int)$i['central_repair']+(int)$i['central_damaged']));
     ?>
-      <tr class="p34-record" data-item="<?= e($i['item_name']) ?>" data-category="<?= e($i['category_label']) ?>" data-ics="<?= e($issuedView?$i['ics_number'].' '.$i['teacher_name']:'') ?>" data-date="<?= e($issuedView?($i['date_issued']??''):($i['last_received']??'')) ?>" data-accepted="<?= $issuedView?(int)$i['qty_issued']:(int)$i['quantity'] ?>" data-issued="<?= $issuedView?(int)$i['net_issued']:(int)$i['net_issued'] ?>" data-qty="<?= (int)($issuedView?$i['net_issued']:$i['available']) ?>" data-condition="<?= $sortCondition ?>">
-        <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['item_name']) ?></strong><span class="p34-muted"><?= e($i['description']??'') ?></span><?php if(!empty($i['classification_name'])): ?><span class="p34-badge"><?= e($i['classification_name']) ?></span><?php endif; ?></div></td>
+      <tr class="p34-record" data-item="<?= e($i['item_name']) ?>" data-category="<?= e($i['category_label']) ?>" data-course="<?= e($i['course_name']??'Unclassified') ?>" data-ics="<?= e($issuedView?$i['ics_number'].' '.$i['teacher_name']:'') ?>" data-date="<?= e($issuedView?($i['date_issued']??''):($i['last_received']??'')) ?>" data-accepted="<?= $issuedView?(int)$i['qty_issued']:(int)$i['quantity'] ?>" data-issued="<?= $issuedView?(int)$i['net_issued']:(int)$i['net_issued'] ?>" data-qty="<?= (int)($issuedView?$i['net_issued']:$i['available']) ?>" data-condition="<?= $sortCondition ?>">
+        <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['item_name']) ?></strong><span class="p34-muted"><?= e($i['description']??'') ?></span></div></td>
         <td><span class="p34-badge"><?= e($i['category_label']) ?></span></td>
+        <td><span class="p34-badge p34-neutral" title="Course is an optional internal purpose, not the inventory tracking category."><?= e($i['course_name']??'Unclassified') ?></span></td>
         <?php if($issuedView): ?>
           <td><div class="p34-cell-main"><span><?= e($i['ics_number']) ?></span><span class="p34-muted"><?= e($i['teacher_name']) ?> · <?= e($i['position_office']??'Office not yet recorded') ?></span></div></td>
           <td><?= e($i['date_issued']??'—') ?></td>
           <td><?= (int)$i['qty_issued'] ?> <?= e($i['unit']) ?></td>
           <td>
             <?php if($i['is_supply']): ?><span class="p34-badge p34-neutral">Distributed: <?= (int)$i['qty_issued'] ?></span>
+              <?php if((int)$i['expiry_expired']>0): ?><span class="p473-status-pill p473-pill-expired">Expired <?= (int)$i['expiry_expired'] ?> <?= e($i['unit']) ?></span><?php endif; ?>
+              <?php if((int)$i['expiry_soon']>0): ?><span class="p473-status-pill p473-pill-soon">Expiring soon <?= (int)$i['expiry_soon'] ?> <?= e($i['unit']) ?></span><?php endif; ?>
+              <?php if((int)$i['expiry_not_expired']>0): ?><span class="p473-status-pill p473-pill-usable">Not expired <?= (int)$i['expiry_not_expired'] ?></span><?php endif; ?>
+              <?php if((int)$i['expiry_unattributed']>0): ?><span class="p473-status-pill p473-pill-unknown">Batch unverified <?= (int)$i['expiry_unattributed'] ?></span><?php endif; ?>
             <?php else: ?>
               <div><strong class="p34-strong">On Teacher Record: <?= (int)$i['net_issued'] ?></strong></div>
               <div class="p34-pills"><span class="p34-badge p34-ok">Serviceable <?= (int)$i['serviceable'] ?></span><span class="p34-badge p34-repair">For Repair <?= (int)$i['repair_qty'] ?></span><span class="p34-badge p34-damaged">Damaged <?= (int)$i['damaged_qty'] ?></span></div>
@@ -302,7 +337,13 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
                   <div class="p34-stat p34-stat-ok"><span class="p34-muted">Serviceable</span><strong><?= (int)$i['serviceable'] ?></strong></div>
                   <div class="p34-stat p34-stat-repair"><span class="p34-muted">For Repair</span><strong><?= (int)$i['repair_qty'] ?></strong></div>
                   <div class="p34-stat p34-stat-damaged"><span class="p34-muted">Damaged</span><strong><?= (int)$i['damaged_qty'] ?></strong></div>
-                <?php else: ?><div class="p34-stat"><span class="p34-muted">Supply Distribution</span><strong>Recorded as issued</strong></div><?php endif; ?>
+                <?php else: ?>
+                  <div class="p34-stat"><span class="p34-muted">Supply Distribution</span><strong>Recorded as issued</strong></div>
+                  <div class="p34-stat"><span class="p34-muted">Expired — still recorded</span><strong><?= (int)$i['expiry_expired'] ?></strong></div>
+                  <div class="p34-stat"><span class="p34-muted">Expiring within 30 days</span><strong><?= (int)$i['expiry_soon'] ?></strong></div>
+                  <div class="p34-stat p34-stat-ok"><span class="p34-muted">Not expired (known batches)</span><strong><?= (int)$i['expiry_not_expired'] ?></strong></div>
+                  <?php if($i['expiry_unattributed']>0): ?><div class="p34-stat"><span class="p34-muted">Unattributed legacy quantity</span><strong><?= (int)$i['expiry_unattributed'] ?></strong></div><?php endif; ?>
+                <?php endif; ?>
               </div>
               <dl class="p34-dl"><div><dt>ICS No.</dt><dd><?= e($i['ics_number']) ?></dd></div><div><dt>Accountable Teacher</dt><dd><?= e($i['teacher_name']) ?></dd></div><div><dt>Position / Office</dt><dd><?= e($i['position_office']??'—') ?></dd></div><div><dt>Internal Course (optional)</dt><dd><?= e($i['course_name']??'Unclassified') ?></dd></div><div><dt>Date Issued</dt><dd><?= e($i['date_issued']??'—') ?></dd></div><div><dt>Item first recorded arrival</dt><dd><?= e($i['first_received']??'—') ?></dd></div><div><dt>Item latest recorded arrival</dt><dd><?= e($i['last_received']??'—') ?></dd></div></dl>
               <?php if(in_array($role,['teacher','supply_officer'],true)): ?>
@@ -318,6 +359,8 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
                 <small>Changes only this item's internal course. Does not change the ICS, custody, or quantity.</small>
               </form>
               <?php endif; ?>
+              <div class="p34-panel-footer"><a class="p34-link" href="<?= e(url('ics_item_batches.php?ics_item_id='.(int)$i['ics_item_id'])) ?>">View this ICS item's delivery batches &amp; expiry →</a></div>
+              <?php if($i['is_supply']): ?><p class="p473-inline-note">Expiry is calculated per outstanding recorded batch, not the entire ICS. Expired items remain recorded and require authorized disposal; unknown/legacy sources are not assumed safe.</p><?php endif; ?>
               <?php if(!empty($i['needs_review'])&&!$i['is_supply']): ?><div class="p34-note" role="note">Condition balance requires physical verification. Use the ICS Condition Balance Review screen before relying on this record for a new issue or transfer.</div><?php endif; ?>
             <?php else: ?>
               <div class="p34-stat-grid">
@@ -337,10 +380,10 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
                   <?php if($i['next_expiry']): ?><div class="p34-stat"><span class="p34-muted">Next dated batch</span><strong><?= e($i['next_expiry']) ?></strong></div><?php endif; ?>
                 <?php endif; ?>
               </div>
-              <dl class="p34-dl"><div><dt>First recorded arrival</dt><dd><?= e($i['first_received']??'—') ?></dd></div><div><dt>Latest recorded arrival</dt><dd><?= e($i['last_received']??'—') ?></dd></div><div><dt>Recorded delivery batches</dt><dd><?= (int)$i['batch_count'] ?></dd></div><?php if(!empty($i['classification_name'])): ?><div><dt>Classification</dt><dd><?= e($i['classification_name']) ?></dd></div><?php endif; ?></dl>
-              <div class="p34-panel-footer"><a class="p34-link" href="<?= e(url('inventory_batches.php?item_id='.(int)$i['item_id'])) ?>">View delivery batches &amp; arrival history →</a></div>
+              <dl class="p34-dl"><div><dt>First recorded arrival</dt><dd><?= e($i['first_received']??'—') ?></dd></div><div><dt>Latest recorded arrival</dt><dd><?= e($i['last_received']??'—') ?></dd></div><div><dt>Recorded delivery batches</dt><dd><?= (int)$i['batch_count'] ?></dd></div></dl>
+              <p class="p34-note">Available Unissued counts only non-expired batch stock after recorded issuances, returns and legacy reservations. Expired stock is blocked from issuance, not marked disposed.</p><div class="p34-panel-footer"><a class="p34-link" href="<?= e(url('inventory_batches.php?item_id='.(int)$i['item_id'])) ?>">View delivery batches, courses &amp; expiry →</a></div>
             <?php endif; ?>
-            <?php if(!empty($i['first_received'])||!empty($i['last_received'])): ?><div class="p34-note">Arrival dates identify deliveries linked to this inventory item, not necessarily the exact batch issued to an individual teacher.</div><?php endif; ?>
+            <?php if(!empty($i['first_received'])||!empty($i['last_received'])): ?><div class="p34-note">Master arrival dates are delivery-level information. Open the batch details to see known allocations; historical ICS without allocation records remain explicitly unattributed.</div><?php endif; ?>
           </section>
         </td>
       </tr>

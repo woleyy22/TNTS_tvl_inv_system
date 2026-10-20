@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/includes/auth.php';
 require_once __DIR__.'/includes/ics_accountability.php';
+require_once __DIR__.'/includes/batch_accounting.php';
 $me = require_role(['supply_officer']);
 $pdo=db(); $actor=(int)$me['id'];
 if ($_SERVER['REQUEST_METHOD']==='POST') {
@@ -60,6 +61,22 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         foreach($updates as $u) {
             $pdo->prepare('UPDATE ics_items SET qty_returned=qty_returned+? WHERE ics_item_id=?')->execute([$u['qty'],$u['id']]);
             $add->execute([$returnId,$u['id'],$u['qty_by_condition']['serviceable'],$u['qty_by_condition']['repair'],$u['qty_by_condition']['damaged']]);
+            // Attribute returns to source batches for post-4.7.2 issues only.
+            $selectedReturnAllocation=(int)($_POST['return_batch'][$u['id']]??0);
+            $batchRows=$pdo->prepare('SELECT allocation_id,qty_issued,qty_returned FROM ics_batch_allocations WHERE ics_item_id=? ORDER BY allocation_id FOR UPDATE');
+            $batchRows->execute([(int)$u['id']]);$allocations=$batchRows->fetchAll(PDO::FETCH_ASSOC);
+            if($allocations){
+                $selected=null;
+                foreach($allocations as $allocation){if((int)$allocation['allocation_id']===$selectedReturnAllocation){$selected=$allocation;break;}}
+                if(!$selected) throw new RuntimeException('Select the original source batch being physically returned.');
+                $capacity=(int)$selected['qty_issued']-(int)$selected['qty_returned'];
+                if($u['qty']>$capacity) throw new RuntimeException('This return exceeds the remaining quantity for its selected batch. Record one batch per retrieval.');
+                $batchLine=$pdo->prepare('INSERT INTO ics_batch_return_lines (return_id,allocation_id,qty_serviceable,qty_for_repair,qty_damaged) VALUES (?,?,?,?,?)');
+                $batchUpdate=$pdo->prepare('UPDATE ics_batch_allocations SET qty_returned=qty_returned+?,qty_serviceable_returned=qty_serviceable_returned+? WHERE allocation_id=?');
+                $batchUpdate->execute([$u['qty'],$u['qty_by_condition']['serviceable'],$selectedReturnAllocation]);
+                $batchLine->execute([$returnId,$selectedReturnAllocation,$u['qty_by_condition']['serviceable'],$u['qty_by_condition']['repair'],$u['qty_by_condition']['damaged']]);
+            }
+            // Legacy unallocated items retain their historical non-batch return accounting.
             ics31_save($pdo,(int)$u['id'],$u['pools']);
         }
         if($settled) $pdo->prepare("UPDATE ics SET status='closed' WHERE ics_id=?")->execute([$icsId]);
@@ -77,6 +94,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 $records=$pdo->query("SELECT c.*,u.full_name,co.course_name FROM ics c JOIN users u ON u.user_id=c.teacher_id LEFT JOIN courses co ON co.course_id=c.course_id WHERE c.status='active' ORDER BY c.date_issued DESC,c.ics_id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $getItems=$pdo->prepare('SELECT ii.ics_item_id FROM ics_items ii WHERE ii.ics_id=? ORDER BY ii.ics_item_id');
+$batchAllocQuery=$pdo->prepare('SELECT a.allocation_id,a.qty_issued,a.qty_returned,b.batch_number,b.expiration_date FROM ics_batch_allocations a JOIN inventory_receipt_batches b ON b.batch_id=a.batch_id WHERE a.ics_item_id=? ORDER BY a.allocation_id');
+
 $pageTitle='Retrieve / Close ICS';$active='ics';include __DIR__.'/includes/header.php';
 ?>
 <style>
@@ -100,7 +119,7 @@ $pageTitle='Retrieve / Close ICS';$active='ics';include __DIR__.'/includes/heade
 <?php if(!$records):?><div class="card">No active ICS records.</div><?php endif;?>
 <?php foreach($records as $c):
 $getItems->execute([(int)$c['ics_id']]);$lineIds=$getItems->fetchAll(PDO::FETCH_COLUMN);$states=[];$hasEquipment=false;$unresolved=false;$hasSupply=false;
-foreach($lineIds as $lineId){$s=ics31_state($pdo,(int)$lineId);$states[]=$s;if($s['is_equipment']){$hasEquipment=true;$unresolved=$unresolved||$s['remaining_qty']>0;}else $hasSupply=true;}
+foreach($lineIds as $lineId){$s=ics31_state($pdo,(int)$lineId);$batchAllocQuery->execute([(int)$lineId]);$s['batch_allocations']=$batchAllocQuery->fetchAll(PDO::FETCH_ASSOC);$states[]=$s;if($s['is_equipment']){$hasEquipment=true;$unresolved=$unresolved||$s['remaining_qty']>0;}else $hasSupply=true;}
 $onlySupply= !$hasEquipment && $hasSupply;
 ?>
 <details class="ics31-panel" <?= isset($_GET['open']) && (int)$_GET['open']===(int)$c['ics_id']?'open':'' ?>><summary><?=e($c['ics_number'])?> — <?=e($c['full_name'])?> · <?=e($c['date_issued'])?> · <?=e($c['course_name']??'')?></summary>
@@ -109,7 +128,8 @@ $onlySupply= !$hasEquipment && $hasSupply;
 <div class="ics31-table-wrap"><table class="ics31-table"><thead><tr><th>Item</th><th>Originally Issued</th><th>Previously Retrieved</th><th>Disposed</th><th>On Teacher Record</th><th>Verified Return Conditions</th></tr></thead><tbody>
 <?php foreach($states as $s): $id=(int)$s['ics_item_id']; ?>
 <tr class="ics31-line" data-limit="<?=$s['remaining_qty']?>" data-item="<?=e($s['item_name'])?>" data-equipment="<?=$s['is_equipment']?'1':'0'?>">
-<td><strong><?=e($s['item_name'])?></strong><div class="ics31-muted"><?=e(ucwords(str_replace('_',' ',$s['item_category'])))?></div><?php if($s['needs_review']):?><div class="ics31-warn">Balance needs review. <a href="<?=e(url('ics_reconcile.php?ics_item_id='.$id))?>">Verify now</a></div><?php endif;?></td>
+<td><strong><?=e($s['item_name'])?></strong><div class="ics31-muted"><?=e(ucwords(str_replace('_',' ',$s['item_category'])))?></div><?php if($s['is_equipment'] && count($s['batch_allocations'])>0): ?><div class="ics31-muted" style="margin-top:9px"><label>Batch being returned <select name="return_batch[<?= $id ?>]" style="display:block;max-width:225px;padding:6px"><option value="">Select source batch</option><?php foreach($s['batch_allocations'] as $ba):$unreturned=(int)$ba['qty_issued']-(int)$ba['qty_returned'];?><option value="<?= (int)$ba['allocation_id'] ?>" <?= $unreturned<=0?'disabled':'' ?> <?= count($s['batch_allocations'])===1?'selected':'' ?>><?= e($ba['batch_number']?:'Batch #'.$ba['allocation_id']) ?> · <?= $unreturned ?> left · <?= e($ba['expiration_date']?:'No expiry') ?></option><?php endforeach;?></select></label></div><?php endif; ?>
+<?php if($s['needs_review']):?><div class="ics31-warn">Balance needs review. <a href="<?=e(url('ics_reconcile.php?ics_item_id='.$id))?>">Verify now</a></div><?php endif;?></td>
 <td><?=(int)$s['qty_issued']?> <?=e($s['unit'])?></td>
 <td><?=(int)$s['qty_returned']?></td>
 <td><?=$s['disposed_qty']?></td>
