@@ -25,8 +25,14 @@ $stmt = db()->prepare("
 $stmt->execute([$condemnation_id]);
 $record = $stmt->fetch();
 
-if (!$record) {
-    die("Condemnation record not found.");
+if (!$record) { http_response_code(404); exit('Condemnation record not found.'); }
+// Teachers may print only their own CF records. TVL Head and Supply Officer
+// retain their existing department-wide read-only reporting access.
+$viewerRole=(string)($user['role']??'');
+$viewerId=(int)($user['user_id']??$user['id']??0);
+if (!in_array($viewerRole,['supply_officer','tvl_head','teacher'],true)
+    || ($viewerRole==='teacher' && $viewerId!==(int)$record['requested_by'])) {
+    http_response_code(403); exit('You cannot view this condemnation record.');
 }
 ?>
 <!DOCTYPE html>
@@ -68,7 +74,7 @@ if (!$record) {
                 </td>
                 <td>
                     <strong>Date Requested:</strong> 
-                    <span class="meta-line legacy-010"><?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?></span>
+                    <span class="meta-line legacy-010"><?= e(date('m/d/Y', strtotime($record['date_requested'] ?? 'now'))) ?></span>
                 </td>
             </tr>
             <tr>
@@ -78,10 +84,29 @@ if (!$record) {
                 </td>
                 <td>
                     <strong>Status:</strong> 
-                    <span class="meta-line legacy-020"><?= e($record['status']) ?></span>
+                    <span class="meta-line legacy-020"><?= $record['status']==='approved' ? (($record['outcome']??'')==='disposed' ? 'Disposed' : 'Authorized, awaiting disposal') : e(ucfirst($record['status'])) ?></span>
                 </td>
             </tr>
         </table>
+
+        <?php if (!empty($record['authorization_reference'])): ?>
+          <p class="legacy-010"><strong>Signed school authorization:</strong>
+            <?= e($record['authorization_reference']) ?> · <?= e($record['authorization_date']?:'Date not recorded') ?>
+          </p>
+        <?php endif; ?>
+        <?php if (!empty($record['disposal_reference'])): ?>
+          <p class="legacy-010"><strong>Physical disposal:</strong>
+            <?= e($record['disposal_date']?:'Date not recorded') ?> ·
+            <?= e(str_replace('_',' ',(string)$record['disposal_method'])) ?> ·
+            Reference <?= e($record['disposal_reference']) ?>
+          </p>
+        <?php endif; ?>
+        <?php if (!empty($record['authorization_on_file'])): ?>
+          <p class="legacy-010"><strong>School authorization on file:</strong> <?= e($record['authorization_note']??'') ?></p>
+        <?php endif; ?>
+        <?php if (!empty($record['disposed_at'])): ?>
+          <p class="legacy-010"><strong>Physical disposal recorded:</strong> <?= e(date('m/d/Y',strtotime($record['disposed_at']))) ?></p>
+        <?php endif; ?>
 
         <!-- Items Table -->
         <table class="items-table">
@@ -126,7 +151,7 @@ if (!$record) {
                         <span class="sig-label">TVL Faculty</span>
                         
                         <div class="sig-date">
-                            <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
+                            <?= e(date('m/d/Y', strtotime($record['date_requested'] ?? 'now'))) ?>
                         </div>
                         <span class="sig-label">Date Requested</span>
                     </div>
@@ -143,7 +168,7 @@ if (!$record) {
                         <span class="sig-label">Inspection Officer</span>
                         
                         <div class="sig-date">
-                            <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
+                            <?= e(date('m/d/Y', strtotime($record['date_requested'] ?? 'now'))) ?>
                         </div>
                         <span class="sig-label">Date Inspected</span>
                     </div>
@@ -160,7 +185,7 @@ if (!$record) {
                         <span class="sig-label">Supply Office / Final Approval</span>
                         
                         <div class="sig-date">
-                            <?= e(date('m/d/Y', strtotime($record['date_approved'] ?? 'now'))) ?>
+                            <?= e(date('m/d/Y', strtotime($record['date_requested'] ?? 'now'))) ?>
                         </div>
                         <span class="sig-label">Date Approved</span>
                     </div>

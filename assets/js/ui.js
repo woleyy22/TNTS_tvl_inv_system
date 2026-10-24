@@ -334,6 +334,12 @@
         details.addEventListener('click', event => { if (event.target === details) close(details.id); });
         if (/\/item_maintenance\.php$/.test(location.pathname)) {
             document.querySelectorAll('main table').forEach(table => {
+                // Phase 7.2d: Maintenance's new Inventory-style browser already
+                // shows item/ICS, condition, batch/custody and a Maintain item
+                // action. Do not inject a duplicate View details button into
+                // its Item cell (especially awkward on stacked mobile cards).
+                // Keep the legacy detail feature for other Maintenance tables.
+                if (table.matches('.p72c-table')) return;
                 const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
                 if (!headers.length) return;
                 table.querySelectorAll('tbody tr').forEach(row => {

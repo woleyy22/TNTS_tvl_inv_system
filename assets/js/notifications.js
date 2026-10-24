@@ -260,7 +260,6 @@
   }
   async function clearReadNotifications() {
     // Intentionally never include unread notifications in this action.
-    if (!window.confirm('Hide read notifications from the bell dropdown? They will remain in View all / Notification History.')) return;
     const buttons = [document.getElementById('tn-popover-clear-read')].filter(Boolean);
     buttons.forEach(button => { button.disabled = true; });
     try {

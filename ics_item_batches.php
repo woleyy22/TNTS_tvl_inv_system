@@ -29,7 +29,7 @@ $pageTitle='ICS Batch & Expiry Details';$active='inventory';require __DIR__.'/in
 <div style="overflow-x:auto"><table class="p471-batch-table" style="width:100%;min-width:1050px;border-collapse:collapse"><thead><tr><th>Item / Description</th><th>Receiving Number</th><th>Delivery Date</th><th>Batch Number</th><th>Batch Course Purpose</th><th>Qty Issued from Batch</th><th>Verified Returned</th><th>Current Unreturned Qty</th><th>Expiry</th><th>Expiry Status</th></tr></thead><tbody>
 <?php foreach($allocations as $a):
 $expiry=$a['expiration_date'];$expired=$expiry!==null&&$expiry<$today;$soon=$expiry!==null&&!$expired&&$expiry<=$warningCutoff;
-$remaining=max(0,(int)$a['qty_issued']-(int)$a['qty_returned']-(int)$a['qty_transferred_out']-(int)$a['qty_transferred_out']);
+$remaining=max(0,(int)$a['qty_issued']-(int)$a['qty_returned']-(int)$a['qty_transferred_out']);
 ?><tr>
 <td><strong><?= e($icsBatchItem['item_name']) ?></strong><br><small><?= e($a['delivery_description']?:$icsBatchItem['description']?:'—') ?></small></td>
 <td><?= e($a['receiving_number']) ?></td><td><?= e($a['date_received']) ?></td>

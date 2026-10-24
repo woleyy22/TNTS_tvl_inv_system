@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/includes/auth.php';
 require_once __DIR__.'/includes/ics_accountability.php';
+require_once __DIR__.'/includes/maintenance_safety.php';
 $me=require_role(['supply_officer']);$pdo=db();$userId=(int)$me['id'];
 $error='';$itemId=(int)($_POST['ics_item_id']??$_GET['ics_item_id']??0);
 if($_SERVER['REQUEST_METHOD']==='POST'){
@@ -18,6 +19,12 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   $state=ics31_state($pdo,$itemId,true);
   if(!$state['is_equipment'])throw new RuntimeException('Supply items do not have equipment conditions.');
   if(array_sum($numbers)!==$state['remaining_qty'])throw new RuntimeException('Condition totals must equal '.$state['remaining_qty'].' units currently with the teacher.');
+  $availability=p71_availability($pdo,$itemId,$state);
+  $serviceableHeld=(int)$availability['borrowed']+(int)$availability['reserved'];
+  if($numbers['serviceable']<$serviceableHeld)
+      throw new RuntimeException('Verified serviceable units cannot be fewer than '.$serviceableHeld.' borrowed/reserved units. Resolve those requests first.');
+  if($numbers['damaged']<(int)$availability['pending_condemnation'])
+      throw new RuntimeException('Verified damaged units cannot be fewer than '.(int)$availability['pending_condemnation'].' units held by open condemnation requests. Resolve those CFs first.');
   $before='serviceable '.$state['qty_serviceable'].', for repair '.$state['qty_for_repair'].', damaged '.$state['qty_damaged'];
   ics31_save($pdo,$itemId,$numbers,0);
   log_action($userId,'Reconciled condition balance','ICS',$state['ics_id'],$state['item_name'].': '.$before.' -> serviceable '.$numbers['serviceable'].', for repair '.$numbers['repair'].', damaged '.$numbers['damaged'].'. Verification: '.$notes);

@@ -3226,3 +3226,362 @@ body.desktop-workspace .workspace-header #tn-bell.tn-bell[aria-expanded="true"]{
   .tn-notify-popover-foot {flex-wrap:wrap;gap:6px;}
   .tn-notify-page-heading .tn-clear-read {padding:9px 12px;}
 }
+
+/* Phase 7.1: scoped maintenance and condemnation responsive controls. */
+#repairDateField[hidden]{display:none!important}
+#maintenanceForm .action-choices{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}
+.condemnation-table .record-decision .field{display:block;margin:12px 0;}
+.condemnation-table .record-decision .field textarea{width:100%;margin-top:6px;}
+.condemnation-table .record-decision label:has(input[type="checkbox"]){display:flex;align-items:flex-start;gap:9px;line-height:1.55;}
+@media(max-width:620px){#maintenanceForm .action-choices{grid-template-columns:1fr;}.condemnation-table .record-decision-actions>.btn{width:100%;}}
+
+/* Phase 7.2: shared equipment chooser and searchable repair timeline. */
+.p72-picker {position:relative;min-width:0;margin:6px 0 12px}
+.p72-picker-open {width:100%;min-height:48px;display:flex;align-items:center;text-align:left;gap:10px;white-space:normal;overflow-wrap:anywhere;justify-content:flex-start}
+.p72-picker-panel {margin-top:10px;border:1px solid #e0e5ed;border-radius:14px;padding:14px;background:#f9fafc;box-shadow:0 8px 25px #17213612;max-width:100%;min-width:0}
+.p72-picker-panel[hidden],.p72-history-event[hidden] {display:none!important}
+.p72-picker-toolbar {display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0}
+.p72-picker-toolbar label {display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;min-width:0}
+.p72-picker-toolbar .input {max-width:170px;width:auto;min-width:120px}
+.p72-picker-count {font-size:.8rem;color:#617088}
+.p72-picker-results {display:grid;gap:9px;max-height:360px;overflow:auto;overscroll-behavior:contain;padding:2px}
+.p72-picker-item {display:grid;justify-items:start;gap:6px;border:1px solid #dce2ec;border-radius:12px;padding:12px 14px;background:#fff;color:#27364f;cursor:pointer;width:100%;text-align:left;white-space:normal;min-width:0;overflow-wrap:anywhere}
+.p72-picker-item:hover,.p72-picker-item:focus-visible,.p72-picker-item.p72-picked {border-color:#8e183d;background:#fcf4f6;outline-offset:2px}
+.p72-picker-item strong {font-size:.97rem}
+.p72-picker-item-meta {font-size:.82rem;color:#606e82}
+.p72-picker-numbers {color:#782442;font-size:.78rem;font-weight:650}
+.p72-picker-item small {color:#69768b;font-size:.78rem}
+.p72-picker-pages,.p72-history-pages {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;flex-wrap:wrap}
+.p72-native-select {position:absolute!important;clip-path:inset(50%)!important;width:1px!important;height:1px!important;overflow:hidden!important;padding:0!important;border:0!important;pointer-events:none!important}
+.p72-source-field {min-width:0}.p72-source-field .input {width:100%;max-width:100%}
+.p72-history {margin-top:20px}.p72-history-filters {display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(130px,1fr));gap:12px;align-items:end;margin:18px 0}
+.p72-history-filters label {display:grid;gap:7px;font-size:.85rem;color:#3b4860;font-weight:650;min-width:0}
+.p72-history-filters input,.p72-history-filters select {width:100%;min-width:0}
+.p72-history-list {display:grid;gap:12px;margin-top:12px}
+.p72-history-event {border:1px solid #e2e6ee;border-left:4px solid #8a1840;border-radius:12px;padding:16px;background:#fff;min-width:0;overflow-wrap:anywhere}
+.p72-history-head {display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.p72-history-head>div {display:grid;gap:4px}.p72-history-head small {color:#667287}
+.p72-history-state {border-radius:999px;padding:6px 10px;background:#f9e9ef;color:#81193d;font-size:.78rem;font-weight:700}
+.p72-history-transition {margin:10px 0;font-size:.88rem;color:#4f5b70}.p72-history-event p {margin:8px 0;color:#35435a;line-height:1.55}
+.p72-history-meta {display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.77rem;color:#647187;margin-top:10px;border-top:1px solid #edf0f5;padding-top:10px}
+.p72-evidence-link {display:inline-block;margin-top:10px;color:#81193d;font-size:.85rem;font-weight:650}
+.p72-history-legacy {border-left-color:#b1b9c7}
+@media (max-width:920px) {.p72-history-filters {grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.p72-history-filters label:first-child {grid-column:1/-1}}
+@media (max-width:600px) {.p72-picker-panel {padding:10px}.p72-picker-results {max-height:290px}.p72-history-filters {grid-template-columns:minmax(0,1fr)}.p72-history-filters label:first-child {grid-column:auto}.p72-history-event {padding:12px}.p72-picker-pages button,.p72-history-pages button {min-height:42px}.p72-history-meta {display:grid;gap:6px}}
+
+/* Phase 7.2: complete CF audit timeline. */
+.p72-cond-history {border-top:1px solid #e5e7ee;margin-top:18px;padding-top:16px;display:grid;gap:10px}
+.p72-cond-history h5 {margin:0 0 4px;font-size:.96rem;color:#283a51}
+.p72-cond-event {border:1px solid #e5e7ee;border-left:3px solid #81193d;padding:10px 12px;border-radius:8px;background:#fbfbfd;overflow-wrap:anywhere}
+.p72-cond-event strong {display:block;color:#7c203f;font-size:.89rem}
+.p72-cond-event small {display:block;color:#647187;margin:4px 0;font-size:.77rem}
+.p72-cond-event p {margin:5px 0 0;color:#37465d;font-size:.82rem}
+
+/* Phase 7.2b — item-first maintenance workflow. Scoped to maintenance page classes. */
+.p72b-equipment {min-width:0;max-width:100%;overflow:hidden}
+.p72b-section-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.app-page .p72b-section-head h3 {font-size:19px;margin:0 0 6px;color:#26354b}
+.p72b-section-head p {margin:0;line-height:1.6;color:#68758a;font-size:12px;max-width:670px}
+.p72b-item-count {flex-shrink:0;padding:7px 11px;color:#7e2040;background:#f9edf2;border-radius:99px;font-size:12px;font-weight:750}
+.p72b-equipment-filters {display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:12px;margin:20px 0 12px;align-items:end}
+.p72b-equipment-filters label {display:grid;gap:6px;font-size:12px;font-weight:700;color:#3c4b65;min-width:0;line-height:1.45}
+.p72b-equipment-filters .input {display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.p72b-results-caption {font-size:12px;color:#657289;margin:0 0 12px;min-height:18px}
+.p72b-equipment-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;min-width:0;max-width:100%;align-items:stretch}
+.p72b-equipment-card {background:#fff;border:1px solid #dfe5ee;border-radius:14px;padding:18px;min-width:0;max-width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;overflow-wrap:anywhere;box-shadow:0 2px 10px #17243a08}
+.p72b-equipment-card[hidden] {display:none!important}
+.p72b-item-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+.p72b-item-identity {min-width:0;flex:1 1 auto}
+.p72b-item-identity h4 {margin:0;font-size:16px;color:#27364e;line-height:1.3;overflow-wrap:anywhere}
+.p72b-item-identity p {margin:5px 0 0;font-size:12px;color:#65758b;line-height:1.4}
+.p72b-ics-meta {display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.p72b-ics-meta span {border-radius:6px;background:#f1f3f7;color:#556278;padding:5px 8px;font-size:11px;line-height:1.3}
+.p72b-item-total {border-radius:9px;background:#f7edf1;color:#822347;font-size:14px;font-weight:800;padding:8px 9px;text-align:center;line-height:1.4;flex:0 0 auto;max-width:42%}
+.p72b-item-total small {font-size:10px;font-weight:600}
+.p72b-condition-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.p72b-condition-grid>div {text-align:center;border-radius:10px;padding:11px 4px;min-width:0}
+.p72b-condition-grid span {display:block;font-size:10px;line-height:1.4;font-weight:650;overflow-wrap:anywhere}
+.p72b-condition-grid strong {display:block;font-size:23px;line-height:1.15;margin-top:5px}
+.p72b-cond-serviceable {background:#eaf8ef;color:#136b44}
+.p72b-cond-repair {background:#fff5df;color:#925d10}
+.p72b-cond-damaged {background:#ffebeb;color:#a72d3c}
+.p72b-cond-disposed {background:#edf1f7;color:#4b5a72}
+.p72b-item-foot {display:flex;gap:14px;align-items:flex-end;justify-content:space-between;margin-top:auto;border-top:1px solid #eef1f4;padding-top:13px;min-width:0}
+.p72b-item-details {min-width:0;display:flex;flex-wrap:wrap;gap:5px 15px;font-size:11px;color:#69748a;line-height:1.5;overflow-wrap:anywhere}
+.p72b-item-details strong {color:#3f4d64;font-weight:700}
+.p72b-custody-warning {color:#9d4b22;font-weight:750}
+.app-page .p72b-maintain-btn {flex:0 0 auto;min-height:43px;padding:10px 15px;white-space:normal}
+.p72b-empty {padding:18px;border:1px dashed #d8dee8;border-radius:12px;color:#67758d;font-size:12px;text-align:center}
+.p72b-empty[hidden] {display:none!important}
+.p72b-pagination {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:17px;font-size:12px;color:#657289}
+.p72b-pagination button {min-width:105px;min-height:42px}
+.p72b-go-equipment {min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+/* One selected item, no nested list/search within the maintenance modal. */
+.p72b-selected-equipment {display:grid;gap:3px;padding:14px;border:1px solid #dfe5ed;border-radius:11px;background:#f6f8fb;min-width:0}
+.p72b-selected-equipment strong {font-size:15px;line-height:1.35;color:#2d3950;overflow-wrap:anywhere}
+.p72b-selected-equipment span {font-size:12px;color:#66748c;overflow-wrap:anywhere}
+.app-page .p72b-change-item {margin:10px 0 0;min-height:40px}
+.p72b-maintenance-modal[hidden] {display:none!important}
+.desktop-workspace .p72b-maintenance-modal .guided-modal.modal-panel {box-sizing:border-box;width:min(740px,100%);max-width:100%;min-width:0;overflow-x:hidden}
+.p72b-maintenance-modal .guided-modal .field,.p72b-maintenance-modal .guided-modal .input {min-width:0;max-width:100%;box-sizing:border-box}
+.p72b-maintenance-modal .equipment-snapshot {min-width:0;max-width:100%;box-sizing:border-box}
+.p72b-maintenance-modal .action-choices {min-width:0}
+@media(max-width:1100px) {
+ .p72b-equipment-list {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:740px) {
+ .p72b-equipment-filters {grid-template-columns:repeat(2,minmax(0,1fr))}
+ .p72b-equipment-filters label:first-child {grid-column:1/-1}
+ .p72b-item-foot {align-items:stretch;flex-direction:column}
+ .app-page .p72b-maintain-btn {width:100%}
+}
+@media(max-width:600px) {
+ .app-page .p72b-equipment {padding:14px;max-width:100%}
+ .app-page .p72b-section-head h3 {font-size:17px}
+ .p72b-equipment-filters {grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .p72b-equipment-filters label:first-child {grid-column:1/-1}
+ .p72b-equipment-filters select {font-size:12px;padding-inline:7px}
+ .p72b-equipment-card {padding:13px;gap:13px}
+ .p72b-item-head {flex-wrap:wrap}
+ .p72b-item-identity h4 {font-size:15px}
+ .p72b-item-total {font-size:12px;max-width:100%;width:100%;text-align:left}
+ .p72b-condition-grid {gap:5px;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .p72b-condition-grid>div {padding:10px 5px}
+ .p72b-condition-grid span {font-size:11px}
+ .p72b-condition-grid strong {font-size:22px}
+ .p72b-pagination {gap:7px}
+ .p72b-pagination button {flex:1 1 100px;min-width:0}
+ .p72b-pagination span {flex:1 1 100%;order:-1;text-align:center}
+ .app-page .p72b-maintenance-modal.modal-overlay {padding:10px 8px;align-items:center;overflow:hidden}
+ .desktop-workspace .p72b-maintenance-modal .guided-modal.modal-panel {width:100%;max-height:calc(100dvh - 20px);padding:22px 16px;overflow-y:auto;overflow-x:hidden;border-radius:16px;box-sizing:border-box}
+ .p72b-maintenance-modal .guided-modal h3 {font-size:20px;line-height:1.3;padding-right:22px}
+ .p72b-maintenance-modal .modal-intro {margin-bottom:16px}
+ .p72b-maintenance-modal .form-section {padding-bottom:15px;margin-bottom:15px}
+ .p72b-maintenance-modal .quantity-tiles {grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .p72b-maintenance-modal .quantity-tiles>div {border:0}
+ .p72b-maintenance-modal .quantity-entry {grid-template-columns:minmax(0,1fr);gap:4px}
+ .p72b-maintenance-modal .quantity-limit {margin:0;padding:10px}
+ .p72b-maintenance-modal .modal-actions {flex-direction:column-reverse;align-items:stretch}
+ .p72b-maintenance-modal .modal-actions .btn {width:100%;min-height:44px}
+}
+/* TNTS Phase 7.2c — Inventory-consistent Maintenance records.
+   Scoped to Maintenance; preserves Phase 7.2b modal and Phase 7.2 history styling. */
+.app-page .p72c-browser {min-width:0;max-width:100%;overflow:visible}
+.p72c-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.app-page .p72c-heading h3 {margin:0 0 4px;color:#25344c;font-size:17px;line-height:1.4}
+.p72c-heading p {margin:0;color:#6b788d;font-size:12px;line-height:1.55}
+.p72c-heading-total {color:#68758d;font-size:12px;white-space:nowrap}
+.app-page .p72c-browser .p72c-filters {margin:0 0 12px;display:grid;grid-template-columns:minmax(220px,2.5fr) minmax(145px,1fr) minmax(145px,1fr) minmax(72px,.48fr);gap:10px;align-items:end}
+.app-page .p72c-browser .p72c-filters label {font-size:12px;gap:6px;min-width:0}
+.app-page .p72c-browser .p72c-filters .input {width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.p72c-results {margin:6px 0 10px;min-height:0}
+.p72c-table-area {max-width:100%;min-width:0;overflow-x:auto}
+.app-page .p72c-table {border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:800px;color:#26354b;margin:0}
+.p72c-table th {text-align:left;font-size:11px;font-weight:750;line-height:1.4;color:#63728a;background:#f3f5f8;padding:16px 12px;border-bottom:1px solid #e3e8f0;vertical-align:middle}
+.p72c-table th:first-child {border-top-left-radius:10px}
+.p72c-table th:last-child {border-top-right-radius:10px}
+.p72c-table th:nth-child(1) {width:21%}
+.p72c-table th:nth-child(2) {width:17%}
+.p72c-table th:nth-child(3) {width:12%}
+.p72c-table th:nth-child(4) {width:24%}
+.p72c-table th:nth-child(5) {width:15%}
+.p72c-table th:nth-child(6) {width:11%}
+.p72c-table tbody tr.p72c-record {background:#fff}
+.p72c-table tbody tr.p72c-record:nth-child(odd) {background:#fbf8fa}
+.p72c-table tbody tr.p72c-record[hidden] {display:none!important}
+.p72c-table tbody tr.p72c-record:hover {background:#f8f2f5}
+.p72c-table tbody tr.p72c-record>td {font-size:12px;line-height:1.55;vertical-align:middle;padding:20px 12px;border-bottom:1px solid #ebeff4;overflow-wrap:anywhere;min-width:0}
+.p72c-name,.p72c-ics,.p72c-qty,.p72c-custody {display:grid;gap:5px;min-width:0}
+.p72c-name strong,.p72c-ics strong {font-size:13px;font-weight:750;color:#27374f}
+.p72c-name small,.p72c-ics small,.p72c-qty small,.p72c-custody small {font-size:12px;line-height:1.5;color:#728097}
+.p72c-number {white-space:normal;font-size:12px;color:#3f4b60}
+.p72c-number strong {font-size:13px;color:#24364d}
+.p72c-qty>strong {font-size:12px;color:#293950;line-height:1.5}
+.p72c-statuses {display:flex;gap:4px;align-items:flex-start;flex-wrap:wrap}
+.p72c-pill {display:inline-flex;align-items:center;max-width:100%;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:750;line-height:1.4;white-space:normal}
+.p72c-pill-serviceable {color:#146b42;background:#e3f5e9}
+.p72c-pill-repair {color:#8c5410;background:#fff0d3}
+.p72c-pill-damaged {color:#ac303b;background:#ffe6e9}
+.p72c-custody {font-size:12px;color:#44536a;gap:2px}
+.p72c-custody .p72c-warning {font-size:11px;color:#a15d23;font-weight:750;line-height:1.5}
+.p72c-action-cell {text-align:right}
+.app-page .p72c-maintain-btn {padding:9px 11px;min-height:40px;border-radius:9px;font-size:12px;font-weight:700;white-space:normal;width:auto;max-width:100%;overflow-wrap:normal}
+.app-page .p72c-maintain-btn:disabled {opacity:.55}
+.p72c-pagination {margin:15px 0 0;align-items:center}
+.p72c-pagination button {min-width:90px;min-height:40px}
+/* Sidebars narrow the content at tablet widths: use the same labeled-card
+   transformation as Accountable Inventory, without duplicating records. */
+@media(max-width:1050px) {
+  .app-page .p72c-browser .p72c-filters {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-page .p72c-browser .p72c-filters label:first-child {grid-column:1/-1}
+  .p72c-table-area {overflow:visible}
+  .app-page .p72c-table {min-width:0;width:100%;display:block;border:0}
+  .p72c-table thead {display:none}
+  .p72c-table tbody {display:block}
+  .p72c-table tbody tr.p72c-record {display:block;min-width:0;width:100%;box-sizing:border-box;border:1px solid #e1e6ee;border-radius:12px;overflow:hidden;background:#fff!important;margin:0 0 12px;box-shadow:0 2px 8px rgba(28,45,69,.035)}
+  .p72c-table tbody tr.p72c-record:hover {background:#fff!important}
+  .p72c-table tbody tr.p72c-record>td {display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;box-sizing:border-box;padding:11px 14px;border:0;border-bottom:1px solid #e9edf3;white-space:normal;vertical-align:middle}
+  .p72c-table tbody tr.p72c-record>td::before {content:attr(data-label);display:block;flex:0 0 34%;font-size:12px;line-height:1.4;font-weight:750;color:#5d708d;overflow-wrap:anywhere}
+  .p72c-table tbody tr.p72c-record>td>* {min-width:0;max-width:66%}
+  .p72c-table tbody tr.p72c-record>td.p72c-name-cell {display:block;padding:16px 14px}
+  .p72c-table tbody tr.p72c-record>td.p72c-name-cell::before {display:none}
+  .p72c-name {max-width:100%!important}
+  .p72c-name strong {font-size:16px}
+  .p72c-ics,.p72c-qty,.p72c-custody {text-align:right;justify-items:end}
+  .p72c-statuses {justify-content:flex-end}
+  .p72c-table tbody tr.p72c-record>td.p72c-action-cell {border-bottom:0;justify-content:flex-start;padding-top:13px;padding-bottom:13px}
+  .p72c-table tbody tr.p72c-record>td.p72c-action-cell::before {display:none}
+  .app-page .p72c-maintain-btn {max-width:none;min-width:128px}
+}
+@media(max-width:600px) {
+  .app-page .p72c-browser {padding:14px;overflow:visible}
+  .app-page .p72c-browser .p72c-filters {gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-page .p72c-browser .p72c-filters label:nth-child(2),
+  .app-page .p72c-browser .p72c-filters label:nth-child(3) {grid-column:auto}
+  .app-page .p72c-browser .p72c-filters label:nth-child(4) {grid-column:1/-1;max-width:100%}
+  .p72c-table tbody tr.p72c-record>td {padding:11px 12px;gap:10px}
+  .p72c-table tbody tr.p72c-record>td::before {flex-basis:39%;font-size:11px}
+  .p72c-table tbody tr.p72c-record>td>* {max-width:61%}
+  .p72c-name strong {font-size:15px}
+  .p72c-ics,.p72c-qty,.p72c-custody {gap:4px}
+  .p72c-qty>strong {font-size:12px}
+  .p72c-pill {font-size:10px}
+  .p72c-pagination {gap:6px}
+  .p72c-pagination button {min-width:0;flex:0 1 100px}
+  .p72c-pagination span {flex:1 1 auto;order:0;font-size:11px}
+}
+@media(max-width:360px) {
+  .app-page .p72c-browser .p72c-filters label:nth-child(2),
+  .app-page .p72c-browser .p72c-filters label:nth-child(3) {grid-column:1/-1}
+  .p72c-table tbody tr.p72c-record>td::before {flex-basis:42%}
+  .p72c-table tbody tr.p72c-record>td>* {max-width:58%}
+}
+
+/* TNTS Phase 7.2e — Borrowed units: shared purple Inventory-style visual language.
+   Presentation only; original custody and server-side safety checks remain unchanged. */
+.p72c-table .p72c-pill-borrowed {background:#f1ebfc;color:#63358e;border:1px solid #d4c2f0}
+.p72c-table .p72c-on-loan {color:#63358e;font-size:11px;font-weight:700;line-height:1.45}
+.p72b-maintenance-modal .quantity-tiles .p72e-borrowed-tile {color:#63358e}
+.p72b-maintenance-modal .quantity-tiles .p72e-borrowed-tile span {color:#63358e}
+.p72b-maintenance-modal .quantity-tiles .p72e-borrowed-tile strong {color:#59318f}
+.p72b-maintenance-modal .p72e-borrowed-tile {border-radius:8px;background:#f1ebfc;border:1px solid #d4c2f0;padding:8px 10px}
+.p72b-maintenance-modal .quantity-tiles {grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.p72b-maintenance-modal .quantity-tiles>div {min-width:0}
+.p72b-maintenance-modal .p72e-availability {margin-top:12px;padding:9px 11px;background:#e8f6ed;border:1px solid #c8e5d2;border-radius:8px;font-size:12px;font-weight:700;color:#16643f;line-height:1.45}
+.p72b-maintenance-modal .p72e-count-note {margin:8px 0 0;color:#66758c;font-size:11px;line-height:1.55}
+@media(max-width:900px) {
+  .p72b-maintenance-modal .quantity-tiles {grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .p72b-maintenance-modal .quantity-tiles>div {border-right:0}
+}
+@media(max-width:420px) {
+  .p72c-table .p72c-pill-borrowed {font-size:10px}
+  .p72b-maintenance-modal .quantity-tiles {gap:9px}
+  .p72b-maintenance-modal .p72e-borrowed-tile {padding:7px 9px}
+}
+
+/* TNTS Phase 7.3 — Condemnation uses existing Inventory-style desktop rows / mobile cards. */
+.p73-eligible-browser {min-width:0;max-width:100%;margin-bottom:24px}
+.p73-eligible-browser .record-section-header {gap:14px;flex-wrap:wrap}
+.p73-count {font-size:12px;color:#6f7b8c;font-weight:700;white-space:normal}
+.p73-eligible-filters {display:grid;grid-template-columns:minmax(0,2fr) minmax(170px,1fr);gap:12px;margin:16px 0}
+.p73-eligible-filters label {display:grid;gap:7px;font-size:12px;font-weight:700;color:#42526a;min-width:0}
+.p73-eligible-filters .input {width:100%;min-width:0;max-width:none}
+.p73-eligible-table-wrap {max-width:100%;min-width:0;overflow-x:auto}
+.p73-eligible-table {table-layout:fixed;width:100%;min-width:650px;border-collapse:collapse}
+.p73-eligible-table th {font-size:11px;color:#687792;background:#f4f6f9;text-align:left;white-space:normal}
+.p73-eligible-table th:nth-child(1){width:23%}.p73-eligible-table th:nth-child(2){width:20%}.p73-eligible-table th:nth-child(3){width:26%}.p73-eligible-table th:nth-child(4){width:15%}.p73-eligible-table th:nth-child(5){width:16%}
+.p73-eligible-record[hidden]{display:none!important}
+.p73-eligible-record:nth-child(odd){background:#fbf8fa}
+.p73-eligible-record td {padding:15px 10px;vertical-align:middle;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.p73-eligible-record td strong,.p73-eligible-record td small {display:block;line-height:1.5}
+.p73-eligible-record td strong {font-size:12px;color:#28374f}
+.p73-eligible-record td small {font-size:11px;color:#718096;margin-top:5px}
+.p73-damaged-chip{display:inline-block;border-radius:999px;background:#ffe7ea;color:#b02a39;padding:4px 8px;font-size:11px;font-weight:750}
+.app-page .p73-request-action{padding:9px 10px;min-height:40px;font-size:11px;border-radius:9px;white-space:normal}
+.p73-selected-item{padding:13px 15px;background:#f4f6f9;border:1px solid #e1e6ef;border-radius:11px;color:#26364e;font-size:13px;line-height:1.6;margin:8px 0}
+.p73-change-item {margin-bottom:13px}
+.p73-native-select {position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)}
+.p73-stage-bar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px}
+.p73-stage-bar span{display:inline-flex;align-items:center;border:1px solid #dfe4ec;background:#f7f8fa;border-radius:99px;padding:6px 10px;font-size:11px;font-weight:700;color:#708096}
+.p73-stage-bar span.p73-stage-done{color:#146b42;background:#e4f4eb;border-color:#c3e7d0}
+.p73-stage-bar span.p73-stage-current{color:#8b1a3e;background:#f9edf1;border-color:#eacbd6}
+.p73-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.p73-form-grid>.field{min-width:0}
+/* Condemnation record details retain the same original table action and timeline. */
+.condemnation-table td,.condemnation-table th {overflow-wrap:anywhere}
+@media(max-width:950px){
+ .p73-eligible-table-wrap{overflow:visible}
+ .app-page .p73-eligible-table{min-width:0;width:100%;display:block;border:0}
+ .p73-eligible-table thead{display:none}
+ .p73-eligible-table tbody{display:block}
+ .p73-eligible-table tbody tr.p73-eligible-record{display:block;width:100%;min-width:0;border:1px solid #e1e6ef;border-radius:13px;background:#fff!important;overflow:hidden;margin-bottom:12px}
+ .p73-eligible-table tbody tr.p73-eligible-record>td{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;width:100%;padding:12px 14px;border:0;border-bottom:1px solid #e9edf2;box-sizing:border-box}
+ .p73-eligible-table tbody tr.p73-eligible-record>td:before{content:attr(data-label);flex:0 0 38%;font-size:11px;color:#60738d;font-weight:700;line-height:1.4}
+ .p73-eligible-table tbody tr.p73-eligible-record>td>*{min-width:0;max-width:62%}
+ .p73-eligible-table tbody tr.p73-eligible-record>td.p73-eligible-name{display:block;padding:16px 14px}
+ .p73-eligible-table tbody tr.p73-eligible-record>td.p73-eligible-name:before{display:none}
+ .p73-eligible-table tbody tr.p73-eligible-record>td.p73-eligible-name>*{max-width:100%}
+ .p73-eligible-table tbody tr.p73-eligible-record>td:not(.p73-eligible-name):not(.p73-eligible-action){text-align:right}
+ .p73-eligible-table tbody tr.p73-eligible-record>td.p73-eligible-action{justify-content:flex-start;border:0}
+ .p73-eligible-table tbody tr.p73-eligible-record>td.p73-eligible-action:before{display:none}
+ .app-page .p73-request-action{max-width:none;min-width:155px}
+ /* The historical CF list follows the same labeled record-card model at phone/tablet widths. */
+ .app-page .condemnation-table.record-table {display:block;min-width:0!important;width:100%;border:0}
+ .condemnation-table thead {display:none}
+ .condemnation-table tbody {display:block}
+ .condemnation-table tbody tr.record-main {display:block;width:100%;min-width:0;border:1px solid #e1e6ee;border-radius:12px;background:#fff!important;overflow:hidden;margin-bottom:12px}
+ .condemnation-table tbody tr.record-main>td {box-sizing:border-box;display:flex;width:100%;min-width:0;padding:11px 13px!important;align-items:center;justify-content:space-between;gap:10px;border:0;border-bottom:1px solid #e9edf2;white-space:normal}
+ .condemnation-table tbody tr.record-main>td::before {content:attr(data-label);flex:0 0 34%;color:#60738d;font-size:11px;font-weight:700}
+ .condemnation-table tbody tr.record-main>td>* {max-width:66%;min-width:0}
+ .condemnation-table tbody tr.record-main>td:first-child {display:block;padding:15px 13px!important}
+ .condemnation-table tbody tr.record-main>td:first-child::before {display:none}
+ .condemnation-table tbody tr.record-main>td:first-child>* {max-width:100%}
+ .condemnation-table tbody tr.record-main>td:last-child {border-bottom:0;justify-content:flex-start}
+ .condemnation-table tbody tr.record-main>td:last-child::before {display:none}
+ .condemnation-table tbody tr.record-detail {display:block;width:100%;min-width:0;margin:-4px 0 15px}
+ .condemnation-table tbody tr.record-detail>td {display:block!important;width:100%;box-sizing:border-box;padding:0!important}
+ .condemnation-table .record-detail-panel {margin:0;padding:14px;border-radius:12px}
+}
+@media(max-width:650px){
+ .p73-eligible-browser {padding:14px}
+ .p73-eligible-filters,.p73-form-grid{grid-template-columns:minmax(0,1fr)}
+ .p73-eligible-table tbody tr.p73-eligible-record>td{padding:11px 12px}
+ .condemnation-table tbody tr.record-main>td {font-size:12px!important}
+ .p73-stage-bar span {font-size:10px}
+}
+@media(max-width:950px){
+ /* Legacy column widths target individual CF td cells. Override them explicitly
+    after switching those rows into full-width labeled mobile cards. */
+ .app-page .condemnation-table tbody tr.record-main>td {width:100%!important;max-width:none!important;min-width:0!important}
+ .app-page .condemnation-table tbody tr.record-main>td:first-child {width:100%!important}
+ .app-page .condemnation-table tbody tr.record-main>td .status-badge {white-space:normal;overflow-wrap:anywhere;line-height:1.4;text-align:right}
+}
+
+/* Phase 7.4 read-only equipment/custody reconciliation; shared Inventory-style UI. */
+.p74-title{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.p74-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.p74-summary>.card{margin:0;padding:18px;display:grid;gap:6px}
+.p74-summary small{color:#64748b;font-size:13px}
+.p74-summary strong{font-size:26px;color:#25334e;line-height:1.2}
+.p74-summary strong.p74-red{color:#a01e3c}.p74-summary strong.p74-amber{color:#9b6115}
+.p74-audit{padding:22px;min-width:0}.p74-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr);gap:16px;margin:18px 0}
+.p74-controls label{display:grid;gap:7px;color:#46566d;font-size:13px;font-weight:600;min-width:0}.p74-controls .input{width:100%;min-width:0}
+.p74-table-wrap{overflow-x:auto;max-width:100%}.p74-table{width:100%;table-layout:auto;min-width:780px}
+.p74-table th,.p74-table td{vertical-align:middle;white-space:normal;overflow-wrap:anywhere}
+.p74-table small{display:block;color:#64748b;margin-top:4px}.p74-table tr[hidden]{display:none!important}
+.p74-label{display:inline-block;border-radius:30px;padding:5px 11px;font-size:12px;font-weight:700;white-space:nowrap}
+.p74-label-blocker{background:#fee5e9;color:#9b1b35}.p74-label-review{background:#fff2d6;color:#865817}
+.p74-empty{padding:25px;text-align:center;color:#64748b}.p74-footnote{color:#64748b;font-size:13px;margin:18px 0 28px}
+@media(max-width:900px){.p74-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){
+ .p74-title{display:block}.p74-title .btn{margin-top:12px}.p74-summary{gap:9px}
+ .p74-summary>.card{padding:13px}.p74-summary strong{font-size:22px}
+ .p74-audit{padding:14px}.p74-controls{grid-template-columns:minmax(0,1fr);gap:10px}
+ .p74-table-wrap{overflow:visible}.p74-table{min-width:0;width:100%;display:block}
+ .p74-table thead{display:none}.p74-table tbody{display:grid;gap:12px}
+ .p74-table tr.p74-finding{display:block;width:100%;border:1px solid #e0e6ee;border-radius:14px;padding:4px 13px;overflow:hidden;background:#fff}
+ .p74-table td{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid #e9edf3;min-width:0;text-align:right}
+ .p74-table td:last-child{border-bottom:0}.p74-table td::before{content:attr(data-label);font-size:12px;line-height:1.6;color:#60708a;font-weight:700;flex:0 0 37%;text-align:left}
+ .p74-table td>strong,.p74-table td>a{max-width:65%}.p74-table td small{overflow-wrap:anywhere}
+ .p74-table tr[hidden]{display:none!important}
+}

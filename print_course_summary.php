@@ -22,16 +22,18 @@ if ($course_id > 0) {
 $where_sql = ($course_id > 0) ? "WHERE ii.course_id = $course_id AND c.status = 'active'" : "WHERE c.status = 'active'";
 
 $sql = "
-    SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, c.ics_number, c.date_issued,
+    SELECT ii.*, i.item_name, i.description, i.unit, i.unit_cost, i.item_category, c.ics_number, c.date_issued,
            u.full_name as teacher_name, cr.course_name,
-           COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair'), 0) as repair_qty,
-           COALESCE((SELECT SUM(quantity_affected) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged'), 0) as damaged_qty,
-           COALESCE((SELECT SUM(quantity) FROM condemnations co WHERE co.ics_item_id = ii.ics_item_id AND co.status = 'approved'), 0) as approved_condemned
+           COALESCE(cb.qty_for_repair,0) AS repair_qty,
+           COALESCE(cb.qty_damaged,0) AS damaged_qty,
+           COALESCE(cb.qty_serviceable,0) AS serviceable_qty,
+           COALESCE((SELECT SUM(quantity) FROM condemnations co WHERE co.ics_item_id = ii.ics_item_id AND co.status = 'approved' AND co.outcome='disposed'), 0) as approved_condemned
     FROM ics_items ii
     JOIN ics c ON ii.ics_id = c.ics_id
     JOIN inventory_items i ON ii.item_id = i.item_id
     LEFT JOIN courses cr ON ii.course_id = cr.course_id
     JOIN users u ON c.teacher_id = u.user_id
+    LEFT JOIN ics_condition_balances cb ON cb.ics_item_id=ii.ics_item_id
     $where_sql
     ORDER BY cr.course_name ASC, i.item_name ASC
 ";
@@ -104,7 +106,7 @@ $items = db()->query($sql)->fetchAll();
                     $missing_cost_count = 0;
 
                     foreach ($items as $item):
-                        $serviceable = max(0, $item['qty_issued'] - $item['repair_qty'] - $item['damaged_qty'] - $item['approved_condemned']);
+                        $serviceable = in_array($item['item_category'],['equipment','non_consumable'],true) ? (int)$item['serviceable_qty'] : max(0,(int)$item['qty_issued']-(int)$item['qty_returned']-(int)$item['qty_transferred_out']);
                         $missing_cost = $item['unit_cost'] === null;
                         $line_total = $missing_cost ? null : $item['qty_issued'] * (float)$item['unit_cost'];
                         if ($missing_cost) $missing_cost_count++;

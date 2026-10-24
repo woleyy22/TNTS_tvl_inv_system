@@ -158,21 +158,17 @@ if ($tab === 'ics') {
                COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued ELSE 0 END), 0) as total_units_issued,
                COALESCE(SUM(CASE WHEN ii.transfer_origin_request_id IS NULL THEN ii.qty_issued * i.unit_cost ELSE 0 END), 0) as total_monetary_value,
                SUM(CASE WHEN ii.ics_item_id IS NOT NULL AND i.unit_cost IS NULL THEN 1 ELSE 0 END) as unpriced_lines,
-               COALESCE(SUM(
-                   LEAST(ii.qty_issued, 
-                       GREATEST(0, ii.qty_issued 
-                           - (SELECT COALESCE(SUM(quantity_affected), 0) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'for_repair')
-                           - (SELECT COALESCE(SUM(quantity_affected), 0) FROM repair_logs r WHERE r.ics_item_id = ii.ics_item_id AND r.condition_status = 'damaged')
-                           - (SELECT COALESCE(SUM(quantity), 0) FROM condemnations co WHERE co.ics_item_id = ii.ics_item_id AND co.status = 'approved')
-                       )
-                   )
-               ), 0) as serviceable_units,
-               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE ii2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'for_repair'), 0) as repair_units,
-               COALESCE((SELECT SUM(r.quantity_affected) FROM repair_logs r JOIN ics_items ii2 ON r.ics_item_id = ii2.ics_item_id JOIN ics c2 ON ii2.ics_id = c2.ics_id WHERE ii2.course_id = cr.course_id AND c2.status = 'active' AND r.condition_status = 'damaged'), 0) as damaged_units
+               COALESCE(SUM(CASE
+                 WHEN i.item_category IN ('equipment','non_consumable') THEN COALESCE(b.qty_serviceable,0)
+                 ELSE GREATEST(0,ii.qty_issued-ii.qty_returned-ii.qty_transferred_out)
+               END),0) AS serviceable_units,
+               COALESCE(SUM(COALESCE(b.qty_for_repair,0)),0) AS repair_units,
+               COALESCE(SUM(COALESCE(b.qty_damaged,0)),0) AS damaged_units
         FROM courses cr
         LEFT JOIN ics_items ii ON cr.course_id = ii.course_id AND EXISTS (SELECT 1 FROM ics c0 WHERE c0.ics_id=ii.ics_id AND c0.status='active')
         LEFT JOIN ics c ON c.ics_id = ii.ics_id
         LEFT JOIN inventory_items i ON ii.item_id = i.item_id
+        LEFT JOIN ics_condition_balances b ON b.ics_item_id=ii.ics_item_id
         $whereSql
         GROUP BY cr.course_id, cr.course_name
         ORDER BY cr.course_name ASC
@@ -190,6 +186,7 @@ require_once __DIR__ . '/includes/header.php';
 <div class="content-header legacy-050">
     <h2>Official Reports & Document Generation</h2>
     <p class="legacy-027">Generate and print government-compliant COA forms (ICS, IAR, Condemnation Forms, and Summaries).</p>
+    <?php if ($role !== 'teacher'): ?><p><a class="btn btn-outline" href="<?=e(url('phase7_reconciliation.php'))?>">Phase 7 Equipment &amp; Custody Reconciliation</a></p><?php endif; ?>
 </div>
 
 <!-- Tab Navigation -->

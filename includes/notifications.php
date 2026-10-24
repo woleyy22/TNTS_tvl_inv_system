@@ -15,7 +15,7 @@ function tnts_notify_ready(PDO $pdo): bool {
 
 function tnts_notify_record(PDO $pdo, int $uid, string $key, string $kind, string $title, string $body, string $path, string $occurred): void {
     // Only hardcoded internal destinations are ever supplied by this module.
-    $allowed = ['borrow.php','transfers.php','transfer_history.php','approvals.php','personnel_reviews.php','condemnation.php','ics_issue.php','inventory.php','ics_returns.php','account.php'];
+    $allowed = ['borrow.php','transfers.php','transfer_history.php','approvals.php','personnel_reviews.php','condemnation.php','maintenance_events.php','ics_issue.php','inventory.php','ics_returns.php','account.php'];
     $page = explode('?', $path, 2)[0];
     if (!in_array($page, $allowed, true)) return;
     // Refresh presentation of previously recorded events without generating duplicates or clearing read state.
@@ -191,6 +191,23 @@ function tnts_notify_sync(PDO $pdo, array $user): void {
          }
     });
 
+    // Phase 7.2 condition events are immutable, and sent to oversight users only.
+    // The link opens the specific ICS record; notifications never change its condition.
+    if($reviewer){
+      $run("SELECT ev.event_id,ev.action_code,ev.quantity,ev.created_at,c.ics_number,i.item_name,u.full_name teacher_name
+        FROM maintenance_events ev JOIN ics_items ii ON ii.ics_item_id=ev.ics_item_id
+        JOIN ics c ON c.ics_id=ii.ics_id JOIN inventory_items i ON i.item_id=ii.item_id
+        LEFT JOIN users u ON u.user_id=ev.actor_user_id
+        WHERE ev.created_at>=? AND ev.actor_user_id<>? ORDER BY ev.event_id DESC LIMIT 500",
+        [$since,$uid],function($r)use($save){
+          $names=['for_repair'=>'Repair reported','damaged'=>'Damage reported','damaged_to_repair'=>'Damaged item moved to repair','repair_to_damaged'=>'Repair unsuccessful','serviceable'=>'Repair completed'];
+          $name=$names[$r['action_code']]??'Maintenance updated';
+          $save('maintenance:event:'.$r['event_id'],'maintenance',$name,
+             ($r['teacher_name']?:'Teacher').' recorded '.$r['quantity'].' × '.$r['item_name'].' on '.$r['ics_number'].'.',
+             'maintenance_events.php?event_id='.(int)$r['event_id'],$r['created_at']);
+        });
+    }
+
     // Condemnation requests: still-pending requests remain actionable after installation.
     $run("SELECT c.condemnation_id,c.quantity,c.reason,c.requested_by,c.created_at,i.item_name,u.full_name requester_name
         FROM condemnations c JOIN ics_items ii ON ii.ics_item_id=c.ics_item_id
@@ -208,12 +225,22 @@ function tnts_notify_sync(PDO $pdo, array $user): void {
         JOIN ics_items ii ON ii.ics_item_id=c.ics_item_id JOIN inventory_items i ON i.item_id=ii.item_id
         LEFT JOIN users reviewer ON reviewer.user_id=h.user_id
         WHERE h.module='Condemnation' AND h.created_at>=? AND c.requested_by=?
-          AND (h.action='Approved Condemnation' OR h.action='Rejected Condemnation')
+          AND h.action IN ('Approved Condemnation','Rejected Condemnation','Disposed Condemnation')
         ORDER BY h.log_id DESC LIMIT 1000",[$since,$uid],function($r)use($save){
-          $body=$r['quantity'].' × '.$r['item_name'].' · '.$r['status'].'. Request reason: '.$r['reason'].'.';
-          if($r['outcome'])$body.=' Recorded outcome: '.$r['outcome'].'.';
-          if($r['reviewer_name'])$body.=' Reviewed by '.$r['reviewer_name'].'.';
-          $save('condemnation:audit:'.$r['log_id'],'condemnation','Condemnation · '.ucfirst($r['status']),
+          $action=(string)$r['action'];
+          $thing=(int)$r['quantity'].' × '.$r['item_name'];
+          if($action==='Approved Condemnation'){
+              $title='Condemnation authorization recorded';
+              $body=$thing.' has school authorization. Awaiting actual physical disposal; accountability remains until recorded.';
+          }elseif($action==='Disposed Condemnation'){
+              $title='Condemnation physically disposed';
+              $body=$thing.' has been physically disposed and removed from teacher accountability.';
+          }else{
+              $title='Condemnation request rejected';
+              $body=$thing.' · request rejected. Check decision details for the reason.';
+          }
+          if($r['reviewer_name'])$body.=' By '.$r['reviewer_name'].'.';
+          $save('condemnation:audit:'.$r['log_id'],'condemnation',$title,
             $body,'condemnation.php?request_id='.(int)$r['condemnation_id'],$r['created_at']);
         });
 

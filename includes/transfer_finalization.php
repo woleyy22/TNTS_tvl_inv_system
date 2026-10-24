@@ -28,7 +28,15 @@ function tnts53_finalize_locked(PDO $pdo,int $requestId,int $actorId): array {
   if($r['allocation_id']!==null){
    $st=$pdo->prepare('SELECT a.*,b.expiration_date FROM ics_batch_allocations a JOIN inventory_receipt_batches b ON b.batch_id=a.batch_id WHERE a.allocation_id=? AND a.ics_item_id=? FOR UPDATE');
    $st->execute([(int)$r['allocation_id'],(int)$r['ics_item_id']]);$a=$st->fetch(PDO::FETCH_ASSOC);
-   if(!$a||$qty>(int)$a['qty_issued']-(int)$a['qty_returned']-(int)$a['qty_transferred_out'])throw new RuntimeException('Source batch allocation is insufficient.');
+   if(!$a)throw new RuntimeException('Source batch allocation not found.');
+   // A known source batch claimed by a pending, authorized, or disposed CF
+   // cannot be handed over as serviceable stock a second time.
+   $cf=$pdo->prepare("SELECT COALESCE(SUM(quantity),0) FROM condemnations WHERE ics_item_id=? AND allocation_id=? AND status IN ('requested','approved')");
+   $cf->execute([(int)$r['ics_item_id'],(int)$r['allocation_id']]);
+   $cfQty=(int)$cf->fetchColumn();
+   $batchPhysical=(int)$a['qty_issued']-(int)$a['qty_returned']-(int)$a['qty_transferred_out']-$cfQty;
+   if($batchPhysical<0)throw new RuntimeException('Source batch claims exceed its remaining quantity; reconcile before finalization.');
+   if($qty>$batchPhysical)throw new RuntimeException('Source batch allocation is insufficient after known condemnation claims.');
    if($a['expiration_date']!==null&&$a['expiration_date']<date('Y-m-d'))throw new RuntimeException('Source batch expired; finalization blocked.');
    $batchId=(int)$a['batch_id'];$allocId=(int)$a['allocation_id'];
   }elseif(!$r['legacy_unattributed']||$source['is_supply'])throw new RuntimeException('A verified source batch is required for this transfer.');

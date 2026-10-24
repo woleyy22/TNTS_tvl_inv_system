@@ -28,8 +28,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $st->execute([$icsId]);$ids=$st->fetchAll(PDO::FETCH_COLUMN);
         $st=$pdo->prepare("SELECT COUNT(*) FROM borrow_logs b JOIN ics_items ii ON ii.ics_item_id=b.ics_item_id WHERE ii.ics_id=? AND b.status='borrowed'");$st->execute([$icsId]);
         if((int)$st->fetchColumn()) throw new RuntimeException('Outstanding borrowed items must be returned and verified first.');
-        $st=$pdo->prepare("SELECT COUNT(*) FROM condemnations x JOIN ics_items ii ON ii.ics_item_id=x.ics_item_id WHERE ii.ics_id=? AND x.status='requested'");$st->execute([$icsId]);
-        if((int)$st->fetchColumn()) throw new RuntimeException('Resolve pending condemnation requests before retrieval or closure.');
+        // A physical retrieval/close must not invalidate another open custody workflow.
+        // Checks happen after the ICS header and item rows are locked in this transaction.
+        $st=$pdo->prepare("SELECT COUNT(*) FROM borrow_requests br JOIN ics_items ii ON ii.ics_item_id=br.ics_item_id WHERE ii.ics_id=? AND br.status IN ('requested','approved','borrowed','partially_returned')");$st->execute([$icsId]);
+        if((int)$st->fetchColumn()) throw new RuntimeException('Resolve active borrowing requests, releases, and returns before retrieving or closing this ICS.');
+        $st=$pdo->prepare("SELECT COUNT(*) FROM transfer_requests tr JOIN ics_items ii ON ii.ics_item_id=tr.ics_item_id WHERE ii.ics_id=? AND tr.status IN ('requested','accepted','awaiting_finalization')");$st->execute([$icsId]);
+        if((int)$st->fetchColumn()) throw new RuntimeException('Resolve pending property transfers before retrieving or closing this ICS.');
+        $st=$pdo->prepare("SELECT COUNT(*) FROM condemnations x JOIN ics_items ii ON ii.ics_item_id=x.ics_item_id WHERE ii.ics_id=? AND (x.status='requested' OR (x.status='approved' AND x.outcome IS NULL))");$st->execute([$icsId]);
+        if((int)$st->fetchColumn()) throw new RuntimeException('Resolve requested or authorized-but-not-disposed condemnation records before retrieving or closing this ICS.');
         $updates=[]; $returned=0; $settled=true; $hasEquipment=false; $reclassified=false;
         foreach($ids as $id) {
             $state=ics31_state($pdo,(int)$id,true);
@@ -63,14 +69,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             $add->execute([$returnId,$u['id'],$u['qty_by_condition']['serviceable'],$u['qty_by_condition']['repair'],$u['qty_by_condition']['damaged']]);
             // Attribute returns to source batches for post-4.7.2 issues only.
             $selectedReturnAllocation=(int)($_POST['return_batch'][$u['id']]??0);
-            $batchRows=$pdo->prepare('SELECT allocation_id,qty_issued,qty_returned FROM ics_batch_allocations WHERE ics_item_id=? ORDER BY allocation_id FOR UPDATE');
+            $batchRows=$pdo->prepare('SELECT allocation_id,qty_issued,qty_returned,qty_transferred_out FROM ics_batch_allocations WHERE ics_item_id=? ORDER BY allocation_id FOR UPDATE');
             $batchRows->execute([(int)$u['id']]);$allocations=$batchRows->fetchAll(PDO::FETCH_ASSOC);
             if($allocations){
                 $selected=null;
                 foreach($allocations as $allocation){if((int)$allocation['allocation_id']===$selectedReturnAllocation){$selected=$allocation;break;}}
                 if(!$selected) throw new RuntimeException('Select the original source batch being physically returned.');
-                $capacity=(int)$selected['qty_issued']-(int)$selected['qty_returned'];
-                if($u['qty']>$capacity) throw new RuntimeException('This return exceeds the remaining quantity for its selected batch. Record one batch per retrieval.');
+                // Disposed CF units stay in the historic batch allocation; they can
+                // never be returned as physical equipment a second time.
+                $cf=$pdo->prepare("SELECT COALESCE(SUM(quantity),0) FROM condemnations WHERE ics_item_id=? AND allocation_id=? AND status IN ('requested','approved')");
+                $cf->execute([(int)$u['id'],$selectedReturnAllocation]);
+                $cfClaimed=(int)$cf->fetchColumn();
+                $capacity=(int)$selected['qty_issued']-(int)$selected['qty_returned']-(int)$selected['qty_transferred_out']-$cfClaimed;
+                if($capacity<0)throw new RuntimeException('Source batch accountability is inconsistent with past transfers/disposals. Reconcile before retrieval.');
+                if($u['qty']>$capacity) throw new RuntimeException('The source batch has only '.$capacity.' physically returnable unit(s) after transfer and condemnation records. Record one batch per retrieval.');
                 $batchLine=$pdo->prepare('INSERT INTO ics_batch_return_lines (return_id,allocation_id,qty_serviceable,qty_for_repair,qty_damaged) VALUES (?,?,?,?,?)');
                 $batchUpdate=$pdo->prepare('UPDATE ics_batch_allocations SET qty_returned=qty_returned+?,qty_serviceable_returned=qty_serviceable_returned+? WHERE allocation_id=?');
                 $batchUpdate->execute([$u['qty'],$u['qty_by_condition']['serviceable'],$selectedReturnAllocation]);
