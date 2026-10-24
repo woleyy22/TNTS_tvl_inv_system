@@ -177,7 +177,7 @@ if ($role === 'teacher') {
     $condemnations = $stmt->fetchAll();
 }
 
-$pageTitle = 'Condemnation Module';
+$pageTitle = 'Condemnation Requests';
 $active = 'condemnation';
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -185,7 +185,7 @@ require_once __DIR__ . '/includes/header.php';
 <div class="content-header legacy-026">
     <div>
         <h2>Condemnation & Disposal Management</h2>
-        <p class="legacy-027">Formalize the disposal of unserviceable equipment approved by the Property Custodian.</p>
+        <p class="legacy-027">Review equipment condemnation requests, reasons and recorded decisions.</p>
     </div>
     <?php if ($role === 'teacher'): ?>
         <button onclick="openCondemnModal()" class="legacy-028">+ Request Condemnation</button>
@@ -204,70 +204,124 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 <?php endif; ?>
 
+<?php if (isset($_GET['error'])): ?><div class="alert alert-error" role="alert"><?= e((string)$_GET['error']) ?></div><?php endif; ?>
 <?php if ($request_error): ?><div class="legacy-181" role="alert" style="padding:12px;margin-bottom:12px;background:#ffe3e3;color:#900;border-radius:6px;"><?= e($request_error) ?></div><?php endif; ?>
-<div class="card legacy-030">
-    <table class="legacy-031">
-        <thead>
-            <tr class="legacy-032">
-                <th class="legacy-033">Form No. / Item</th>
-                <?php if ($role !== 'teacher'): ?>
-                    <th class="legacy-033">Requested By</th>
-                <?php endif; ?>
-                <th class="legacy-033">Qty</th>
-                <th class="legacy-033">Reason for Disposal</th>
-                <th class="legacy-033">Status</th>
-                <th class="legacy-033">Outcome / Approver</th>
-                <?php if ($role === 'supply_officer'): ?>
-                    <th class="legacy-034">Action</th>
-                <?php endif; ?>
-            </tr>
-        </thead>
+<!-- Record-table styling is included in assets/css/style.css. -->
+<section class="card record-card" aria-label="Condemnation requests">
+    <div class="record-section-header"><div><h3>Condemnation records</h3><p>Choose a record to review its full reason and decisions.</p></div><label class="record-pagesize">Rows per page <select id="cond-page-size" class="input"><option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option></select></label></div>
+    <div class="record-filters">
+      <div class="field record-search"><label for="cond-search">Search CF number, item, ICS or teacher</label><input id="cond-search" class="input" type="search" autocomplete="off" placeholder="Search condemnation records"></div>
+      <div class="field"><label for="cond-status">Status</label><select id="cond-status" class="input"><option value="">All statuses</option><option value="requested">Requested</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+      <div class="field"><label for="cond-order">Sort records</label><select id="cond-order" class="input"><option value="default">Default (pending first)</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="item-asc">Item A–Z</option><option value="item-desc">Item Z–A</option><option value="qty-desc">Highest quantity</option></select></div>
+      <div class="record-filter-reset"><button type="button" class="btn btn-outline" id="cond-reset">Reset</button></div>
+    </div>
+    <p class="record-results" id="cond-count" aria-live="polite"></p>
+    <div class="table-wrap record-table-wrap">
+      <table class="table record-table condemnation-table" id="cond-table">
+        <thead><tr><th>CF / Item</th><th>Teacher / ICS</th><th>Quantity</th><th>Status</th><th>Details</th></tr></thead>
         <tbody>
-            <?php if (empty($condemnations)): ?>
-                <tr>
-                    <td colspan="7" class="legacy-035">No condemnation records found.</td>
-                </tr>
-            <?php else: ?>
-                <?php foreach ($condemnations as $con): ?>
-                    <tr class="legacy-036">
-                        <td class="legacy-033">
-                            <strong><?= e($con['form_number']) ?></strong><br>
-                            <small class="legacy-037"><?= e($con['item_name']) ?> (ICS: <?= e($con['ics_number']) ?>)</small>
-                        </td>
-                        <?php if ($role !== 'teacher'): ?>
-                            <td class="legacy-033"><?= e($con['requester_name']) ?></td>
-                        <?php endif; ?>
-                        <td class="legacy-091"><?= e($con['quantity']) ?> <?= e($con['unit']) ?></td>
-                        <td class="legacy-033"><?= e($con['reason']) ?></td>
-                        <td class="legacy-033">
-                            <span class="status-badge <?= $con['status'] === 'approved' ? 'status-success' : ($con['status'] === 'rejected' ? 'status-danger' : 'status-warning') ?>">
-                                <?= e(ucfirst($con['status'])) ?>
-                            </span>
-                        </td>
-                        <td class="legacy-033">
-                            <?= e($con['outcome']) ?><br>
-                            <small class="legacy-037"><?= $con['approver_name'] ? 'Approved by: ' . e($con['approver_name']) : '' ?></small>
-                        </td>
-                        <?php if ($role === 'supply_officer'): ?>
-                            <td class="legacy-034">
-                                <?php if ($con['status'] === 'requested'): ?>
-                                    <form method="POST" class="legacy-211">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="condemnation_id" value="<?= $con['condemnation_id'] ?>">
-                                        <label><input type="checkbox" name="confirm_disposed" value="1"> I confirm these units have been physically disposed of</label><button type="submit" name="action_condemnation" value="approved" class="legacy-212">Approve</button>
-                                        <button type="submit" name="action_condemnation" value="rejected" class="legacy-213">Reject</button>
-                                    </form>
-                                <?php else: ?>
-                                    <span class="legacy-041">Resolved</span>
-                                <?php endif; ?>
-                            </td>
-                        <?php endif; ?>
-                    </tr>
-                <?php endforeach; ?>
+          <?php if (!$condemnations): ?><tr class="record-empty-database"><td colspan="5">No condemnation records found.</td></tr><?php endif; ?>
+          <?php foreach ($condemnations as $con):
+             $rid=(int)$con['condemnation_id'];
+             $teacherName=$role === 'teacher' ? (string)($user['name'] ?? '') : (string)($con['requester_name'] ?? '');
+             $formLabel=trim((string)($con['form_number']??'')) ?: 'Not assigned';
+             $status=(string)$con['status'];
+             $requestDate=(string)($con['date_requested']??'');
+             $searchText=implode(' ',[$formLabel,$con['item_name']??'',$con['ics_number']??'',$teacherName,$con['reason']??'']);
+          ?>
+          <tr class="record-main" data-record-id="<?= $rid ?>" data-status="<?= e($status) ?>" data-search="<?= e(function_exists('mb_strtolower') ? mb_strtolower($searchText) : strtolower($searchText)) ?>" data-date="<?= e($requestDate) ?>" data-item="<?= e(function_exists('mb_strtolower') ? mb_strtolower((string)$con['item_name']) : strtolower((string)$con['item_name'])) ?>" data-qty="<?= (int)$con['quantity'] ?>">
+            <td><strong><?= e($con['item_name']) ?></strong><small>CF: <?= e($formLabel) ?></small></td>
+            <td><strong><?= e($teacherName) ?></strong><small><?= e($con['ics_number']) ?></small></td>
+            <td><?= (int)$con['quantity'] ?> <?= e($con['unit']??'') ?></td>
+            <td><span class="status-badge <?= $status === 'approved' ? 'status-success' : ($status === 'rejected' ? 'status-danger' : 'status-warning') ?>"><?= e(ucfirst($status)) ?></span></td>
+            <td><button type="button" class="btn btn-outline btn-sm record-expand" data-target="cond-detail-<?= $rid ?>" aria-expanded="false" aria-controls="cond-detail-<?= $rid ?>">View Details <span aria-hidden="true">⌄</span></button></td>
+          </tr>
+          <tr class="record-detail" id="cond-detail-<?= $rid ?>" data-detail-for="<?= $rid ?>" hidden><td colspan="5"><div class="record-detail-panel">
+            <div class="record-detail-head"><h4><?= e($con['item_name']) ?> · <?= e($formLabel) ?></h4><button type="button" class="btn btn-outline btn-sm record-close" data-target="cond-detail-<?= $rid ?>">Close details ↑</button></div>
+            <div class="record-facts">
+              <div><span>ICS / Holder</span><strong><?= e($con['ics_number']) ?> · <?= e($teacherName) ?></strong></div>
+              <div><span>Requested quantity</span><strong><?= (int)$con['quantity'] ?> <?= e($con['unit']??'') ?></strong></div>
+              <div><span>Date requested</span><strong><?= $requestDate ? e(date('M j, Y · g:i A',strtotime($requestDate))) : '–' ?></strong></div>
+              <div><span>Decision / Disposition</span><strong><?= e(ucfirst($status)) ?><?= !empty($con['outcome'])?' · '.e(ucfirst((string)$con['outcome'])):'' ?></strong></div>
+            </div>
+            <div class="record-note"><strong>Reason for condemnation</strong><p><em><?= nl2br(e($con['reason'])) ?></em></p></div>
+            <?php if (!empty($con['approver_name'])): ?><p class="record-audit"><strong>Reviewed by <?= e($con['approver_name']) ?></strong><?= !empty($con['date_approved'])?' · '.e(date('M j, Y',strtotime((string)$con['date_approved']))):'' ?></p><?php endif; ?>
+            <?php if ($role === 'supply_officer' && $status === 'requested'): ?>
+              <form method="post" class="record-decision" onsubmit="return confirm('Record this condemnation decision?');">
+                <?= csrf_field() ?><input type="hidden" name="condemnation_id" value="<?= $rid ?>">
+                <div class="record-disposition"><label><input type="checkbox" name="confirm_disposed" value="1"> I confirm the units have physically been disposed of.</label><p>Under the current process, approving this record also records the physical disposal. Do not approve until disposal has actually occurred and the required school authorization is on file.</p></div>
+                <div class="record-decision-actions"><button type="submit" name="action_condemnation" value="approved" class="btn btn-primary">Approve & Record Disposal</button><button type="submit" name="action_condemnation" value="rejected" class="btn btn-outline">Reject Request</button></div>
+              </form>
             <?php endif; ?>
+          </div></td></tr>
+          <?php endforeach; ?>
         </tbody>
-    </table>
-</div>
+      </table>
+    </div>
+    <p id="cond-empty" class="record-empty" hidden>No records match your filters. Try clearing the search or changing the status.</p>
+    <nav class="record-pagination" aria-label="Condemnation pages"><button type="button" class="btn btn-outline btn-sm" id="cond-prev">Previous</button><span id="cond-page-label"></span><button type="button" class="btn btn-outline btn-sm" id="cond-next">Next</button></nav>
+</section>
+<script>
+(function(){
+  const table=document.getElementById('cond-table'); if(!table)return;
+  const bodies=[...table.querySelectorAll('tr.record-main')];
+  const state={page:1};
+  const input=document.getElementById('cond-search'),status=document.getElementById('cond-status'),order=document.getElementById('cond-order'),size=document.getElementById('cond-page-size');
+  const label=document.getElementById('cond-page-label'),count=document.getElementById('cond-count'),empty=document.getElementById('cond-empty');
+  function render(){
+    const query=input.value.trim().toLocaleLowerCase(),type=status.value;
+    const visible=bodies.filter(r=>(!query||r.dataset.search.includes(query))&&(!type||r.dataset.status===type));
+    const mode=order.value;
+    if(mode!=='default')visible.sort((a,b)=>{
+      let cmp=0;
+      if(mode==='newest'||mode==='oldest')cmp=a.dataset.date.localeCompare(b.dataset.date);
+      else if(mode.startsWith('item'))cmp=a.dataset.item.localeCompare(b.dataset.item);
+      else if(mode==='qty-desc')cmp=Number(a.dataset.qty)-Number(b.dataset.qty);
+      if(mode==='newest'||mode==='item-desc'||mode==='qty-desc')cmp=-cmp;
+      return cmp;
+    });
+    const per=Number(size.value)||10,pages=Math.max(1,Math.ceil(visible.length/per));state.page=Math.min(state.page,pages);
+    const displayed=visible.slice((state.page-1)*per,state.page*per);let target=table.querySelector('tbody');
+    const all = new Set(displayed);
+    for(const row of bodies){
+      const detail=document.getElementById('cond-detail-'+row.dataset.recordId);
+      row.hidden=!all.has(row);if(!all.has(row))detail.hidden=true;
+    }
+    // Move parent/detail together so expanded content always belongs to its record.
+    for(const row of visible){target.appendChild(row);target.appendChild(document.getElementById('cond-detail-'+row.dataset.recordId));}
+    count.textContent=visible.length+' matching record(s)';empty.hidden=visible.length!==0;
+    label.textContent='Page '+state.page+' of '+pages;
+    document.getElementById('cond-prev').disabled=state.page<=1;
+    document.getElementById('cond-next').disabled=state.page>=pages;
+    document.querySelectorAll('.record-expand').forEach(b=>b.setAttribute('aria-expanded',String(!document.getElementById(b.dataset.target).hidden)));
+  }
+  document.querySelectorAll('.record-expand').forEach(button=>button.addEventListener('click',()=>{
+    const target=document.getElementById(button.dataset.target),show=target.hidden;
+    document.querySelectorAll('tr.record-detail').forEach(r=>r.hidden=true);
+    document.querySelectorAll('.record-expand').forEach(b=>b.setAttribute('aria-expanded','false'));
+    target.hidden=!show;button.setAttribute('aria-expanded',String(show));
+  }));
+  document.querySelectorAll('.record-close').forEach(b=>b.addEventListener('click',()=>{document.getElementById(b.dataset.target).hidden=true;document.querySelector('[data-target="'+b.dataset.target+'"].record-expand')?.setAttribute('aria-expanded','false');}));
+  [input,status,order,size].forEach(el=>el.addEventListener(el===input?'input':'change',()=>{state.page=1;render();}));
+  document.getElementById('cond-reset').addEventListener('click',()=>{input.value='';status.value='';order.value='default';size.value='10';state.page=1;render();});
+  document.getElementById('cond-prev').addEventListener('click',()=>{state.page--;render();});
+  document.getElementById('cond-next').addEventListener('click',()=>{state.page++;render();});
+  render();
+  const requestedId=new URLSearchParams(window.location.search).get('request_id');
+  if(requestedId && /^\d+$/.test(requestedId)){
+    const hit=bodies.find(r=>r.dataset.recordId===requestedId);
+    if(hit){
+      input.value='';status.value='';order.value='default';
+      const index=bodies.indexOf(hit);state.page=Math.floor(index/(Number(size.value)||10))+1;
+      render();
+      const detail=document.getElementById('cond-detail-'+requestedId);
+      if(detail){detail.hidden=false;hit.querySelector('.record-expand')?.setAttribute('aria-expanded','true');}
+      hit.classList.add('tn-focus-record');
+      requestAnimationFrame(()=>hit.scrollIntoView({block:'center',behavior:'auto'}));
+    }
+  }
+})();
+</script>
 
 <!-- Request Condemnation Modal (Teacher) -->
 <?php if ($role === 'teacher'): ?>
@@ -297,10 +351,7 @@ require_once __DIR__ . '/includes/header.php';
                     <input type="number" name="quantity" id="condemn_qty" min="1" step="1" value="<?= e($_POST['quantity'] ?? '1') ?>" required class="legacy-047">
                     <small id="condemn_qty_hint" style="display:block;margin-top:4px;">Select an eligible item to see the maximum quantity.</small>
                 </div>
-                <div class="legacy-049">
-                    <label class="legacy-046">Form Number (Opt.)</label>
-                    <input type="text" name="form_number" placeholder="e.g. CF-2026-001" class="legacy-047">
-                </div>
+                <div class="legacy-049"><label class="legacy-046">Form number</label><p class="muted">Generated automatically after submission.</p></div>
             </div>
 
             <div class="legacy-050">

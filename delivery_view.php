@@ -119,9 +119,9 @@ require_once __DIR__ . '/includes/header.php';
     <a class="btn btn-outline" href="units.php">Want to change measurement units?</a>
 </div>
 
-<div class="legacy-156">
+<div class="legacy-156 tnts-m28b-delivery-layout">
     <!-- Left Column: Details & Items -->
-    <div class="legacy-157">
+    <div class="legacy-157 tnts-m28b-delivery-main">
         <div class="card legacy-158">
             <h3 class="legacy-159">Delivery Details</h3>
             <p><strong>Date Received:</strong> <?= e(date('M d, Y', strtotime($delivery['date_received']))) ?></p>
@@ -134,11 +134,11 @@ require_once __DIR__ . '/includes/header.php';
             <h3 class="legacy-159">Items in this Delivery</h3>
             
             <?php if ($delivery['status'] === 'pending_inspection' && $user['role'] === 'supply_officer'): ?>
-                <form method="POST" class="legacy-161">
+                <form method="POST" class="legacy-161 tnts-m28b-delivery-item-form">
                     <h4 class="legacy-159">+ Add Item Line</h4>
                     <div class="legacy-162">
-                        <input type="text" name="item_name" placeholder="Item Name *" required class="legacy-163">
-                        <input type="text" name="description" placeholder="Description / Specs" class="legacy-163">
+                        <input type="text" name="item_name" aria-label="Item name" placeholder="Item Name *" required class="legacy-163">
+                        <input type="text" name="description" aria-label="Description or specifications" placeholder="Description / Specs" class="legacy-163">
                         <select name="unit_id" required class="legacy-164" aria-label="Unit of measurement">
                             <option value="">Select Unit *</option>
                             <?php foreach ($approved_units as $approved_unit): ?>
@@ -147,14 +147,14 @@ require_once __DIR__ . '/includes/header.php';
                         </select>
                     </div>
                     <div class="legacy-061">
-                        <input type="number" name="qty_delivered" placeholder="Qty Delivered *" required min="1" class="legacy-164">
-                        <input type="number" step="0.01" name="unit_cost" placeholder="Unit Cost (optional)" min="0" class="legacy-164">
+                        <input type="number" name="qty_delivered" aria-label="Quantity delivered" placeholder="Qty Delivered *" required min="1" class="legacy-164">
+                        <input type="number" step="0.01" name="unit_cost" aria-label="Unit cost" placeholder="Unit Cost (optional)" min="0" class="legacy-164">
                         <button type="submit" name="add_item" class="legacy-165">Add Item</button>
                     </div>
                 </form>
             <?php endif; ?>
 
-            <table class="legacy-031">
+            <table class="legacy-031 tnts-m28b-delivery-lines">
                 <tr class="legacy-055">
                     <th class="legacy-166">Item</th>
                     <th class="legacy-166">Unit</th>
@@ -167,16 +167,16 @@ require_once __DIR__ . '/includes/header.php';
                 <?php else: ?>
                     <?php foreach ($items as $item): ?>
                         <tr class="legacy-036">
-                            <td class="legacy-166">
+                            <td class="legacy-166" data-tnts-mobile-label="Item">
                                 <strong><?= e($item['item_name']) ?></strong><br>
                                 <small class="legacy-037"><?= e($item['description']) ?></small>
                             </td>
-                            <td class="legacy-166"><?= e($item['unit']) ?></td>
-                            <td class="legacy-166"><?= e($item['qty_delivered']) ?></td>
-                            <td class="legacy-169 <?= $item['qty_accepted'] > 0 ? 'text-success' : 'muted' ?>">
+                            <td class="legacy-166" data-tnts-mobile-label="Unit"><?= e($item['unit']) ?></td>
+                            <td class="legacy-166" data-tnts-mobile-label="Qty delivered"><?= e($item['qty_delivered']) ?></td>
+                            <td data-tnts-mobile-label="Qty accepted" class="legacy-169 <?= $item['qty_accepted'] > 0 ? 'text-success' : 'muted' ?>">
                                 <?= e($item['qty_accepted']) ?>
                             </td>
-                            <td class="legacy-166"><?= e(display_unit_cost($item['unit_cost'])) ?></td>
+                            <td class="legacy-166" data-tnts-mobile-label="Unit cost"><?= e(display_unit_cost($item['unit_cost'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -191,13 +191,13 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 
     <!-- Right Column: Attachments -->
-    <div class="legacy-172">
+    <div class="legacy-172 tnts-m28b-delivery-attachments">
         <div class="card legacy-030">
             <h3 class="legacy-159">Attachments (DR Photos)</h3>
             
             <!-- Removed the status check so you can upload anytime -->
-            <form method="POST" enctype="multipart/form-data" class="legacy-045">
-                <input type="file" name="dr_file" accept=".jpg,.jpeg,.png,.pdf" required class="legacy-173">
+            <form method="POST" enctype="multipart/form-data" class="legacy-045 tnts-m28b-receipt-upload">
+                <input type="file" name="dr_file" aria-label="Delivery receipt file" accept=".jpg,.jpeg,.png,.pdf" required class="legacy-173">
                 <button type="submit" name="upload_attachment" class="legacy-174">Upload Receipt</button>
             </form>
 

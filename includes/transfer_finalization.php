@@ -1,13 +1,16 @@
 <?php
-/** Phase 5.3: atomic custody movement. Must be called by a Supply Officer only. */
+/**
+ * Atomic ICS custody finalization. Both teacher-accepted and officer-assisted
+ * transfers share this same path. Do not call locked helpers without a DB transaction.
+ */
 require_once __DIR__.'/transfer_foundation.php';
 require_once __DIR__.'/functions.php';
-function tnts53_finalize(PDO $pdo,int $requestId,int $actorId): array {
- if($pdo->inTransaction())throw new LogicException('Transfer finalization requires its own transaction.');
- $pdo->beginTransaction();
- try {
-  $st=$pdo->prepare('SELECT * FROM transfer_requests WHERE request_id=? FOR UPDATE');$st->execute([$requestId]);$r=$st->fetch(PDO::FETCH_ASSOC);
-  if(!$r||$r['status']!=='awaiting_finalization')throw new RuntimeException('Only verified transfers awaiting finalization can be completed.');
+
+function tnts53_finalize_locked(PDO $pdo,int $requestId,int $actorId): array {
+ if(!$pdo->inTransaction())throw new LogicException('Finalization requires an active transaction.');
+ $st=$pdo->prepare('SELECT * FROM transfer_requests WHERE request_id=? FOR UPDATE');
+ $st->execute([$requestId]);$r=$st->fetch(PDO::FETCH_ASSOC);
+ if(!$r||$r['status']!=='awaiting_finalization')throw new RuntimeException('Transfer must be verified before finalization.');
   if((int)$r['quantity']<1)throw new RuntimeException('Invalid transfer quantity.');
   // Lock source line and authoritative custody state before creating the new ICS.
   $source=tnts51_state($pdo,(int)$r['ics_item_id'],true);
@@ -38,19 +41,54 @@ function tnts53_finalize(PDO $pdo,int $requestId,int $actorId): array {
   $st=$pdo->prepare("INSERT INTO ics_items(ics_id,item_id,qty_issued,item_condition,course_id,transfer_origin_request_id) VALUES (?,?,?,'serviceable',?,?)");
   $st->execute([$newIcsId,(int)$line['item_id'],$qty,$line['course_id'],$requestId]);$newLineId=(int)$pdo->lastInsertId();
   if(!$source['is_supply']){
-   $pdo->prepare('UPDATE ics_condition_balances SET qty_serviceable=qty_serviceable-? WHERE ics_item_id=? AND qty_serviceable>=?')->execute([$qty,(int)$r['ics_item_id'],$qty]);
+   $conditionMove=$pdo->prepare('UPDATE ics_condition_balances SET qty_serviceable=qty_serviceable-? WHERE ics_item_id=? AND qty_serviceable>=?');
+   $conditionMove->execute([$qty,(int)$r['ics_item_id'],$qty]);
+   if($conditionMove->rowCount()!==1)throw new RuntimeException('Unable to debit the original serviceable balance; transfer cancelled.');
    $pdo->prepare('INSERT INTO ics_condition_balances(ics_item_id,qty_serviceable,qty_for_repair,qty_damaged,needs_review) VALUES (?,?,0,0,0)')->execute([$newLineId,$qty]);
   }
   $newAlloc=null;
   if($batchId!==null){
-   $pdo->prepare('UPDATE ics_batch_allocations SET qty_transferred_out=qty_transferred_out+? WHERE allocation_id=?')->execute([$qty,$allocId]);
+   $batchMove=$pdo->prepare('UPDATE ics_batch_allocations SET qty_transferred_out=qty_transferred_out+? WHERE allocation_id=?');
+   $batchMove->execute([$qty,$allocId]);if($batchMove->rowCount()!==1)throw new RuntimeException('Unable to update source batch; transfer cancelled.');
    $pdo->prepare('INSERT INTO ics_batch_allocations(ics_item_id,batch_id,qty_issued) VALUES (?,?,?)')->execute([$newLineId,$batchId,$qty]);$newAlloc=(int)$pdo->lastInsertId();
   }
-  $pdo->prepare('UPDATE ics_items SET qty_transferred_out=qty_transferred_out+? WHERE ics_item_id=?')->execute([$qty,(int)$r['ics_item_id']]);
+  $custodyMove=$pdo->prepare('UPDATE ics_items SET qty_transferred_out=qty_transferred_out+? WHERE ics_item_id=?');
+  $custodyMove->execute([$qty,(int)$r['ics_item_id']]);if($custodyMove->rowCount()!==1)throw new RuntimeException('Unable to update original ICS accountability; transfer cancelled.');
   $pdo->prepare('INSERT INTO ics_transfer_movements(transfer_request_id,source_ics_item_id,recipient_ics_item_id,source_allocation_id,recipient_allocation_id,transferred_qty,recorded_by) VALUES (?,?,?,?,?,?,?)')->execute([$requestId,(int)$r['ics_item_id'],$newLineId,$allocId,$newAlloc,$qty,$actorId]);
   $st=$pdo->prepare("UPDATE transfer_requests SET status='completed',updated_at=NOW() WHERE request_id=? AND status='awaiting_finalization'");$st->execute([$requestId]);if($st->rowCount()!==1)throw new RuntimeException('Transfer was already processed.');
   $pdo->prepare("INSERT INTO transfer_request_events(transfer_request_id,actor_user_id,event_type,notes) VALUES (?,?,'finalize',?)")->execute([$requestId,$actorId,'New ICS '.$newNo.'; original ICS preserved.']);
   $pdo->prepare('INSERT INTO history_logs(user_id,action,module,record_id,details) VALUES (?,?,?,?,?)')->execute([$actorId,'Transfer Finalized','Transfers',$requestId,'Custody moved to '.$newNo.' ('.$qty.' units); original issuance retained.']);
-  $pdo->commit();return ['ics_id'=>$newIcsId,'ics_number'=>$newNo,'ics_item_id'=>$newLineId];
- }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+ return ['ics_id'=>$newIcsId,'ics_number'=>$newNo,'ics_item_id'=>$newLineId];
+}
+
+/** Converts a recipient-accepted request to verified and immediately finalizes.
+ * Must be called in the SAME transaction to avoid intermediate stock states.
+ */
+function tnts53_verify_finalize_locked(PDO $pdo,int $requestId,int $actorId,string $notes=''): array {
+ if(!$pdo->inTransaction())throw new LogicException('Verification requires an active transaction.');
+ $q=$pdo->prepare('SELECT * FROM transfer_requests WHERE request_id=? FOR UPDATE');$q->execute([$requestId]);$r=$q->fetch(PDO::FETCH_ASSOC);
+ if(!$r||$r['status']!=='accepted')throw new InvalidArgumentException('Only an accepted, unfinalized transfer can be verified.');
+ if(mb_strlen($notes)>1000)throw new InvalidArgumentException('Verification notes are too long.');
+ if((int)$r['legacy_unattributed']===1 && trim($notes)==='')throw new InvalidArgumentException('Document the source-batch review for historical items.');
+ $up=$pdo->prepare("UPDATE transfer_requests SET status='awaiting_finalization',updated_at=NOW() WHERE request_id=? AND status='accepted'");
+ $up->execute([$requestId]);if($up->rowCount()!==1)throw new RuntimeException('Transfer status changed before verification.');
+ $verifyNote='Supply Officer verified the physical handover and recipient acknowledgment.'.($notes!==''?' Notes: '.$notes:'');
+ $pdo->prepare("INSERT INTO transfer_request_events(transfer_request_id,actor_user_id,event_type,notes) VALUES (?,?,'verify',?)")->execute([$requestId,$actorId,$verifyNote]);
+ $pdo->prepare("INSERT INTO history_logs(user_id,action,module,record_id,details) VALUES (?,'Transfer Verified','Transfers',?,?)")->execute([$actorId,$requestId,'Verification and finalization performed together'.($notes!==''?' | '.$notes:'')]);
+ return tnts53_finalize_locked($pdo,$requestId,$actorId);
+}
+
+function tnts53_verify_finalize(PDO $pdo,int $requestId,int $actorId,string $notes=''): array {
+ if($pdo->inTransaction())throw new LogicException('This action requires its own transaction.');
+ $pdo->beginTransaction();
+ try{$result=tnts53_verify_finalize_locked($pdo,$requestId,$actorId,$notes);$pdo->commit();return $result;}
+ catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+
+/** Backward-compatible finalization for previously verified transfers. */
+function tnts53_finalize(PDO $pdo,int $requestId,int $actorId): array {
+ if($pdo->inTransaction())throw new LogicException('Transfer finalization requires its own transaction.');
+ $pdo->beginTransaction();
+ try{$result=tnts53_finalize_locked($pdo,$requestId,$actorId);$pdo->commit();return $result;}
+ catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }

@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('approvals.php');
 }
 
+$focusUser = filter_var($_GET['user_id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]) ?: 0;
 $filter = (string)($_GET['status'] ?? 'history');
 if (!in_array($filter, ['history','pending','unverified'], true)) $filter='history';
 $search = trim((string)($_GET['q'] ?? ''));
@@ -62,6 +63,13 @@ foreach (['dateFrom','dateTo'] as $field) {
 }
 $direction = strtoupper((string)($_GET['sort'] ?? 'DESC'));
 if (!in_array($direction, ['ASC','DESC'], true)) $direction='DESC';
+// A notification opens the named account; a finished request lands in its decision history.
+if ($focusUser && $filter === 'pending') {
+    $check=$pdo->prepare("SELECT registration_status FROM users WHERE user_id=? AND role='teacher'");
+    $check->execute([$focusUser]);
+    if ($check->fetchColumn() !== 'pending') $filter='history';
+}
+if ($focusUser) { $search=''; $level=''; $dateFrom=''; $dateTo=''; }
 $pendingCount=(int)db_scalar("SELECT COUNT(*) FROM users WHERE role='teacher' AND registration_source='self_registration' AND registration_status='pending' AND email_verified_at IS NOT NULL");
 $awaitingCount=(int)db_scalar("SELECT COUNT(*) FROM users WHERE role='teacher' AND registration_source='self_registration' AND registration_status='pending' AND email_verified_at IS NULL");
 
@@ -70,6 +78,7 @@ $historyEvents=[];
 if ($filter !== 'history') {
     $where="u.role='teacher' AND u.registration_source='self_registration' AND u.registration_status='pending' AND u.email_verified_at IS ".($filter==='pending'?'NOT NULL':'NULL');
     $params=[];
+    if ($focusUser) { $where.=' AND u.user_id=:focus_user'; $params['focus_user']=$focusUser; }
     if($search!==''){$where.=' AND (u.full_name LIKE :n OR u.email LIKE :e)';$params['n']='%'.$search.'%';$params['e']='%'.$search.'%';}
     if($level!==''){$where.=' AND p.teaching_level=:lev';$params['lev']=$level;}
     if($dateFrom!==''){$where.=' AND u.created_at >= :df';$params['df']=$dateFrom.' 00:00:00';}
@@ -82,6 +91,7 @@ if ($filter !== 'history') {
 } else {
     // Decisions on existing users plus snapshots for accounts that have been deleted.
     $base=' WHERE 1=1';$params=[];
+    if ($focusUser) { $base.=' AND u.user_id=:focus_user'; $params['focus_user']=$focusUser; }
     if($search!==''){$base.=' AND (u.full_name LIKE :n OR u.email LIKE :e)';$params['n']='%'.$search.'%';$params['e']='%'.$search.'%';}
     if($level!==''){$base.=' AND p.teaching_level=:lev';$params['lev']=$level;}
     if($dateFrom!==''){$base.=' AND u.created_at >= :df';$params['df']=$dateFrom.' 00:00:00';}
@@ -93,6 +103,7 @@ if ($filter !== 'history') {
       LEFT JOIN users actor ON actor.user_id=h.actor_user_id $base";
     $st=$pdo->prepare($query);$st->execute($params);$historyEvents=$st->fetchAll(PDO::FETCH_ASSOC);
     $archiveWhere=' WHERE 1=1';$archiveParams=[];
+    if ($focusUser) { $archiveWhere.=' AND a.former_user_id=:focus_user'; $archiveParams['focus_user']=$focusUser; }
     if($search!==''){$archiveWhere.=' AND (a.full_name_snapshot LIKE :n OR a.email_snapshot LIKE :e)';$archiveParams['n']='%'.$search.'%';$archiveParams['e']='%'.$search.'%';}
     if($level!==''){$archiveWhere.=' AND a.teaching_level_snapshot=:lev';$archiveParams['lev']=$level;}
     if($dateFrom!==''){$archiveWhere.=' AND a.registered_at_snapshot >= :df';$archiveParams['df']=$dateFrom.' 00:00:00';}
@@ -124,15 +135,40 @@ include __DIR__ . '/includes/header.php';
 <div class="p442-field"><label for="p442-to">Registered to</label><input class="input" id="p442-to" name="registered_to" type="date" value="<?= e($dateTo) ?>"></div>
 <div class="p442-field"><label for="p442-sort">Registered date order</label><select class="input" id="p442-sort" name="sort"><option value="DESC"<?= $direction==='DESC'?' selected':'' ?>>Newest first ↓</option><option value="ASC"<?= $direction==='ASC'?' selected':'' ?>>Oldest first ↑</option></select></div>
 <div class="p442-filter-actions"><button class="btn btn-primary" type="submit">Apply Filters</button><a class="btn btn-outline" href="<?= e(url('approvals.php')) ?>">Reset</a></div></form>
-<div class="table-wrap"><table class="table p44-review-table"><thead><?php if($filter==='history'): ?><tr><th>Teacher</th><th>Email</th><th>Date Registered</th><th>Teaching Level</th><th>Decision / Action</th><th>Performed By / Date</th></tr><?php else: ?><tr><th>Teacher</th><th>Email</th><th>Position / Office</th><th>Teaching Level / Courses</th><th>Date Registered</th><th>Action</th></tr><?php endif; ?></thead><tbody>
+<div class="table-wrap tnts-review-table-wrap"><table class="table tnts-review-table" id="registration-review-table"><thead>
+<tr><th>Teacher / Email</th><th><?= $filter==='history'?'Decision':'Registered' ?></th><th><?= $filter==='history'?'Performed by':'Verification' ?></th><th>Details</th></tr>
+</thead><tbody>
 <?php if($filter==='history'): ?>
-<?php if(!$historyEvents): ?><tr><td colspan="6">No decision or deletion history matches your filters.</td></tr><?php endif; ?>
-<?php foreach($historyEvents as $ev): ?><tr><td><strong><?= e($ev['full_name']) ?></strong></td><td><?= e($ev['email']) ?></td><td><?= e($ev['registered_at'] ?: 'Not recorded') ?></td><td><?= e($ev['teaching_level'] ?: '—') ?></td><td><span class="p44-pill <?= $ev['event_type']==='reject'?'rejected':'verified' ?>"><?= e(ucfirst($ev['event_type'])) ?></span><br><small><?= e($ev['event_notes'] ?: '') ?></small></td><td><?= e($ev['actor_name'] ?: 'Former administrator') ?><br><small><?= e($ev['occurred_at']) ?></small></td></tr><?php endforeach; ?>
+<?php if(!$historyEvents): ?><tr><td colspan="4" class="muted">No decision or deletion history matches your filters.</td></tr><?php endif; ?>
+<?php foreach($historyEvents as $index=>$ev): $detailId='reg-history-'.$index; ?>
+<tr class="tnts-review-main" data-notify-user="<?= (int)($ev['user_id']??0) ?>"><td><strong><?= e($ev['full_name']) ?></strong><small class="tnts-review-subline"><?= e($ev['email']) ?></small></td>
+<td><span class="p44-pill <?= $ev['event_type']==='reject'?'rejected':'verified' ?>"><?= e(ucfirst($ev['event_type'])) ?></span><small class="tnts-review-subline"><?= e($ev['occurred_at']) ?></small></td>
+<td><?= e($ev['actor_name'] ?: 'Former administrator') ?></td>
+<td><button type="button" class="btn btn-outline btn-sm tnts-review-toggle" data-target="<?= e($detailId) ?>" aria-controls="<?= e($detailId) ?>" aria-expanded="false">View Details</button></td></tr>
+<tr id="<?= e($detailId) ?>" class="tnts-review-detail" hidden><td colspan="4"><div class="tnts-review-panel">
+<div class="tnts-review-panel-header"><strong><?= e($ev['full_name']) ?> — <?= e(ucfirst($ev['event_type'])) ?></strong><button type="button" class="btn btn-outline btn-sm tnts-review-close" data-target="<?= e($detailId) ?>">Close</button></div>
+<dl class="tnts-review-facts"><div><dt>Registered</dt><dd><?= e($ev['registered_at'] ?: '–') ?></dd></div><div><dt>Teaching level</dt><dd><?= e($ev['teaching_level'] ?: '–') ?></dd></div><div><dt>Performed by</dt><dd><?= e($ev['actor_name'] ?: 'Former administrator') ?></dd></div><div><dt>Date / time</dt><dd><?= e($ev['occurred_at']) ?></dd></div></dl>
+<div class="tnts-review-note"><span>Decision / audit note</span><em><?= e($ev['event_notes'] ?: 'No note recorded.') ?></em></div>
+</div></td></tr>
+<?php endforeach; ?>
 <?php else: ?>
-<?php if(!$registrations): ?><tr><td colspan="6">No registrations match your filters.</td></tr><?php endif; ?>
-<?php foreach($registrations as $r): ?><tr><td><strong><?= e($r['full_name']) ?></strong></td><td><?= e($r['email']) ?></td><td><?= e(trim(implode(' / ',array_filter([(string)($r['teaching_position']??''),(string)($r['position_office']??'')]))) ?: 'Not specified') ?></td><td><?= e($r['teaching_level'] ?: '—') ?><br><small><?= e($r['courses'] ?: 'No course assigned') ?></small></td><td><?= e($r['created_at']) ?></td><td>
-<?php if($filter==='pending'): ?><div class="p44-review-actions"><form method="post" onsubmit="return confirm('Approve and activate this verified account?')"><?= csrf_field() ?><input type="hidden" name="action" value="approve"><input type="hidden" name="user_id" value="<?= (int)$r['user_id'] ?>"><button type="submit" class="btn btn-primary btn-sm">Approve</button></form><button type="button" class="btn btn-sm p44-reject-btn" onclick="tntsOpenReject(<?= (int)$r['user_id'] ?>, <?= htmlspecialchars(json_encode($r['email'],JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT),ENT_QUOTES,'UTF-8') ?>)">Reject…</button></div><?php else: ?><span class="muted">Awaiting verification</span><?php endif; ?></td></tr><?php endforeach; ?>
-<?php endif; ?></tbody></table></div></div>
+<?php if(!$registrations): ?><tr><td colspan="4" class="muted">No registrations match your filters.</td></tr><?php endif; ?>
+<?php foreach($registrations as $r): $detailId='reg-request-'.(int)$r['user_id']; ?>
+<tr class="tnts-review-main" data-notify-user="<?= (int)$r['user_id'] ?>"><td><strong><?= e($r['full_name']) ?></strong><small class="tnts-review-subline"><?= e($r['email']) ?></small></td>
+<td><?= e($r['created_at']) ?></td>
+<td><span class="pill <?= $filter==='pending'?'green':'orange' ?>"><?= $filter==='pending'?'Email verified':'Awaiting verification' ?></span></td>
+<td><button type="button" class="btn btn-outline btn-sm tnts-review-toggle" data-target="<?= e($detailId) ?>" aria-controls="<?= e($detailId) ?>" aria-expanded="false">View Details</button></td></tr>
+<tr id="<?= e($detailId) ?>" class="tnts-review-detail" hidden><td colspan="4"><div class="tnts-review-panel">
+<div class="tnts-review-panel-header"><strong><?= e($r['full_name']) ?> — Registration Details</strong><button type="button" class="btn btn-outline btn-sm tnts-review-close" data-target="<?= e($detailId) ?>">Close</button></div>
+<dl class="tnts-review-facts"><div><dt>Teaching position</dt><dd><?= e($r['teaching_position'] ?: '–') ?></dd></div><div><dt>Office</dt><dd><?= e($r['position_office'] ?: '–') ?></dd></div><div><dt>Teaching level</dt><dd><?= e($r['teaching_level'] ?: '–') ?></dd></div><div><dt>Courses</dt><dd><?= e($r['courses'] ?: 'No course assigned') ?></dd></div><div><dt>Requested at</dt><dd><?= e($r['created_at']) ?></dd></div><div><dt>Email</dt><dd><?= e($r['email']) ?></dd></div></dl>
+<?php if($filter==='pending'): ?>
+<div class="tnts-review-action-panel"><strong>Review verified registration</strong><div class="tnts-review-actions"><form method="post" onsubmit="return confirm('Approve and activate this verified account?')"><?= csrf_field() ?><input type="hidden" name="action" value="approve"><input type="hidden" name="user_id" value="<?= (int)$r['user_id'] ?>"><button type="submit" class="btn btn-primary btn-sm">Approve</button></form><button type="button" class="btn btn-sm p44-reject-btn" onclick="tntsOpenReject(<?= (int)$r['user_id'] ?>, <?= htmlspecialchars(json_encode($r['email'],JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT),ENT_QUOTES,'UTF-8') ?>)">Reject…</button></div></div>
+<?php else: ?><p class="muted">This registration cannot be reviewed until the teacher verifies their email.</p><?php endif; ?>
+</div></td></tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody></table></div></div>
 <dialog id="p44-reject-dialog" class="p44-review-dialog"><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="reject"><input type="hidden" name="user_id" id="p44-reject-id"><h3>Reject teacher registration?</h3><p>Account: <strong id="p44-reject-email"></strong></p><label for="p44-review-notes">Reason for rejection (required)</label><textarea name="notes" id="p44-review-notes" maxlength="500" required></textarea><div class="actions"><button class="btn btn-outline" type="button" onclick="document.getElementById('p44-reject-dialog').close()">Cancel</button><button class="btn p44-reject-btn" type="submit">Confirm rejection</button></div></form></dialog>
 <script>function tntsOpenReject(id,email){const d=document.getElementById('p44-reject-dialog');document.getElementById('p44-reject-id').value=id;document.getElementById('p44-reject-email').textContent=email;document.getElementById('p44-review-notes').value='';d.showModal();}</script>
+<script src="<?= e(url('assets/js/review_details.js')) ?>" defer></script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

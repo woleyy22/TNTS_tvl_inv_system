@@ -43,83 +43,269 @@
             dismiss.addEventListener('click', () => close(modal.id)); panel.prepend(dismiss);
             modal.addEventListener('click', event => { if (event.target === modal) close(modal.id); });
         });
+        // Phase 3.8.9 — preview on hover; inline expansion on click.
+        // Existing PHP markup/role-filtered URLs remain the source of truth.
         const bar = document.getElementById('sidebar');
         const menu = document.getElementById('menuBtn');
+        const mobileQuery = window.matchMedia('(max-width: 920px)');
         const readPreference = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
         const writePreference = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
-        function setCollapsed(collapsed) {
-            if (!bar || !menu) return;
-            document.body.classList.toggle('sidebar-collapsed', collapsed);
-            menu.setAttribute('aria-expanded', String(!collapsed));
-            menu.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-            menu.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-            bar.inert = false;
-            writePreference('tnts.sidebar.collapsed', String(collapsed));
+        const groups = Array.from(document.querySelectorAll('#sidebar [data-nav-group]'));
+        const pinKey = 'tnts.nav.pinned.v3.' + (bar?.dataset.menuRole || 'general');
+        const collapseKey = 'tnts.sidebar.collapsed';
+        const activeGroup = groups.find(g => g.classList.contains('has-active') || g.querySelector('.nav-submenu [aria-current="page"]'));
+        const activeKey = activeGroup?.dataset.navGroup || null;
+        const savedPin = readPreference(pinKey);
+        let pinnedKey = groups.some(g => g.dataset.navGroup === savedPin) ? savedPin : null;
+        let previewKey = null;
+        let mobileKey = activeKey || pinnedKey;
+        let mobileOpen = false;
+        let drawerReturnFocus = null;
+        let desktopCollapsed = readPreference(collapseKey) === 'true';
+        let userClickedGroup = false;
+        let hidePreviewHandle = null;
+        const findGroup = key => groups.find(g => g.dataset.navGroup === key) || null;
+        const getSummary = g => g?.querySelector(':scope > summary');
+        const getSubmenu = g => g?.querySelector(':scope > .nav-submenu');
+        const getTitle = g => getSummary(g)?.querySelector('.nav-group-label')?.textContent.trim() || 'Section';
+        const isDesktop = () => !mobileQuery.matches;
+        const flyout = document.createElement('div');
+        flyout.id = 'tnts-nav-flyout';
+        flyout.className = 'tnts-nav-flyout';
+        flyout.setAttribute('aria-label', 'Preview section links');
+        flyout.setAttribute('role', 'region');
+        flyout.hidden = true;
+        document.body.appendChild(flyout);
+        const shade = document.createElement('button');
+        shade.type = 'button';
+        shade.className = 'tnts-mobile-shade';
+        shade.setAttribute('aria-label', 'Close navigation menu');
+        shade.hidden = true;
+        document.body.appendChild(shade);
+        function cancelPreviewTimer() {
+            if (hidePreviewHandle !== null) { clearTimeout(hidePreviewHandle); hidePreviewHandle = null; }
         }
-        if (menu) {
-            setCollapsed(readPreference('tnts.sidebar.collapsed') === 'true');
-            menu.addEventListener('click', () => setCollapsed(!document.body.classList.contains('sidebar-collapsed')));
+        function hidePreview() {
+            cancelPreviewTimer();
+            previewKey = null;
+            flyout.hidden = true;
+            flyout.replaceChildren();
+            groups.forEach(g => g.classList.remove('tnts-nav-preview'));
         }
-        // Accordion navigation: page-active groups open automatically; only a
-        // direct click on a main heading makes that group permanently pinned.
-        // Manual pins are stored separately from active-page state.
-        const navGroups = Array.from(document.querySelectorAll('[data-nav-group]'));
-        const navStates = new Map();
-        const isHoverPreview = group => group.matches(':hover') && !document.body.classList.contains('sidebar-collapsed');
-        function renderNavGroups() {
-            navGroups.forEach(group => {
-                const state = navStates.get(group);
-                if (!state) return;
-                const expanded = state.pinned || state.active || state.preview || isHoverPreview(group);
-                group.open = expanded;
-                group.classList.toggle('is-pinned', state.pinned);
-                const summary = group.querySelector(':scope > summary');
+        function scheduleHidePreview() {
+            cancelPreviewTimer();
+            hidePreviewHandle = setTimeout(hidePreview, 240); // room to move mouse into the flyout
+        }
+        function positionFlyout() {
+            if (flyout.hidden || !isDesktop() || !bar) return;
+            const group = findGroup(previewKey);
+            const trigger = getSummary(group)?.getBoundingClientRect();
+            if (!trigger) { hidePreview(); return; }
+            const side = bar.getBoundingClientRect();
+            const gap = 8;
+            const available = window.innerWidth - side.right - gap - 12;
+            if (available < 160) { hidePreview(); return; }
+            flyout.style.width = Math.min(270, available) + 'px';
+            flyout.style.left = (side.right + gap) + 'px';
+            flyout.style.maxHeight = Math.max(130, window.innerHeight - 24) + 'px';
+            const height = Math.min(flyout.scrollHeight, window.innerHeight - 24);
+            flyout.style.top = Math.max(12, Math.min(trigger.top - 5, window.innerHeight - height - 12)) + 'px';
+        }
+        function showPreview(key) {
+            if (!isDesktop() || !bar || !findGroup(key)) return;
+            cancelPreviewTimer();
+            const group = findGroup(key);
+            // Expanded groups already expose their original links inline.
+            if (!desktopCollapsed && group.open) { hidePreview(); return; }
+            if (previewKey === key && !flyout.hidden) return;
+            previewKey = key;
+            groups.forEach(g => g.classList.toggle('tnts-nav-preview', g === group));
+            flyout.replaceChildren();
+            const title = document.createElement('div');
+            title.className = 'tnts-nav-flyout-title';
+            title.textContent = getTitle(group);
+            flyout.append(title, getSubmenu(group).cloneNode(true));
+            flyout.hidden = false;
+            positionFlyout();
+        }
+        function renderGroups() {
+            groups.forEach(g => {
+                const key = g.dataset.navGroup;
+                let expanded;
+                if (mobileQuery.matches) expanded = key === mobileKey;
+                else if (desktopCollapsed) expanded = false;
+                else if (userClickedGroup) expanded = key === pinnedKey;
+                else expanded = key === pinnedKey || key === activeKey;
+                g.open = !!expanded;
+                g.classList.toggle('tnts-nav-selected', !!expanded);
+                g.classList.toggle('is-pinned', key === pinnedKey);
+                const summary = getSummary(g);
                 if (summary) {
-                    summary.setAttribute('aria-expanded', String(expanded));
-                    summary.setAttribute('aria-label', summary.textContent.trim() + (state.pinned ? ', pinned open' : ', not pinned'));
-                    summary.title = state.pinned ? 'Pinned open — click to unpin' : 'Click to keep open';
+                    summary.setAttribute('aria-expanded', String(!!expanded));
+                    summary.setAttribute('aria-controls', getSubmenu(g)?.id || flyout.id);
+                    summary.title = expanded ? 'Collapse ' + getTitle(g) : 'Expand ' + getTitle(g);
                 }
             });
+            // Reopening an inline group should dismiss any hover-only preview.
+            if (previewKey && findGroup(previewKey)?.open && !desktopCollapsed) hidePreview();
         }
-        navGroups.forEach(group => {
-            const summary = group.querySelector(':scope > summary');
-            if (!summary) return;
-            const key = 'tnts.nav.manual.v2.' + (bar?.dataset.menuRole || 'general') + '.' + group.dataset.navGroup;
-            const state = {
-                key,
-                pinned: readPreference(key) === 'true',
-                active: group.classList.contains('has-active') || !!group.querySelector('.nav-submenu [aria-current="page"]'),
-                preview: false
-            };
-            navStates.set(group, state);
-            summary.addEventListener('click', event => {
-                event.preventDefault();
-                if (document.body.classList.contains('sidebar-collapsed')) setCollapsed(false);
-                state.pinned = !state.pinned;
-                writePreference(key, String(state.pinned));
-                renderNavGroups();
+        function setMobileOpen(open, restoreFocus = false) {
+            const nextOpen = Boolean(open) && mobileQuery.matches;
+            if (nextOpen && !mobileOpen) drawerReturnFocus = document.activeElement;
+            mobileOpen = nextOpen;
+            document.body.classList.toggle('tnts-mobile-nav-open', mobileOpen);
+            if (bar) {
+                bar.classList.toggle('open', mobileOpen);
+                if (mobileQuery.matches) bar.inert = !mobileOpen;
+            }
+            shade.hidden = !mobileOpen;
+            // On phones a drawer is modal navigation: prevent accidental background scrolling.
+            document.documentElement.classList.toggle('tnts-drawer-lock', mobileOpen);
+            if (mobileOpen && bar) {
+                const first = bar.querySelector('a[href],summary,button');
+                if (first) first.focus({preventScroll:true});
+            }
+            if (menu && mobileQuery.matches) {
+                menu.setAttribute('aria-expanded', String(mobileOpen));
+                menu.setAttribute('aria-label', mobileOpen ? 'Close navigation' : 'Open navigation');
+                menu.title = mobileOpen ? 'Close navigation' : 'Open navigation';
+            }
+            if (restoreFocus && (drawerReturnFocus?.isConnected || menu)) (drawerReturnFocus?.isConnected ? drawerReturnFocus : menu).focus({preventScroll:true});
+        }
+        function applySidebarMode() {
+            if (!bar || !menu) return;
+            if (mobileQuery.matches) {
+                document.body.classList.remove('sidebar-collapsed');
+                bar.inert = !mobileOpen;
+                setMobileOpen(mobileOpen);
+            } else {
+                setMobileOpen(false);
+                bar.inert = false;
+                document.body.classList.toggle('sidebar-collapsed', desktopCollapsed);
+                menu.setAttribute('aria-expanded', String(!desktopCollapsed));
+                menu.setAttribute('aria-label', desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+                menu.title = desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+            }
+        }
+        if (bar && menu) {
+            groups.forEach((g, index) => {
+                g.classList.add('tnts-nav-group');
+                const summary = getSummary(g);
+                const sub = getSubmenu(g);
+                if (sub) sub.id = 'tnts-nav-submenu-' + index;
+                if (!summary || !sub) return;
+                summary.addEventListener('pointerenter', event => {
+                    if (event.pointerType === 'mouse' || event.pointerType === 'pen') showPreview(g.dataset.navGroup);
+                });
+                summary.addEventListener('pointerleave', () => {
+                    if (previewKey === g.dataset.navGroup) scheduleHidePreview();
+                });
+                summary.addEventListener('focus', () => { // Keyboard users can preview via ArrowDown.
+                    cancelPreviewTimer();
+                });
+                summary.addEventListener('click', event => {
+                    event.preventDefault();
+                    hidePreview();
+                    const key = g.dataset.navGroup;
+                    if (mobileQuery.matches) mobileKey = mobileKey === key ? null : key;
+                    else if (desktopCollapsed) {
+                        // Icon-only mode: the submenu is hover/focus preview only.
+                        // Do not modify the desktop pin or expand an inline section.
+                        showPreview(key);
+                        return;
+                    } else {
+                        pinnedKey = pinnedKey === key ? null : key;
+                        writePreference(pinKey, pinnedKey || '');
+                        userClickedGroup = true;
+                    }
+                    renderGroups();
+                });
+                summary.addEventListener('keydown', event => {
+                    if (event.key === 'ArrowDown' && isDesktop()) {
+                        event.preventDefault();
+                        if (g.open) sub.querySelector('a[href], summary')?.focus();
+                        else {
+                            showPreview(g.dataset.navGroup);
+                            flyout.querySelector('a[href],summary')?.focus();
+                        }
+                    }
+                });
             });
-            // Submenu clicks change the active group on the destination page.
-            // They intentionally do NOT pin the source group.
-            group.addEventListener('pointerenter', event => {
-                if (event.pointerType !== 'mouse') return;
-                state.preview = true;
-                renderNavGroups();
+            flyout.addEventListener('pointerenter', cancelPreviewTimer);
+            flyout.addEventListener('pointerleave', scheduleHidePreview);
+            flyout.addEventListener('focusin', cancelPreviewTimer);
+            flyout.addEventListener('focusout', event => {
+                if (!flyout.contains(event.relatedTarget)) scheduleHidePreview();
             });
-            group.addEventListener('pointerleave', event => {
-                if (event.pointerType !== 'mouse') return;
-                state.preview = false;
-                renderNavGroups();
-            });
-            group.addEventListener('focusin', () => { state.preview = true; renderNavGroups(); });
-            group.addEventListener('focusout', event => {
-                if (!group.contains(event.relatedTarget)) {
-                    state.preview = false;
-                    renderNavGroups();
+            bar.classList.add('tnts-nav-ready');
+            applySidebarMode();
+            renderGroups();
+            menu.addEventListener('click', () => {
+                hidePreview();
+                if (mobileQuery.matches) setMobileOpen(!mobileOpen);
+                else {
+                    desktopCollapsed = !desktopCollapsed;
+                    writePreference(collapseKey, String(desktopCollapsed));
+                    applySidebarMode();
+                    renderGroups();
                 }
             });
-        });
-        renderNavGroups();
+            shade.addEventListener('click', () => setMobileOpen(false, true));
+            document.addEventListener('pointerdown', event => {
+                if (mobileQuery.matches || flyout.hidden) return;
+                if (!flyout.contains(event.target) && !bar.contains(event.target)) hidePreview();
+            });
+            document.addEventListener('keydown', event => {
+                if (mobileQuery.matches && mobileOpen && event.key === 'Tab' && !activeModal && bar) {
+                    const items = focusables(bar);
+                    if (items.length) {
+                        const first = items[0], last = items[items.length-1];
+                        if (event.shiftKey && document.activeElement === first) {event.preventDefault();last.focus();}
+                        else if (!event.shiftKey && document.activeElement === last) {event.preventDefault();first.focus();}
+                    }
+                }
+                if (event.key !== 'Escape' || activeModal) return;
+                if (mobileQuery.matches && mobileOpen) setMobileOpen(false, true);
+                else if (!flyout.hidden) {
+                    const originalTrigger = getSummary(findGroup(previewKey));
+                    hidePreview();
+                    originalTrigger?.focus();
+                }
+            });
+            const modeChange = () => {
+                hidePreview();
+                userClickedGroup = false;
+                mobileKey = activeKey || pinnedKey;
+                applySidebarMode();
+                renderGroups();
+            };
+            if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', modeChange);
+            else mobileQuery.addListener(modeChange);
+            // Tab-switch/BFCache/devtools device emulation can restore a stale
+            // desktop body class without firing matchMedia's 'change' event.
+            // Reconcile with CSS viewport whenever the document is resumed.
+            const resyncWorkspace = (dismissDrawer = false) => {
+                if (!bar || !menu) return;
+                if (mobileQuery.matches) {
+                    document.body.classList.remove('sidebar-collapsed');
+                    if (dismissDrawer) setMobileOpen(false);
+                }
+                applySidebarMode();
+                renderGroups();
+                positionFlyout();
+            };
+            window.addEventListener('pageshow', () => resyncWorkspace(true));
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) resyncWorkspace(true);
+            });
+            window.addEventListener('focus', () => resyncWorkspace(true));
+            window.addEventListener('orientationchange', () => resyncWorkspace(true));
+            window.addEventListener('resize', () => resyncWorkspace(), { passive: true });
+            window.visualViewport?.addEventListener('resize', () => resyncWorkspace(), { passive: true });
+            window.addEventListener('resize', positionFlyout, { passive: true });
+            bar.addEventListener('scroll', positionFlyout, { passive: true });
+            window.addEventListener('scroll', positionFlyout, { passive: true });
+        }
         // Account creation / editing: toggle the password field without
         // affecting its value, validation, or the server-side password hash.
         document.querySelectorAll('[data-toggle-password]').forEach(toggle => {
@@ -170,7 +356,7 @@
         }
         // Wide record tables scroll within the desktop workspace.
         document.querySelectorAll('.app-page main table').forEach(table => {
-            if (table.closest('.table-wrap')) return;
+            if (table.closest('.table-wrap, .tnts-admin-table-wrap, .tnts-grid-scroll')) return;
             const wrap = document.createElement('div'); wrap.className = 'table-wrap'; wrap.tabIndex = 0;
             wrap.setAttribute('role', 'region'); wrap.setAttribute('aria-label', 'Scrollable records table');
             table.before(wrap); wrap.append(table);
@@ -245,4 +431,166 @@
   const save=()=>store.set(key,main&&main.scrollHeight>main.clientHeight?main.scrollTop:window.scrollY);
   window.addEventListener('pagehide',save);window.addEventListener('scroll',save,{passive:true});if(main)main.addEventListener('scroll',save,{passive:true});
  });
+})();
+
+
+/* Phase 3.8.28 — responsive presentation only.
+   Existing table rows, IDs, buttons, inputs and data attributes are retained:
+   changing display at mobile widths must never create a second form value or
+   detach a detail row from its parent. All server-side logic stays unchanged. */
+(() => {
+  'use strict';
+  const attach = () => {
+    const configurations = [
+      ['#p34InventoryTable', 'inventory'],
+      ['#p6-items', 'borrow-items'],
+      ['#p6-records', 'borrow-records'],
+      ['.tnts-data-table[data-grid-table]', 'receiving'],
+      ['.p3817-iar-table', 'iar-inspection'],
+      ['.card.legacy-030 table.legacy-031', 'delivery-items'],
+      ['.p51-scroll table', 'transfer-requests'],
+      ['.p3817-iar-table', 'iar-inspection'],
+      ['.t18-history', 'transfer-history'],
+      ['#p36Items', 'ics-issue'],
+      ['.ics12-list', 'ics-records'],
+      ['.ics31-table', 'ics-return']
+    ];
+    configurations.forEach(([selector, kind]) => {
+      document.querySelectorAll(selector).forEach(table => {
+        if (table.dataset.tntsMobileReady === '1') return;
+        let th = [...table.querySelectorAll('thead tr:first-child > th')];
+        // Older receiving-detail tables put a TH-only row directly in TBODY.
+        // Keep that header row separate rather than treating it as an item.
+        let implicitHeader = null;
+        if (!th.length && table.rows.length && [...table.rows[0].cells].every(cell => cell.tagName === 'TH')) {
+          implicitHeader = table.rows[0];
+          th = [...implicitHeader.cells];
+          implicitHeader.classList.add('tnts-m28-header-row');
+        }
+        if (!th.length) return;
+        table.dataset.tntsMobileReady = '1';
+        table.classList.add('tnts-m28-cards');
+        table.dataset.tntsMobileKind = kind;
+        const labels = th.map(head => {
+          const clone = head.cloneNode(true);
+          clone.querySelectorAll('.p34-indicator,.p6ui-sort-indicator,.tnts-grid-indicator,.t18-sort-indicator').forEach(el => el.remove());
+          return (clone.textContent || '').replace(/[–↑↓−]+\s*$/, '').replace(/\s+/g, ' ').trim();
+        });
+        // The data label belongs to the existing physical cell, so all input
+        // names and dynamic detail toggles continue to work untouched.
+        [...table.tBodies].forEach(body => [...body.rows].forEach(row => {
+          if (row === implicitHeader) return;
+          if (row.cells.length === 1 && row.cells[0].colSpan > 1) {
+            row.classList.add('tnts-m28-details');
+            return;
+          }
+          [...row.cells].forEach((td, i) => {
+            td.dataset.tntsMobileLabel = labels[i] || 'Details';
+          });
+          row.classList.add('tnts-m28-record');
+        }));
+        // Table-header sort actions would be hidden under card presentation.
+        // Provide a mobile equivalent backed by the ORIGINAL existing controls.
+        const sortButtons = th.map((h,i) => ({label:labels[i],button:h.querySelector('button[data-grid-sort],button.p6-sort,button[data-t18-sort]'),link:h.querySelector('a.ics12-sort')})).filter(o => o.button || o.link);
+        if (!sortButtons.length) return;
+        const holder = document.createElement('label');
+        holder.className = 'tnts-m28-sort';
+        const name = document.createElement('span'); name.textContent = 'Sort records';
+        const select = document.createElement('select');
+        select.setAttribute('aria-label', 'Mobile record sorting');
+        const defaultOption = document.createElement('option');
+        defaultOption.value = ''; defaultOption.textContent = 'Choose sort';
+        select.append(defaultOption);
+        sortButtons.forEach((o, i) => {
+          const directions = o.link ? ['default'] : ['asc','desc'];
+          directions.forEach(direction => {
+            const option = document.createElement('option');
+            option.value = i + ':' + direction;
+            option.textContent = o.label + (direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '');
+            select.append(option);
+          });
+        });
+        select.addEventListener('change', () => {
+          const [key, target] = select.value.split(':');
+          const item = sortButtons[Number(key)];
+          if (!item || !select.value) return;
+          if (item.link) { window.location.assign(item.link.href); return; }
+          const button = item.button;
+          // Up to 3 cycles are enough for existing tri-state controls. Avoid
+          // bypassing module pagination/filters or manually reordering rows.
+          for (let attempts=0;attempts<3;attempts++) {
+            const state = button.dataset.sortDirection || button.dataset.direction || button.dataset.sortState || null;
+            const symbol = button.querySelector('[data-grid-indicator],.p6ui-sort-indicator,.t18-sort-indicator')?.textContent?.trim();
+            const effective = state === 'asc' || symbol === '↑' ? 'asc' : state === 'desc' || symbol === '↓' ? 'desc' : 'none';
+            if (effective === target) break;
+            button.click();
+          }
+        });
+        holder.append(name, select);
+        const parent = table.parentElement;
+        if (parent) parent.insertBefore(holder, table);
+      });
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();
+
+
+/* TNTS Phase 3.8.29 — Mobile administrative records and reports.
+ * Add labels to the ORIGINAL table cells; preserve all PHP forms, sorting,
+ * paging, approval actions and print links. Desktop remains unchanged.
+ */
+(() => {
+  'use strict';
+  function annotate() {
+    const file = window.location.pathname.split('/').pop().toLowerCase();
+    const pageType = {'history.php':'history','courses.php':'tracks',
+      'positions_offices.php':'positions','units.php':'units'}[file];
+    if (pageType) document.body.classList.add('tnts-m29-'+pageType);
+    const tables = [
+      ['#accounts-list', 'accounts'],
+      ['#registration-review-table', 'registration'],
+      ['#personnel-review-table', 'personnel'],
+      ['.legacy-030 table.legacy-128', 'reports'],
+      ['.legacy-030 table.legacy-133', 'reports'],
+      ['body.tnts-m29-history .card .table-wrap > table.table', 'history'],
+      ['body.tnts-m29-tracks .card .table-wrap > table.table', 'tracks'],
+      ['body.tnts-m29-positions .card .table-wrap > table.table', 'positions'],
+      ['body.tnts-m29-units .tnts-admin-table[data-admin-table]', 'units']
+    ];
+    tables.forEach(([selector, kind]) => {
+      document.querySelectorAll(selector).forEach(table => {
+        if (table.dataset.tntsM29Ready) return;
+        const th = Array.from(table.querySelectorAll('thead tr:first-child > th'));
+        if (!th.length) return;
+        table.dataset.tntsM29Ready = '1';
+        table.classList.add('tnts-m29-table');
+        table.dataset.tntsM29Kind = kind;
+        const labels = th.map(head => (head.textContent || '').replace(/[–↑↓−]+\s*$/, '').replace(/\s+/g, ' ').trim());
+        Array.from(table.tBodies).forEach(body => Array.from(body.rows).forEach(row => {
+          if (row.classList.contains('p451-detail-row') || row.classList.contains('tnts-review-detail')) {
+            row.classList.add('tnts-m29-expanded');
+            return;
+          }
+          if (row.cells.length === 1 && row.cells[0].colSpan > 1) {
+            row.classList.add('tnts-m29-wide-row');
+            return;
+          }
+          row.classList.add('tnts-m29-item');
+          Array.from(row.cells).forEach((cell, i) => {
+            cell.dataset.tntsM29Label = labels[i] || 'Details';
+          });
+        }));
+      });
+    });
+    if (['accounts.php','approvals.php','personnel_reviews.php','reports.php',
+         'history.php','transfer_audit.php','batch_reconciliation.php',
+         'courses.php','positions_offices.php','units.php','inventory_categories.php',
+         'inventory_batches.php','central_stock_conditions.php'].includes(file)) {
+      document.body.classList.add('tnts-m29-administration');
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', annotate);
+  else annotate();
 })();

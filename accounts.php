@@ -1,5 +1,5 @@
 <?php
-// TNTS Phase 4.5.1 — table-first accounts / direct course changes
+// Account management — retain the existing account permissions and transaction handlers
 require_once __DIR__ . '/includes/auth.php';
 $me = require_role(['supply_officer','tvl_head']);
 $myId=(int)$me['id'];
@@ -206,9 +206,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 $q=trim((string)($_GET['q']??''));$roleF=(string)($_GET['role']??'');$statusF=(string)($_GET['status']??'');
 $approvalF=(string)($_GET['approval']??'');$levelF=(string)($_GET['level']??'');
 $courseF=(int)($_GET['course']??0);$from=(string)($_GET['from']??'');$to=(string)($_GET['to']??'');
-$sort=(string)($_GET['sort']??'name');$dir=strtolower((string)($_GET['dir']??'asc'));
+// Three-state account sorting: default (-) -> ascending -> descending -> default.
+$sort=(string)($_GET['sort']??'');$dir=strtolower((string)($_GET['dir']??''));
 $columns=['name'=>'u.full_name','email'=>'u.email','role'=>'u.role','courses'=>'course_list','level'=>'p.teaching_level','status'=>'u.status','approval'=>'u.registration_status','registered'=>'u.created_at'];
-if(!isset($columns[$sort]))$sort='name';if(!in_array($dir,['asc','desc'],true))$dir='asc';
+if(!isset($columns[$sort]) || !in_array($dir,['asc','desc'],true)){$sort='';$dir='';}
 $sql="SELECT u.user_id,u.full_name,u.email,u.role,u.status,u.registration_status,u.registration_source,u.email_verified_at,u.created_at, p.teaching_position,p.position_office,p.teaching_level,p.suffix,p.gender,p.birthday,p.religion, (SELECT GROUP_CONCAT(c.course_name ORDER BY c.course_name SEPARATOR ', ') FROM teacher_courses tc JOIN courses c ON c.course_id=tc.course_id WHERE tc.user_id=u.user_id) AS course_list FROM users u LEFT JOIN user_profiles p ON p.user_id=u.user_id WHERE 1=1";
 $args=[];
 if($q!==''){$sql.=' AND (u.full_name LIKE ? OR u.email LIKE ?)';$args[]='%'.$q.'%';$args[]='%'.$q.'%';}
@@ -219,7 +220,7 @@ if(in_array($levelF,$levels,true)){$sql.=' AND p.teaching_level=?';$args[]=$leve
 if(in_array($courseF,$courseIds,true)){$sql.=' AND EXISTS (SELECT 1 FROM teacher_courses tc2 WHERE tc2.user_id=u.user_id AND tc2.course_id=?)';$args[]=$courseF;}
 if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$from)){$sql.=' AND u.created_at>=?';$args[]=$from.' 00:00:00';}
 if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$to)){$sql.=' AND u.created_at<?';$args[]=date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00';}
-$sql.=' ORDER BY '.$columns[$sort].' '.strtoupper($dir).',u.user_id ASC';
+$sql.=$sort!=='' ? ' ORDER BY '.$columns[$sort].' '.strtoupper($dir).',u.user_id ASC' : ' ORDER BY u.full_name ASC,u.user_id ASC';
 $st=$pdo->prepare($sql);$st->execute($args);$users=$st->fetchAll(PDO::FETCH_ASSOC);
 $allAssigned=[];
 if($users){$ids=array_map('intval',array_column($users,'user_id'));$placeholders=implode(',',array_fill(0,count($ids),'?'));
@@ -228,14 +229,15 @@ if($users){$ids=array_map('intval',array_column($users,'user_id'));$placeholders
 }
 $pendingCount=(int)db_scalar("SELECT COUNT(*) FROM users WHERE role='teacher' AND registration_source='self_registration' AND registration_status='pending' AND email_verified_at IS NOT NULL");
 $pageTitle='Accounts';$active='accounts.php';
-function p451_sort_link($key,$label,$sort,$dir) {
- $args=$_GET; $args['sort']=$key; $args['dir']=($sort===$key&&$dir==='asc')?'desc':'asc';
- $url='accounts.php?'.http_build_query($args);
- $state=$sort===$key?($dir==='asc'?'↑':'↓'):'−';
- return '<a class="p451-sort" href="'.e($url).'" title="Sort '.e($label).'">'.e($label).'<span aria-hidden="true">'.$state.'</span></a>';
+function p451_sort_button($key,$label,$sort,$dir) {
+ $active=$sort===$key && in_array($dir,['asc','desc'],true);
+ $direction=$active?$dir:'none';
+ $symbol=$direction==='asc'?'↑':($direction==='desc'?'↓':'–');
+ return '<button type="button" class="p451-sort p451-browser-sort" data-key="'.e($key).'" data-direction="'.e($direction).'" aria-label="Sort '.e($label).' ascending">'.e($label).'<span class="p451-sort-indicator" aria-hidden="true">'.$symbol.'</span></button>';
 }
 require __DIR__.'/includes/header.php';
 ?>
+<!-- Record-table styling is included in assets/css/style.css. -->
 <div class="page-head p451-page-head"><div><h1>Account Management</h1><p>Review accounts, personnel and course assignments. Course changes do not require approval.</p></div><div class="p451-head-actions"><a class="btn btn-outline" href="<?= e(url('approvals.php')) ?>">Registration Approvals (<?= $pendingCount ?>)</a><?php if($isOfficer): ?><button type="button" class="btn btn-primary" id="p451-add-toggle" aria-expanded="false" aria-controls="p451-add-panel">+ Add Account</button><?php endif; ?></div></div>
 <?php if(!$isOfficer): ?><div class="alert alert-info">Read-only access: TVL Head can view all school accounts and review registrations or personnel requests, but cannot edit or delete accounts here.</div><?php endif; ?>
 <?php if($problems): ?><div class="alert alert-error" role="alert"><?php foreach($problems as $error): ?><p><?= e($error) ?></p><?php endforeach; ?></div><?php endif; ?>
@@ -248,38 +250,170 @@ require __DIR__.'/includes/header.php';
   </form>
 </section>
 <?php endif; ?>
-<section class="card p451-list-card"><form method="get" class="p451-filters" aria-label="Account filters">
-<div class="field p451-search"><label for="p451-search">Search name or email</label><input id="p451-search" class="input" name="q" value="<?= e($q) ?>" type="search" placeholder="Search accounts"></div>
+<section class="card p451-list-card p3822-account-browser"><form method="get" class="p451-filters p3822-filters" id="p3822-account-filters" aria-label="Account filters">
+<div class="field p451-search"><label for="p451-search">Search accounts</label><input id="p451-search" class="input" name="q" value="<?= e($q) ?>" type="search" placeholder="Search accounts"></div>
 <div class="field"><label for="p451-role">Role</label><select class="input" id="p451-role" name="role"><option value="">All roles</option><?php foreach($roles as $r): ?><option value="<?= e($r) ?>" <?= $roleF===$r?'selected':'' ?>><?= e(role_label($r)) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label for="p451-status">Access</label><select class="input" id="p451-status" name="status"><option value="">Any status</option><option value="active" <?= $statusF==='active'?'selected':'' ?>>Active</option><option value="inactive" <?= $statusF==='inactive'?'selected':'' ?>>Inactive</option></select></div>
 <div class="field"><label for="p451-approval">Registration</label><select class="input" id="p451-approval" name="approval"><option value="">All decisions</option><?php foreach(['pending','approved','rejected'] as $value): ?><option value="<?= e($value) ?>" <?= $approvalF===$value?'selected':'' ?>><?= e(ucfirst($value)) ?></option><?php endforeach; ?></select></div>
-<div class="field"><label for="p451-level">Teaching level</label><select class="input" name="level" id="p451-level"><option value="">All levels</option><?php foreach($levels as $value): ?><option value="<?= e($value) ?>" <?= $levelF===$value?'selected':'' ?>><?= e($value==='JHS_SHS'?'Both JHS / SHS':$value) ?></option><?php endforeach; ?></select></div>
+<details class="p3822-advanced" id="p3822-more-filters"><summary>More filters <span aria-hidden="true">⌄</span></summary><div class="p3822-advanced-grid"><div class="field"><label for="p451-level">Teaching level</label><select class="input" name="level" id="p451-level"><option value="">All levels</option><?php foreach($levels as $value): ?><option value="<?= e($value) ?>" <?= $levelF===$value?'selected':'' ?>><?= e($value==='JHS_SHS'?'Both JHS / SHS':$value) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label for="p451-course">Assigned course</label><select class="input" name="course" id="p451-course"><option value="">All courses</option><?php foreach($allCourses as $course): ?><option value="<?= (int)$course['course_id'] ?>" <?= $courseF===(int)$course['course_id']?'selected':'' ?>><?= e($course['course_name']) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label for="p451-from">Registered from</label><input class="input" type="date" id="p451-from" name="from" value="<?= e($from) ?>"></div>
 <div class="field"><label for="p451-to">Registered through</label><input class="input" type="date" id="p451-to" name="to" value="<?= e($to) ?>"></div>
-<div class="p451-filter-actions"><button type="submit" class="btn btn-primary">Apply filters</button><a href="<?= e(url('accounts.php')) ?>" class="btn btn-outline">Reset</a></div>
-<input type="hidden" name="sort" value="<?= e($sort) ?>"><input type="hidden" name="dir" value="<?= e($dir) ?>">
+</div></details>
+<div class="p451-filter-actions"><button type="submit" class="btn btn-primary" id="p3822-apply">Apply filters</button><a id="p3822-reset" href="<?= e(url('accounts.php')) ?>" class="btn btn-outline">Reset</a></div>
+
 </form>
-<div class="p451-table-heading"><strong>School accounts</strong><span class="muted"><?= count($users) ?> matching account(s)</span></div>
-<div class="table-wrap"><table class="table p451-table"><thead><tr>
-<th><?= p451_sort_link('name','Name',$sort,$dir) ?></th><th><?= p451_sort_link('email','Email',$sort,$dir) ?></th><th><?= p451_sort_link('role','Role',$sort,$dir) ?></th><th><?= p451_sort_link('courses','Courses',$sort,$dir) ?></th><th><?= p451_sort_link('level','Level',$sort,$dir) ?></th><th><?= p451_sort_link('status','Access',$sort,$dir) ?></th><th><?= p451_sort_link('approval','Registration',$sort,$dir) ?></th><th><?= p451_sort_link('registered','Registered',$sort,$dir) ?></th><th>Actions</th>
+<div class="p451-table-heading p3822-list-toolbar"><div class="p3822-heading"><strong>School accounts</strong><span class="muted" id="p3822-account-count" aria-live="polite"><?= count($users) ?> matching account(s)</span></div><div class="p3822-table-actions"><label class="p3822-toolbar-select"><span>Quick sort</span><select id="p3822-quick-sort" class="input"><option value="default">Default order</option><option value="name:asc">Account A–Z</option><option value="name:desc">Account Z–A</option><option value="role:asc">Role A–Z</option><option value="role:desc">Role Z–A</option><option value="courses:desc">Most assigned courses</option><option value="courses:asc">Fewest assigned courses</option><option value="status:asc">Access A–Z</option><option value="status:desc">Access Z–A</option><option value="approval:asc">Registration A–Z</option><option value="approval:desc">Registration Z–A</option></select></label><label class="record-pagesize"><span>Show</span><select id="account-page-size" class="input"><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label></div></div>
+<div class="table-wrap record-table-wrap"><table class="table p451-table record-table accounts-compact-table" id="accounts-list"><thead><tr>
+<th><?= p451_sort_button('name','Account',$sort,$dir) ?></th><th><?= p451_sort_button('role','Role',$sort,$dir) ?></th><th><?= p451_sort_button('courses','Courses',$sort,$dir) ?></th><th><?= p451_sort_button('status','Access',$sort,$dir) ?></th><th><?= p451_sort_button('approval','Registration',$sort,$dir) ?></th><th>Details</th>
 </tr></thead><tbody>
-<?php if(!$users): ?><tr><td colspan="9" class="muted">No accounts match these filters.</td></tr><?php endif; ?>
+<tr class="p3822-empty" hidden><td colspan="6" class="muted">No accounts match these filters.</td></tr>
 <?php foreach($users as $u): $uid=(int)$u['user_id']; ?>
-<tr class="p451-main-row" id="account-row-<?= $uid ?>"><td><strong><?= e($u['full_name']) ?></strong></td><td class="p451-email"><?= e($u['email']) ?></td><td><?= e(role_label($u['role'])) ?></td><td class="p451-courses"><?= e($u['course_list']?:'—') ?></td><td><?= e($u['teaching_level']==='JHS_SHS'?'Both':($u['teaching_level']?:'—')) ?></td><td><span class="pill <?= $u['status']==='active'?'green':'gray' ?>"><?= e(ucfirst($u['status'])) ?></span></td><td><span class="pill <?= $u['registration_status']==='approved'?'green':($u['registration_status']==='pending'?'orange':'red') ?>"><?= e(ucfirst($u['registration_status'])) ?></span></td><td><?= e(date('M j, Y',strtotime($u['created_at']))) ?></td><td class="p451-row-actions">
-<?php if($isOfficer): ?>
-<button type="button" class="btn btn-outline btn-sm p451-expand" aria-expanded="false" aria-controls="p451-detail-<?= $uid ?>" data-target="p451-detail-<?= $uid ?>">Edit <span aria-hidden="true">⌄</span></button>
-<?php if($uid!==$myId): ?><form method="post" class="inline" onsubmit="return confirm('<?= $u['status']==='active'?'Deactivate':'Reactivate' ?> this account?')"><?= csrf_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $uid ?>"><button class="btn btn-sm p451-toggle" type="submit"><?= $u['status']==='active'?'Deactivate':'Reactivate' ?></button></form><?php if($u['role']==='teacher'): ?><button type="button" class="btn btn-sm p451-delete" data-delete-id="<?= $uid ?>" data-delete-email="<?= e($u['email']) ?>">Delete…</button><?php endif; ?><?php endif; ?>
-<?php else: ?><button class="btn btn-outline btn-sm p451-expand" type="button" aria-expanded="false" aria-controls="p451-detail-<?= $uid ?>" data-target="p451-detail-<?= $uid ?>">View <span aria-hidden="true">⌄</span></button><?php endif; ?>
-</td></tr>
-<tr id="p451-detail-<?= $uid ?>" class="p451-detail-row" hidden><td colspan="9"><div class="p451-expanded"><div class="p451-expanded-header"><h3><?= $isOfficer?'Edit account':'Account details' ?> — <?= e($u['full_name']) ?></h3><button type="button" class="btn btn-outline btn-sm p451-close-row" data-target="p451-detail-<?= $uid ?>">Close details ↑</button></div>
-<?php if($isOfficer): ?><form method="post" autocomplete="off" class="p451-account-form" data-role-form><?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= $uid ?>">
-<?php $v=$u;$v['courses']=$allAssigned[$uid]??[];if($openEdit===$uid)$v=array_merge($v,$posted);$prefix='edit-'.$uid;include __DIR__.'/includes/p451_account_fields.php'; ?>
-<div class="p451-form-actions"><button type="submit" class="btn btn-primary">Save changes</button><button type="button" class="btn btn-outline p451-close-row" data-target="p451-detail-<?= $uid ?>">Cancel</button></div></form>
-<?php else: ?><dl class="p451-readonly-grid"><dt>Full name</dt><dd><?= e($u['full_name']) ?></dd><dt>Email</dt><dd><?= e($u['email']) ?></dd><dt>Position</dt><dd><?= e($u['teaching_position']?:'Not recorded') ?></dd><dt>Office</dt><dd><?= e($u['position_office']?:'Not recorded') ?></dd><dt>Teaching level</dt><dd><?= e($u['teaching_level']?:'Not recorded') ?></dd><dt>Assigned courses</dt><dd><?= e($u['course_list']?:'None') ?></dd><dt>Registered</dt><dd><?= e($u['created_at']) ?></dd></dl><?php endif; ?>
+<tr class="p451-main-row" data-account-id="<?= $uid ?>" id="account-row-<?= $uid ?>" data-name="<?= e($u['full_name']) ?>" data-email="<?= e($u['email']) ?>" data-role="<?= e($u['role']) ?>" data-status="<?= e($u['status']) ?>" data-approval="<?= e($u['registration_status']) ?>" data-level="<?= e($u['teaching_level']??'') ?>" data-courses="<?= e(implode(',',array_map('intval',$allAssigned[$uid]??[]))) ?>" data-course-count="<?= count($allAssigned[$uid]??[]) ?>" data-registered="<?= e(substr((string)$u['created_at'],0,10)) ?>">
+ <td><strong><?= e($u['full_name']) ?></strong><small class="record-subline"><?= e($u['email']) ?></small></td>
+ <td><?= e(role_label($u['role'])) ?></td>
+ <td><span class="record-value"><?= $u['role']==='teacher' ? count($allAssigned[$uid]??[]).' assigned' : '–' ?></span></td>
+ <td><span class="pill <?= $u['status']==='active'?'green':'gray' ?>"><?= e(ucfirst($u['status'])) ?></span></td>
+ <td><span class="pill <?= $u['registration_status']==='approved'?'green':($u['registration_status']==='pending'?'orange':'red') ?>"><?= e(ucfirst($u['registration_status'])) ?></span></td>
+ <td><button type="button" class="btn btn-outline btn-sm p451-expand" aria-expanded="false" aria-controls="p451-detail-<?= $uid ?>" data-target="p451-detail-<?= $uid ?>">View Details <span aria-hidden="true">⌄</span></button></td>
+</tr>
+<tr id="p451-detail-<?= $uid ?>" class="p451-detail-row" data-account-detail="<?= $uid ?>" hidden><td colspan="6"><div class="p451-expanded record-detail-panel">
+ <div class="p451-expanded-header"><h3><?= e($u['full_name']) ?></h3><button type="button" class="btn btn-outline btn-sm p451-close-row" data-target="p451-detail-<?= $uid ?>">Close details ↑</button></div>
+ <div class="record-facts">
+  <div><span>Email</span><strong><?= e($u['email']) ?></strong></div>
+  <div><span>Teaching level</span><strong><?= e($u['teaching_level']==='JHS_SHS'?'Both JHS / SHS':($u['teaching_level']?:'–')) ?></strong></div>
+  <div><span>Teaching position / office</span><strong><?= e($u['teaching_position']?:'–') ?><?= $u['position_office']?' · '.e($u['position_office']):'' ?></strong></div>
+  <div><span>Registered</span><strong><?= e(date('M j, Y · g:i A',strtotime($u['created_at']))) ?></strong></div>
+ </div>
+ <div class="record-note"><strong>Assigned courses</strong><p><?= e($u['course_list']?:'None recorded') ?></p></div>
+ <?php if($isOfficer): ?>
+  <div class="record-account-actions">
+   <?php if($uid!==$myId): ?><form method="post" class="inline" onsubmit="return confirm('<?= $u['status']==='active'?'Deactivate':'Reactivate' ?> this account?')"><?= csrf_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $uid ?>"><button class="btn btn-sm p451-toggle" type="submit"><?= $u['status']==='active'?'Deactivate':'Reactivate' ?></button></form>
+     <?php if($u['role']==='teacher'): ?><button type="button" class="btn btn-sm p451-delete" data-delete-id="<?= $uid ?>" data-delete-email="<?= e($u['email']) ?>">Delete…</button><?php endif; ?>
+   <?php endif; ?>
+  </div>
+  <details class="record-edit-section" <?= $openEdit===$uid?'open':'' ?>><summary>Edit account information <span aria-hidden="true">⌄</span></summary>
+   <form method="post" autocomplete="off" class="p451-account-form" data-role-form><?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= $uid ?>">
+    <?php $v=$u;$v['courses']=$allAssigned[$uid]??[];if($openEdit===$uid)$v=array_merge($v,$posted);$prefix='edit-'.$uid;include __DIR__.'/includes/p451_account_fields.php'; ?>
+    <div class="p451-form-actions"><button type="submit" class="btn btn-primary">Save changes</button><button type="button" class="btn btn-outline p451-close-row" data-target="p451-detail-<?= $uid ?>">Cancel</button></div>
+   </form>
+  </details>
+ <?php else: ?><p class="muted">This account is available for viewing only.</p><?php endif; ?>
 </div></td></tr>
 <?php endforeach; ?>
 </tbody></table></div>
+<div class="record-pagination" aria-label="Account pages"><button type="button" class="btn btn-outline btn-sm" id="accounts-prev">Previous</button><span id="accounts-pages-label"></span><button type="button" class="btn btn-outline btn-sm" id="accounts-next">Next</button></div>
+<script>
+(function(){
+ 'use strict';
+ const table=document.getElementById('accounts-list');
+ const form=document.getElementById('p3822-account-filters');
+ if(!table||!form)return;
+ const tbody=table.tBodies[0];
+ const rows=Array.from(tbody.querySelectorAll('tr[data-account-id]'));
+ const originals=rows.map((row,index)=>({row,detail:document.getElementById('p451-detail-'+row.dataset.accountId),index}));
+ const buttons=Array.from(table.querySelectorAll('.p451-browser-sort'));
+ const quick=document.getElementById('p3822-quick-sort');
+ const pageSize=document.getElementById('account-page-size');
+ const label=document.getElementById('accounts-pages-label');
+ const prev=document.getElementById('accounts-prev');
+ const next=document.getElementById('accounts-next');
+ const count=document.getElementById('p3822-account-count');
+ const empty=tbody.querySelector('.p3822-empty');
+ const reset=document.getElementById('p3822-reset');
+ const advanced=document.getElementById('p3822-more-filters');
+ const filters={};
+ ['q','role','status','approval','level','course','from','to'].forEach(key=>filters[key]=form.elements.namedItem(key));
+ let page=1,sortKey=<?= json_encode($sort) ?>,sortDirection=<?= json_encode($dir?:'none') ?>;
+ const read=key=>String(filters[key]?.value||'').trim();
+ const norm=value=>String(value||'').toLocaleLowerCase();
+ function eligible(row){
+   const d=row.dataset;
+   const needle=norm(read('q'));
+   if(needle && !norm(d.name+' '+d.email).includes(needle))return false;
+   if(read('role') && d.role!==read('role'))return false;
+   if(read('status') && d.status!==read('status'))return false;
+   if(read('approval') && d.approval!==read('approval'))return false;
+   if(read('level') && d.level!==read('level'))return false;
+   if(read('course') && !String(d.courses||'').split(',').includes(read('course')))return false;
+   if(read('from') && d.registered<read('from'))return false;
+   if(read('to') && d.registered>read('to'))return false;
+   return true;
+ }
+ function compare(a,b){
+   if(sortDirection==='none'||!sortKey)return a.index-b.index;
+   let va=a.row.dataset[sortKey]||'',vb=b.row.dataset[sortKey]||'';
+   if(sortKey==='courses'){va=Number(a.row.dataset.courseCount||0);vb=Number(b.row.dataset.courseCount||0);}
+   const sign=sortDirection==='asc'?1:-1;
+   return sign*(typeof va==='number'?va-vb:String(va).localeCompare(String(vb),undefined,{numeric:true,sensitivity:'base'}))||a.index-b.index;
+ }
+ function closeInvisible(record){
+   if(!record.detail)return;
+   record.detail.hidden=true;
+   const button=record.row.querySelector('.p451-expand');
+   if(button)button.setAttribute('aria-expanded','false');
+ }
+ function render(){
+   const sorted=originals.slice().sort(compare);
+   const matching=sorted.filter(r=>eligible(r.row));
+   const total=Math.max(1,Math.ceil(matching.length/Number(pageSize.value||10)));
+   page=Math.max(1,Math.min(page,total));
+   const start=(page-1)*Number(pageSize.value||10);
+   const visibleIds=new Set(matching.slice(start,start+Number(pageSize.value||10)).map(x=>x.index));
+   const frag=document.createDocumentFragment();
+   sorted.forEach(record=>{
+     const visible=visibleIds.has(record.index);
+     record.row.hidden=!visible;
+     if(!visible)closeInvisible(record);
+     frag.appendChild(record.row);
+     if(record.detail)frag.appendChild(record.detail);
+   });
+   if(empty){empty.hidden=matching.length>0;frag.appendChild(empty);}
+   tbody.appendChild(frag);
+   count.textContent=matching.length+' matching account(s)';
+   label.textContent='Page '+page+' of '+total;
+   prev.disabled=page<=1;next.disabled=page>=total;
+ }
+ function reflectSort(){
+   buttons.forEach(button=>{
+     const active=sortKey===button.dataset.key?sortDirection:'none';
+     button.dataset.direction=active;
+     button.querySelector('.p451-sort-indicator').textContent=active==='asc'?'↑':active==='desc'?'↓':'–';
+     button.closest('th').removeAttribute('aria-sort');
+     if(active!=='none')button.closest('th').setAttribute('aria-sort',active==='asc'?'ascending':'descending');
+     button.setAttribute('aria-label','Sort '+button.textContent.replace(/[↑↓–]/g,'').trim()+': '+(active==='none'?'default':active)+'. Click to '+(active==='none'?'sort ascending':active==='asc'?'sort descending':'return to default'));
+   });
+   const option=sortDirection==='none'?'default':sortKey+':'+sortDirection;
+   quick.value=Array.from(quick.options).some(o=>o.value===option)?option:'default';
+ }
+ function setSort(key,direction){sortKey=direction==='none'?'':key;sortDirection=direction;page=1;reflectSort();render();}
+ buttons.forEach(button=>button.addEventListener('click',()=>{
+   const next=sortKey!==button.dataset.key?'asc':sortDirection==='asc'?'desc':sortDirection==='desc'?'none':'asc';
+   setSort(button.dataset.key,next);
+ }));
+ quick.addEventListener('change',()=>{
+   const [key,direction]=quick.value==='default'?['','none']:quick.value.split(':');setSort(key,direction);
+ });
+ pageSize.addEventListener('change',()=>{page=1;render();});
+ prev.addEventListener('click',()=>{page--;render();});
+ next.addEventListener('click',()=>{page++;render();});
+ // Keep GET form fallback for disabled JS, but filter locally when JS is active.
+ form.addEventListener('submit',event=>{event.preventDefault();page=1;render();});
+ ['role','status','approval','level','course','from','to'].forEach(key=>filters[key]?.addEventListener('change',()=>{page=1;render();}));
+ filters.q?.addEventListener('input',()=>{page=1;render();});
+ if(['level','course','from','to'].some(key=>read(key)!==''))advanced.open=true;
+ reset.addEventListener('click',event=>{
+   // If this page was previously narrowed by a server-side URL query, reload once
+   // to restore accounts that were never included in this response.
+   const query=new URLSearchParams(location.search);
+   if(Array.from(query.keys()).some(k=>['q','role','status','approval','level','course','from','to','sort','dir'].includes(k)))return;
+   event.preventDefault();form.reset();advanced.open=false;setSort('','none');
+ });
+ const target=new URLSearchParams(location.search).get('account') || <?= json_encode($openEdit>0?(string)$openEdit:'') ?>;
+ if(target){const position=originals.findIndex(r=>r.row.dataset.accountId===target);if(position>=0){page=Math.floor(position/Number(pageSize.value||10))+1;render();const detail=originals[position].detail;if(detail){detail.hidden=false;originals[position].row.querySelector('.p451-expand')?.setAttribute('aria-expanded','true');}}}
+ reflectSort();render();
+})();
+</script>
 </section>
 <?php if($isOfficer): ?>
 <dialog id="tnts-delete-dialog" class="p451-delete-dialog"><form method="post" class="p451-delete-form"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" id="tnts-delete-id"><h3>Permanently delete account?</h3><p>Only teachers without protected ICS, inventory, transaction or audit records may be deleted. Approval status alone is not a blocker. This cannot be undone.</p><p>Confirm by typing <strong id="tnts-delete-email-label"></strong></p><input class="input" type="email" name="confirm_email" id="tnts-delete-confirm" autocomplete="off" required><div class="p451-form-actions"><button class="btn btn-outline" type="button" id="p451-cancel-delete">Cancel</button><button type="submit" class="btn p451-delete">Permanently Delete</button></div></form></dialog>

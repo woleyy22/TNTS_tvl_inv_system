@@ -46,12 +46,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     redirect('personnel_reviews.php');
 }
+$focusChange = filter_var($_GET['open'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]) ?: 0;
 $view = $_GET['view'] ?? 'pending';
 if (!in_array($view, ['pending','approved','rejected','all'], true)) $view = 'pending';
+if ($focusChange) {
+    // An approved/rejected request is still reviewable in history after the notification is clicked.
+    $check=$pdo->prepare("SELECT status FROM account_change_requests WHERE change_id=? AND request_type='profile_official'");
+    $check->execute([$focusChange]);
+    $currentStatus=$check->fetchColumn();
+    if ($currentStatus && $currentStatus!==$view) $view='all';
+}
 $term = trim((string)($_GET['q'] ?? ''));
 if (mb_strlen($term) > 100) $term = mb_substr($term, 0, 100);
 $where = ["r.request_type='profile_official'"]; $params = [];
 if ($view !== 'all') { $where[] = 'r.status=?'; $params[]=$view; }
+if ($focusChange) { $where[]='r.change_id=?'; $params[]=$focusChange; $term=''; }
 if ($term !== '') { $where[] = '(u.full_name LIKE ? OR u.email LIKE ?)'; $params[]='%'.$term.'%';$params[]='%'.$term.'%'; }
 $sql = 'SELECT r.change_id,r.user_id,r.requested_payload,r.status,r.requested_at,r.reviewed_at,r.review_notes,u.full_name,u.email,reviewer.full_name AS reviewer_name,p.teaching_position AS old_position,p.position_office AS old_office,p.teaching_level AS old_level FROM account_change_requests r JOIN users u ON u.user_id=r.user_id LEFT JOIN users reviewer ON reviewer.user_id=r.reviewed_by LEFT JOIN user_profiles p ON p.user_id=u.user_id WHERE '.implode(' AND ',$where).' ORDER BY r.requested_at DESC,r.change_id DESC LIMIT 150';
 $st=$pdo->prepare($sql);$st->execute($params);$requests=$st->fetchAll(PDO::FETCH_ASSOC);
@@ -64,15 +73,22 @@ require __DIR__ . '/includes/header.php';
  <div class="field"><label for="p45view">Status</label><select class="input" name="view" id="p45view"><?php foreach(['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected','all'=>'All requests'] as $key=>$label): ?><option value="<?= e($key) ?>" <?= $view===$key?'selected':'' ?>><?= e($label) ?></option><?php endforeach; ?></select></div>
  <button class="btn btn-primary" type="submit">Apply filters</button><a class="btn btn-outline" href="<?= e(url('personnel_reviews.php')) ?>">Reset</a>
 </form>
-<div class="table-wrap"><table class="table"><thead><tr><th>Teacher / Date</th><th>Current official details</th><th>Requested details</th><th>Review</th></tr></thead><tbody>
+<div class="table-wrap tnts-review-table-wrap"><table class="table tnts-review-table" id="personnel-review-table"><thead><tr><th>Teacher / Email</th><th>Requested</th><th>Status</th><th>Details</th></tr></thead><tbody>
 <?php if (!$requests): ?><tr><td colspan="4">No requests match these filters.</td></tr><?php endif; ?>
-<?php foreach($requests as $req): $new=json_decode($req['requested_payload'],true);if(!is_array($new))$new=[]; ?>
-<tr><td><strong><?= e($req['full_name']) ?></strong><br><small><?= e($req['email']) ?></small><br><small>Requested <?= e($req['requested_at']) ?></small></td>
-<td><?= e($req['old_position'] ?: 'Not recorded') ?><br><?= e($req['old_office'] ?: 'Not recorded') ?><br><small><?= e($req['old_level'] ?: 'Not recorded') ?></small></td>
-<td><strong><?= e($new['teaching_position'] ?? 'Not recorded') ?></strong><br><?= e($new['position_office'] ?? 'Not recorded') ?><br><small><?= e($new['teaching_level'] ?? 'Not recorded') ?></small></td>
-<td><?php if ($req['status']==='pending'): ?>
-<form method="post" class="p45-decision" onsubmit="return confirm('Confirm this personnel decision?');"><?= csrf_field() ?><input type="hidden" name="change_id" value="<?= (int)$req['change_id'] ?>"><input class="input" type="text" name="notes" maxlength="500" placeholder="Reason (required if rejecting)"><button type="submit" name="decision" value="approved" class="btn btn-primary">Approve</button><button type="submit" name="decision" value="rejected" class="btn btn-danger">Reject</button></form>
-<?php else: ?><strong class="p45-state <?= e($req['status']) ?>"><?= e(ucfirst($req['status'])) ?></strong><br><small><?= e($req['reviewer_name'] ?: 'Reviewer unavailable') ?> · <?= e($req['reviewed_at'] ?: '') ?></small><?php if ($req['review_notes']): ?><p><?= e($req['review_notes']) ?></p><?php endif; ?><?php endif; ?></td></tr>
+<?php foreach($requests as $req): $new=json_decode($req['requested_payload'],true);if(!is_array($new))$new=[];$detailId='personnel-'.(int)$req['change_id']; ?>
+<tr class="tnts-review-main"><td><strong><?= e($req['full_name']) ?></strong><small class="tnts-review-subline"><?= e($req['email']) ?></small></td>
+<td><?= e($req['requested_at']) ?></td>
+<td><span class="pill <?= $req['status']==='approved'?'green':($req['status']==='rejected'?'red':'orange') ?>"><?= e(ucfirst($req['status'])) ?></span></td>
+<td><button type="button" class="btn btn-outline btn-sm tnts-review-toggle" data-target="<?= e($detailId) ?>" aria-controls="<?= e($detailId) ?>" aria-expanded="false">View Details</button></td></tr>
+<tr class="tnts-review-detail" id="<?= e($detailId) ?>" hidden><td colspan="4"><div class="tnts-review-panel">
+<div class="tnts-review-panel-header"><strong><?= e($req['full_name']) ?> — Personnel Change</strong><button type="button" class="btn btn-outline btn-sm tnts-review-close" data-target="<?= e($detailId) ?>">Close</button></div>
+<div class="tnts-review-comparison"><section><h4>Current official details</h4><dl class="tnts-review-facts"><div><dt>Position</dt><dd><?= e($req['old_position'] ?: '–') ?></dd></div><div><dt>Office</dt><dd><?= e($req['old_office'] ?: '–') ?></dd></div><div><dt>Teaching level</dt><dd><?= e($req['old_level'] ?: '–') ?></dd></div></dl></section>
+<section><h4>Requested official details</h4><dl class="tnts-review-facts"><div><dt>Position</dt><dd><?= e($new['teaching_position'] ?? '–') ?></dd></div><div><dt>Office</dt><dd><?= e($new['position_office'] ?? '–') ?></dd></div><div><dt>Teaching level</dt><dd><?= e($new['teaching_level'] ?? '–') ?></dd></div></dl></section></div>
+<?php if ($req['status']==='pending'): ?><div class="tnts-review-action-panel"><strong>Review request</strong>
+<form method="post" class="tnts-review-decision" onsubmit="return confirm('Confirm this personnel decision?');"><?= csrf_field() ?><input type="hidden" name="change_id" value="<?= (int)$req['change_id'] ?>"><label for="review-notes-<?= (int)$req['change_id'] ?>">Decision notes (required when rejecting)</label><textarea class="input" id="review-notes-<?= (int)$req['change_id'] ?>" name="notes" maxlength="500" rows="2" placeholder="Explain the decision if necessary"></textarea><div class="tnts-review-actions"><button type="submit" name="decision" value="approved" class="btn btn-primary">Approve</button><button type="submit" name="decision" value="rejected" class="btn btn-danger">Reject</button></div></form></div>
+<?php else: ?><dl class="tnts-review-facts"><div><dt>Reviewed by</dt><dd><?= e($req['reviewer_name'] ?: 'Reviewer unavailable') ?></dd></div><div><dt>Reviewed at</dt><dd><?= e($req['reviewed_at'] ?: '–') ?></dd></div></dl><div class="tnts-review-note"><span>Review remarks</span><em><?= e($req['review_notes'] ?: 'No remarks recorded.') ?></em></div><?php endif; ?>
+</div></td></tr>
 <?php endforeach; ?></tbody></table></div>
 </div>
+<script src="<?= e(url('assets/js/review_details.js')) ?>" defer></script>
 <?php require __DIR__ . '/includes/footer.php'; ?>

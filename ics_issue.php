@@ -173,7 +173,17 @@ $active = 'ics';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="card" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px"><a class="legacy-028" href="<?= e(url('ics_issue.php')) ?>">Issue ICS</a><a href="<?= e(url('ics_returns.php')) ?>" class="legacy-028">Retrieve / Close ICS</a></div>
+<style>
+.ics18-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 20px;padding:0;border:0;background:transparent;box-shadow:none}
+.ics18-tabs a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid #ddc1ca;background:#fff;color:#7b1738;text-decoration:none;font-weight:700;font-size:.83rem;line-height:1.2;transition:background .18s,border-color .18s,color .18s}
+.ics18-tabs a:hover,.ics18-tabs a:focus-visible{background:#fff1f5;border-color:#8b2142}
+.ics18-tabs a[aria-current="page"]{color:#fff;background:#800000;border-color:#800000}
+@media(max-width:460px){.ics18-tabs a{flex:1 1 auto;padding:10px 12px}}
+</style>
+<nav class="ics18-tabs" aria-label="Inventory Custodian Slip pages">
+ <a href="<?= e(url('ics_issue.php')) ?>" aria-current="page">Issue ICS</a>
+ <a href="<?= e(url('ics_returns.php')) ?>">Retrieve / Close ICS</a>
+</nav>
 <div class="content-header legacy-050">
     <h2>Issue Inventory Custodian Slip (ICS)</h2>
     <p class="legacy-037">Assign serviceable equipment to an accountable teacher. The recipient’s Position / Office will be saved on the ICS.</p>
@@ -228,21 +238,21 @@ require_once __DIR__ . '/includes/header.php';
       <label>Course purpose<select id="p472CourseFilter"><option value="all">All courses</option><option value="unclassified">Unclassified / Unspecified</option><?php foreach($courses as $course): ?><option value="<?= (int)$course['course_id'] ?>"><?= e($course['course_name']) ?></option><?php endforeach; ?></select></label>
       <label>Sort<select id="p36Sort"><option value="name_asc">Name A–Z</option><option value="name_desc">Name Z–A</option><option value="qty_desc">Available high–low</option><option value="qty_asc">Available low–high</option></select></label>
     </div>
+    <p class="tnts-issue-help">Select a source batch and course when needed, then enter the quantity to issue. All options remain available without horizontal scrolling at regular desktop width.</p>
     <div class="p473-issue-table-wrap"><table class="legacy-068" id="p36Items">
-        <thead><tr class="legacy-069"><th class="legacy-070">Item Name</th><th class="legacy-070">Category</th><th class="legacy-070">Available for ICS</th><th class="legacy-070">Central For Repair / Damaged</th><th class="legacy-070">Source Batch</th><th class="legacy-070">Course Purpose (optional)</th><th class="legacy-152">Qty to Issue</th></tr></thead>
+        <thead><tr class="legacy-069"><th class="legacy-070">Item Name</th><th class="legacy-070">Category</th><th class="legacy-070">Available / Condition</th><th class="legacy-070">Source Batch</th><th class="legacy-070">Course Purpose (optional)</th><th class="legacy-152">Qty to Issue</th></tr></thead>
         <tbody>
         <?php foreach ($inventory as $item): ?>
           <tr class="p36-item" data-name="<?= e(mb_strtolower($item['item_name'])) ?>" data-cat="<?= e(mb_strtolower($item['item_category'])) ?>" data-qty="<?= (int)$item['available_qty'] ?>" data-repair="<?= (int)$item['central_repair'] ?>" data-damaged="<?= (int)$item['central_damaged'] ?>" data-batch-courses="<?= e(implode(',',array_unique(array_map(static fn($b)=>(string)((int)($b['course_id']??0)),array_filter($item['batch_info']['batches'],static fn($b)=>(int)($b['received_qty']??0)>0))))) ?>">
             <td class="legacy-072"><strong><?= e($item['item_name']) ?></strong><br><small class="legacy-037"><?= e($item['unit']) ?></small></td>
             <td class="legacy-072"><?= e(ucwords(str_replace('_',' ',$item['item_category']))) ?></td>
-            <td class="legacy-153"><strong style="color:#167349"><?= (int)$item['available_qty'] ?></strong> <?= e($item['unit']) ?></td>
-            <td class="legacy-072"><span class="p36-repair"><?= (int)$item['central_repair'] ?> repair</span> <span class="p36-damaged"><?= (int)$item['central_damaged'] ?> damaged</span></td>
+            <td class="legacy-153"><div class="tnts-issue-available"><strong><?= (int)$item['available_qty'] ?> <?= e($item['unit']) ?></strong><span class="tnts-issue-availability-label">Serviceable, available to issue</span></div><div class="tnts-issue-conditions"><span class="p36-repair"><?= (int)$item['central_repair'] ?> repair</span> <span class="p36-damaged"><?= (int)$item['central_damaged'] ?> damaged</span></div></td>
             <td class="legacy-072"><select class="p472-batch-select" name="batch_choice[<?= (int)$item['item_id'] ?>]" aria-label="Source batch for <?= e($item['item_name']) ?>"><option value="0">Automatic: earliest usable expiry</option><?php foreach($item['batch_info']['batches'] as $batch): ?><option data-course="<?= (int)($batch['course_id']??0) ?>" value="<?= (int)$batch['batch_id'] ?>" <?= $batch['available']<=0?'disabled':'' ?>><?= e($batch['batch_number']?:('Batch #'.$batch['batch_id'])) ?> · <?= (int)$batch['available'] ?> available · <?= e($batch['expiration_date']??'No expiry') ?><?= $batch['expired']?' (Expired)':'' ?></option><?php endforeach;?></select></td>
             <td class="legacy-072"><small class="p4721-batch-course-label">Source batch: Unclassified</small><br><select class="p472-batch-select p4721-course" name="item_course[<?= (int)$item['item_id'] ?>]" aria-label="Course for <?= e($item['item_name']) ?>"><option value="">Unclassified</option><?php foreach($courses as $course): ?><option value="<?= (int)$course['course_id'] ?>"><?= e($course['course_name']) ?></option><?php endforeach;?></select><br><small class="p4721-hint">Editable ICS course purpose</small></td>
             <td class="legacy-072"><input type="number" name="issue_qty[<?= (int)$item['item_id'] ?>]" max="<?= (int)$item['available_qty'] ?>" min="0" step="1" value="0" <?= (int)$item['available_qty']===0?'disabled':'' ?> class="legacy-073" aria-label="Quantity of <?= e($item['item_name']) ?> to issue"></td>
           </tr>
         <?php endforeach; ?>
-        <tr id="p36Empty" hidden><td colspan="7">No items match this filter.</td></tr>
+        <tr id="p36Empty" hidden><td colspan="6">No items match this filter.</td></tr>
         </tbody>
     </table></div>
     <button type="submit" class="legacy-154">Issue ICS to Teacher</button>

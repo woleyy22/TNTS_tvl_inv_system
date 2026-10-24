@@ -173,6 +173,11 @@ $age = profile_age($values['birthday']);
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-head"><h1>My Account</h1><p>Manage your personal information, profile picture and password.</p></div>
+<nav class="p3827-account-jump" aria-label="My Account sections">
+  <a href="#profileForm">Edit profile</a>
+  <?php if ($profile['role'] === 'teacher'): ?><a href="#assignedCourses">My courses</a><a href="#officialInformation">Personnel info</a><?php endif; ?>
+  <a href="#passwordSettings">Password</a>
+</nav>
 <div class="profile-layout">
     <aside class="card profile-overview">
         <?= profile_avatar($profile, 'profile-avatar-large') ?>

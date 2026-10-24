@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','Unused course removed.');
         }
     } catch (PDOException $e) {
-        flash('error','Unable to save. Check for duplicate names/codes or whether Phase 1 SQL has been applied.');
+        flash('error','Unable to save. Check for duplicate names or codes and verify that the required database tables are installed.');
     } catch (RuntimeException $e) { flash('error',$e->getMessage()); }
     redirect('courses.php');
 }

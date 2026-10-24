@@ -243,8 +243,30 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
 @media(max-width:700px){.p34-panel{padding:13px}.p34-filter .p34-field{min-width:140px;flex:1}.p34-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:440px){.p34-stat-grid{grid-template-columns:1fr}.p34-panel .p34-stat{min-height:36px}}
 @media(prefers-reduced-motion:reduce){.p34-record{transition:none}}
+/* Phase 3.8.10 — default-zoom-first inventory summary and controls. */
+.p3810-inventory{min-width:0!important;overflow-x:auto;padding:18px!important}
+.p3810-inventory .p34-table{min-width:0;table-layout:fixed;font-size:clamp(11px,.86vw,13px)}
+.p3810-inventory .p34-table th,.p3810-inventory .p34-table td{padding:11px 9px;white-space:normal;overflow-wrap:anywhere}
+.p3810-inventory .p34-table thead th:last-child,.p3810-inventory .p34-table .p34-record>td:last-child{width:120px}
+.p3810-inventory .p34-table th:first-child{width:18%}
+.p3810-inventory .p34-table th:nth-child(2){width:15%}
+.p3810-inventory .p34-table th:nth-child(3){width:17%}
+.p3810-inventory .p34-table .p34-badge{max-width:100%;white-space:normal;text-align:center;padding:4px 7px;font-size:10px}
+.p3810-inventory .p34-table .p34-details>td{padding:0 10px 13px!important}
+.p3810-inventory .p34-table .p34-details .p34-panel{min-width:0;overflow-wrap:anywhere}
+.p3810-condition-cell .p34-pills{margin-bottom:5px}
+.p3810-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.p3810-toolbar-title{display:grid;gap:2px;color:#28344a}
+.p3810-toolbar-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.p3810-toolbar-controls label{font-size:11px;font-weight:700;color:#657187}
+.p3810-toolbar-controls select{border:1px solid #d6dce6;background:white;color:#334155;border-radius:8px;padding:8px 9px;max-width:185px;min-width:0;font-size:12px}
+.p3810-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 0;flex-wrap:wrap}
+.p3810-pager-buttons{display:flex;gap:7px}
+.p3810-pager-buttons button:disabled{opacity:.43;cursor:not-allowed}
+@media(max-width:1050px){.p3810-inventory .p34-table{min-width:640px}.p3810-inventory .p34-table th,.p3810-inventory .p34-table td{padding:10px 6px}.p3810-toolbar-controls{justify-content:flex-start}}
+@media(max-width:720px){.p3810-inventory .p34-table{min-width:690px}.p3810-inventory{padding:12px!important}.p3810-toolbar{align-items:start}.p3810-toolbar-controls{width:100%;justify-content:start}}
 </style>
-<?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?8:9; ?>
+<?php $issuedView=($role==='teacher'||$view==='issued'); $colspan=$issuedView?8:7; ?>
 <div class="content-header p34-header">
   <div><h2>Inventory Management</h2><p class="p34-sub">Category-specific stock and accountability overview</p></div>
   <?php if($role==='supply_officer'): ?><div class="p34-actions"><a class="legacy-028" href="<?= e(url('inventory_categories.php')) ?>">Manage Batches &amp; Expiry</a><a class="legacy-028" href="<?= e(url('central_stock_conditions.php')) ?>">Manage central conditions</a><a class="legacy-028" href="<?= e(url('inventory_withdrawals.php')) ?>">Withdraw / disposition</a></div><?php endif; ?>
@@ -274,7 +296,33 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
     <?php else: ?>Date range finds items linked to <strong>at least one delivery received within the selected dates</strong>. Stock totals remain all-time totals, not just quantities from the selected deliveries.<?php endif; ?>
   </p>
 </div>
-<div class="card p34-wrap" style="margin-top:16px">
+<div class="card p34-wrap p3810-inventory" style="margin-top:16px">
+  <div class="p3810-toolbar" aria-label="Inventory table controls">
+    <div class="p3810-toolbar-title"><strong>Inventory records</strong><span class="p34-muted" id="p3810-result-count" aria-live="polite"></span></div>
+    <div class="p3810-toolbar-controls">
+      <label for="p3810-alert-filter">Stock / condition</label>
+      <select id="p3810-alert-filter" aria-label="Filter by condition or stock alert">
+        <option value="">All conditions</option>
+        <option value="expired">Expired batches</option>
+        <option value="damaged">Damaged</option>
+        <option value="repair">For repair</option>
+        <option value="low">Low stock</option>
+        <option value="soon">Expiring soon</option>
+        <option value="normal">No alerts</option>
+      </select>
+      <label for="p3810-sort-select">Quick sort</label>
+      <select id="p3810-sort-select" aria-label="Quick inventory sort">
+        <option value="default">Default order</option>
+        <option value="alert-desc">Most urgent alerts</option>
+        <option value="issued-desc">Issued: highest first</option>
+        <option value="issued-asc">Issued: lowest first</option>
+        <option value="qty-desc">Quantity: highest first</option>
+        <option value="item-asc">Item: A to Z</option>
+      </select>
+      <label for="p3810-page-size">Show</label>
+      <select id="p3810-page-size" aria-label="Rows per page"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="all">All</option></select>
+    </div>
+  </div>
   <table class="p34-table" id="p34InventoryTable">
     <thead><tr>
       <th><button type="button" class="p34-sort" data-key="item" data-type="text" data-direction="none">Item <span class="p34-indicator" aria-hidden="true">-</span></button></th>
@@ -286,25 +334,42 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
         <th><button type="button" class="p34-sort" data-key="accepted" data-type="number" data-direction="none">Original ICS <span class="p34-indicator" aria-hidden="true">-</span></button></th>
         <th><button type="button" class="p34-sort" data-key="qty" data-type="number" data-direction="none">Quantity / Condition <span class="p34-indicator" aria-hidden="true">-</span></button></th>
       <?php else: ?>
-        <th><button type="button" class="p34-sort" data-key="date" data-type="date" data-direction="none">Latest Arrival <span class="p34-indicator" aria-hidden="true">-</span></button></th>
         <th><button type="button" class="p34-sort" data-key="accepted" data-type="number" data-direction="none">Accepted <span class="p34-indicator" aria-hidden="true">-</span></button></th>
-        <th><button type="button" class="p34-sort" data-key="issued" data-type="number" data-direction="none">Issued <span class="p34-indicator" aria-hidden="true">-</span></button></th>
         <th><button type="button" class="p34-sort" data-key="qty" data-type="number" data-direction="none">Unissued <span class="p34-indicator" aria-hidden="true">-</span></button></th>
-        <th><button type="button" class="p34-sort" data-key="condition" data-type="number" data-direction="none" title="Sort by attention needed: low stock or non-serviceable counts">Condition / Stock Alerts <span class="p34-indicator" aria-hidden="true">-</span></button></th>
+        <th><button type="button" class="p34-sort" data-key="condition" data-type="number" data-direction="none" title="Sort by alert severity. Use Quick sort for issued quantity.">Condition / Stock Alerts <span class="p34-indicator" aria-hidden="true">-</span></button></th>
       <?php endif; ?>
       <th>Details</th>
     </tr></thead>
     <tbody>
     <?php foreach ($items as $i):
       $rowKey=$issuedView?'ics-'.$i['ics_item_id']:'stock-'.$i['item_id'];
-      $sortCondition=$issuedView?((int)$i['repair_qty']+(int)$i['damaged_qty']):($i['is_supply']?($i['low_stock']?1:0):((int)$i['repair_qty']+(int)$i['damaged_qty']+(int)$i['central_repair']+(int)$i['central_damaged']));
+      // Presentation-only alert ranking, preserving the established stock calculations.
+      $alertFlags=[];
+      $soonLimit=(new DateTimeImmutable('today'))->modify('+30 days')->format('Y-m-d');
+      if($issuedView){
+        if((int)($i['expiry_expired']??0)>0) $alertFlags[]='expired';
+        if((int)$i['damaged_qty']>0) $alertFlags[]='damaged';
+        if((int)$i['repair_qty']>0) $alertFlags[]='repair';
+        if((int)($i['expiry_soon']??0)>0) $alertFlags[]='soon';
+        if(!empty($i['needs_review'])) $alertFlags[]='repair';
+      }else{
+        if((int)$i['expired_batches']>0) $alertFlags[]='expired';
+        if((int)$i['damaged_qty']+(int)$i['central_damaged']>0) $alertFlags[]='damaged';
+        if((int)$i['repair_qty']+(int)$i['central_repair']>0) $alertFlags[]='repair';
+        if($i['low_stock']) $alertFlags[]='low';
+        if(!empty($i['next_expiry']) && $i['next_expiry'] <= $soonLimit) $alertFlags[]='soon';
+      }
+      $alertFlags=array_values(array_unique($alertFlags));
+      if(!$alertFlags) $alertFlags[]='normal';
+      $severityMap=['expired'=>5,'damaged'=>4,'low'=>3,'repair'=>2,'soon'=>1,'normal'=>0];
+      $sortCondition=max(array_map(static fn($f)=>$severityMap[$f]??0,$alertFlags));
     ?>
-      <tr class="p34-record" data-item="<?= e($i['item_name']) ?>" data-category="<?= e($i['category_label']) ?>" data-course="<?= e($i['course_name']??'Unclassified') ?>" data-ics="<?= e($issuedView?$i['ics_number'].' '.$i['teacher_name']:'') ?>" data-date="<?= e($issuedView?($i['date_issued']??''):($i['last_received']??'')) ?>" data-accepted="<?= $issuedView?(int)$i['qty_issued']:(int)$i['quantity'] ?>" data-issued="<?= $issuedView?(int)$i['net_issued']:(int)$i['net_issued'] ?>" data-qty="<?= (int)($issuedView?$i['net_issued']:$i['available']) ?>" data-condition="<?= $sortCondition ?>">
-        <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['item_name']) ?></strong><span class="p34-muted"><?= e($i['description']??'') ?></span></div></td>
+      <tr class="p34-record" data-item="<?= e($i['item_name']) ?>" data-category="<?= e($i['category_label']) ?>" data-course="<?= e($i['course_name']??'Unclassified') ?>" data-ics="<?= e($issuedView?$i['ics_number'].' '.$i['teacher_name']:'') ?>" data-date="<?= e($issuedView?($i['date_issued']??''):($i['last_received']??'')) ?>" data-accepted="<?= $issuedView?(int)$i['qty_issued']:(int)$i['quantity'] ?>" data-issued="<?= $issuedView?(int)$i['net_issued']:(int)$i['net_issued'] ?>" data-qty="<?= (int)($issuedView?$i['net_issued']:$i['available']) ?>" data-condition="<?= $sortCondition ?>" data-alert-types="<?= e(implode(' ',$alertFlags)) ?>">
+        <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['item_name']) ?></strong><?php if(trim((string)($i['description']??''))!==''): ?><span class="p34-muted"><?= e($i['description']) ?></span><?php endif; ?></div></td>
         <td><span class="p34-badge"><?= e($i['category_label']) ?></span></td>
         <td><span class="p34-badge p34-neutral" title="Course is an optional internal purpose, not the inventory tracking category."><?= e($i['course_name']??'Unclassified') ?></span></td>
         <?php if($issuedView): ?>
-          <td><div class="p34-cell-main"><span><?= e($i['ics_number']) ?></span><span class="p34-muted"><?= e($i['teacher_name']) ?> · <?= e($i['position_office']??'Office not yet recorded') ?></span></div></td>
+          <td><div class="p34-cell-main"><strong class="p34-strong"><?= e($i['ics_number']) ?></strong><strong class="p34-strong"><?= e($i['teacher_name']) ?></strong><span class="p34-muted"><?= e($i['position_office']??'Office not yet recorded') ?></span></div></td>
           <td><?= e($i['date_issued']??'—') ?></td>
           <td><?= (int)$i['qty_issued'] ?> <?= e($i['unit']) ?></td>
           <td>
@@ -321,19 +386,18 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
             <?php endif; ?>
           </td>
         <?php else: ?>
-          <td><div class="p34-cell-main"><?= e($i['last_received']??'—') ?><?php if(!empty($i['first_received'])&&$i['first_received']!==$i['last_received']): ?><span class="p34-muted">First: <?= e($i['first_received']) ?></span><?php endif; ?></div></td>
-          <td><?= (int)$i['quantity'] ?> <?= e($i['unit']) ?></td>
-          <td><?= (int)$i['net_issued'] ?></td>
-          <td><strong class="p34-strong"><?= (int)$i['available'] ?></strong></td>
-          <td>
-            <?php if($i['is_supply']): ?>
-              <div class="p34-pills"><span class="p34-badge p34-neutral">Distributed <?= (int)$i['gross_issued'] ?></span><?php if($i['low_stock']): ?><span class="p34-badge p34-alert">Low Stock</span><?php endif; ?><?php if((int)$i['expired_batches']>0): ?><span class="p34-badge p34-damaged">Expired batch on file</span><?php endif; ?></div>
-              <?php if($i['next_expiry']): ?><div class="p34-muted">Next dated batch: <?= e($i['next_expiry']) ?></div><?php endif; ?>
-            <?php else: ?>
-              <div class="p34-pills"><span class="p34-badge p34-ok">Issued Serviceable <?= (int)$i['serviceable'] ?></span><span class="p34-badge p34-repair">Teacher Repair <?= (int)$i['repair_qty'] ?></span><span class="p34-badge p34-damaged">Teacher Damaged <?= (int)$i['damaged_qty'] ?></span></div>
-              <div class="p34-pills"><span class="p34-badge p34-repair">Central Repair <?= (int)$i['central_repair'] ?></span><span class="p34-badge p34-damaged">Central Damaged <?= (int)$i['central_damaged'] ?></span><span class="p34-badge p34-neutral">Disposed <?= (int)$i['disposed'] ?></span></div>
-            <?php endif; ?>
-            <?php if((int)$i['withdrawn']>0): ?><div class="p34-muted">Withdrawn from unissued: <?= (int)$i['withdrawn'] ?></div><?php endif; ?>
+          <td><strong class="p34-strong"><?= (int)$i['quantity'] ?></strong> <span class="p34-muted"><?= e($i['unit']) ?></span></td>
+          <td><strong class="p34-strong"><?= (int)$i['available'] ?></strong> <span class="p34-muted"><?= e($i['unit']) ?></span></td>
+          <td class="p3810-condition-cell">
+            <div class="p34-pills">
+              <?php if(in_array('expired',$alertFlags,true)): ?><span class="p34-badge p34-damaged">Expired batch</span><?php endif; ?>
+              <?php if(in_array('damaged',$alertFlags,true)): ?><span class="p34-badge p34-damaged">Damaged <?= (int)$i['damaged_qty']+(int)$i['central_damaged'] ?></span><?php endif; ?>
+              <?php if(in_array('repair',$alertFlags,true)): ?><span class="p34-badge p34-repair">For repair <?= (int)$i['repair_qty']+(int)$i['central_repair'] ?></span><?php endif; ?>
+              <?php if(in_array('low',$alertFlags,true)): ?><span class="p34-badge p34-alert">Low stock</span><?php endif; ?>
+              <?php if(in_array('soon',$alertFlags,true)): ?><span class="p34-badge p34-alert">Expiring soon</span><?php endif; ?>
+              <?php if($alertFlags===['normal']): ?><span class="p34-badge p34-ok">No alerts</span><?php endif; ?>
+            </div>
+            <span class="p34-muted">Issued: <?= (int)$i['net_issued'] ?> · Latest: <?= e($i['last_received']??'–') ?></span>
           </td>
         <?php endif; ?>
         <td><button type="button" class="p34-view" aria-expanded="false" aria-controls="details-<?= e($rowKey) ?>">View details ▾</button></td>
@@ -407,6 +471,10 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
     <?php if(!$items): ?><tr><td colspan="<?= $colspan ?>" class="p34-empty"><?= $dateFilterError?'Correct the date range and try again.':'No items matched your filters.' ?></td></tr><?php endif; ?>
     </tbody>
   </table>
+  <div class="p3810-pager">
+    <span id="p3810-page-label" class="p34-muted" aria-live="polite"></span>
+    <div class="p3810-pager-buttons"><button type="button" class="p34-view" id="p3810-prev">← Previous</button><button type="button" class="p34-view" id="p3810-next">Next →</button></div>
+  </div>
 </div>
 <script>
 (function () {
@@ -441,32 +509,88 @@ $pageTitle='Inventory Management';$active='inventory';require __DIR__.'/includes
       closeRow(row);row.querySelector('.p34-view[aria-expanded]')?.focus();
     });
   });
-  buttons.forEach(button=>button.addEventListener('click',()=>{
-    const key=button.dataset.key;
-    const type=button.dataset.type;
-    const next=button.dataset.direction==='none'?'asc':button.dataset.direction==='asc'?'desc':'none';
+  const alertFilter=document.getElementById('p3810-alert-filter');
+  const quickSort=document.getElementById('p3810-sort-select');
+  const sizeSelect=document.getElementById('p3810-page-size');
+  const countLabel=document.getElementById('p3810-result-count');
+  const pageLabel=document.getElementById('p3810-page-label');
+  const prev=document.getElementById('p3810-prev');
+  const next=document.getElementById('p3810-next');
+  let activeSort=null, direction='none', page=1;
+  const compare=(a,b,key,type,sign)=>{
+    const va=a.row.dataset[key]||'',vb=b.row.dataset[key]||'';
+    if(va===''||vb==='')return va===vb?a.index-b.index:va===''?1:-1;
+    const diff=type==='number'?num(va)-num(vb):va.localeCompare(vb,undefined,{numeric:type!=='date',sensitivity:'base'});
+    return sign*diff||a.index-b.index;
+  };
+  function resetHeaders(){
     buttons.forEach(b=>{
-      b.dataset.direction='none';b.querySelector('.p34-indicator').textContent='-';b.parentElement.removeAttribute('aria-sort');
-      b.setAttribute('aria-label','Sort '+b.textContent.trim()+' ascending');
+      b.dataset.direction='none';b.querySelector('.p34-indicator').textContent='–';
+      b.closest('th').removeAttribute('aria-sort');
     });
-    const sorted=original.slice();
-    if(next!=='none'){
-      const sign=next==='asc'?1:-1;
-      sorted.sort((a,b)=>{
-        const va=a.row.dataset[key]||'',vb=b.row.dataset[key]||'';
-        if(va===''||vb===''){if(va===vb)return a.index-b.index;return va===''?1:-1;}
-        const compared=type==='number'?num(va)-num(vb):va.localeCompare(vb,undefined,{numeric:type!=='date',sensitivity:'base'});
-        return sign*compared||a.index-b.index;
-      });
-      button.parentElement.setAttribute('aria-sort',next==='asc'?'ascending':'descending');
-    }
+  }
+  function render(){
+    const filter=alertFilter?.value||'';
+    const matching=original.filter(o=>!filter||(o.row.dataset.alertTypes||'').split(' ').includes(filter));
+    const sorted=matching.slice();
+    if(activeSort&&direction!=='none') sorted.sort((a,b)=>compare(a,b,activeSort.key,activeSort.type,direction==='asc'?1:-1));
+    const limit=sizeSelect?.value==='all'?Infinity:Math.max(1,Number(sizeSelect?.value)||10);
+    const pages=Math.max(1,Math.ceil(sorted.length/limit));
+    page=Math.min(Math.max(1,page),pages);
+    const start=Number.isFinite(limit)?(page-1)*limit:0;
+    const visible=new Set(sorted.slice(start,start+limit));
     const fragment=document.createDocumentFragment();
-    sorted.forEach(({row,detail})=>{fragment.appendChild(row);if(detail)fragment.appendChild(detail);});
+    // Keep a stable DOM order and always move detail rows together with their parent.
+    sorted.forEach(o=>{
+      const show=visible.has(o);
+      o.row.hidden=!show;
+      if(o.detail){o.detail.hidden=!show||o.row.querySelector('.p34-view[aria-expanded]')?.getAttribute('aria-expanded')!=='true';}
+      fragment.appendChild(o.row);
+      if(o.detail)fragment.appendChild(o.detail);
+    });
+    original.filter(o=>!sorted.includes(o)).forEach(o=>{
+      o.row.hidden=true;
+      if(o.detail)o.detail.hidden=true;
+      fragment.appendChild(o.row);
+      if(o.detail)fragment.appendChild(o.detail);
+    });
     tbody.appendChild(fragment);
-    button.dataset.direction=next;
-    button.querySelector('.p34-indicator').textContent=next==='asc'?'↑':next==='desc'?'↓':'-';
-    button.setAttribute('aria-label',next==='asc'?'Sorted ascending; click for descending':next==='desc'?'Sorted descending; click for default':'Sort ascending');
+    let empty=tbody.querySelector('.p3810-no-matches');
+    if(!empty){empty=document.createElement('tr');empty.className='p3810-no-matches';
+      const td=document.createElement('td');td.colSpan=table.tHead.rows[0].cells.length;
+      td.className='p34-empty';td.textContent='No records match this condition filter.';empty.appendChild(td);tbody.appendChild(empty);
+    }
+    empty.hidden=matching.length!==0||original.length===0;
+    if(countLabel)countLabel.textContent=matching.length+' of '+original.length+' records';
+    if(pageLabel)pageLabel.textContent=matching.length?('Showing '+(start+1)+'–'+Math.min(start+limit,matching.length)+' of '+matching.length):'No matching records';
+    if(prev)prev.disabled=page<=1;
+    if(next)next.disabled=page>=pages;
+  }
+  buttons.forEach(button=>button.addEventListener('click',()=>{
+    const nextDirection=button.dataset.direction==='none'?'asc':button.dataset.direction==='asc'?'desc':'none';
+    resetHeaders();
+    activeSort=nextDirection==='none'?null:{key:button.dataset.key,type:button.dataset.type};
+    direction=nextDirection;
+    button.dataset.direction=direction;
+    button.querySelector('.p34-indicator').textContent=direction==='asc'?'↑':direction==='desc'?'↓':'–';
+    if(direction!=='none')button.closest('th').setAttribute('aria-sort',direction==='asc'?'ascending':'descending');
+    if(quickSort)quickSort.value='default';
+    page=1;render();
   }));
+  alertFilter?.addEventListener('change',()=>{page=1;rows.forEach(closeRow);render();});
+  quickSort?.addEventListener('change',()=>{
+    resetHeaders();
+    const choice=quickSort.value;
+    const sorts={'alert-desc':['condition','number','desc'],'issued-desc':['issued','number','desc'],'issued-asc':['issued','number','asc'],'qty-desc':['qty','number','desc'],'item-asc':['item','text','asc']};
+    const chosen=sorts[choice];
+    activeSort=chosen?{key:chosen[0],type:chosen[1]}:null;
+    direction=chosen?chosen[2]:'none';
+    page=1;render();
+  });
+  sizeSelect?.addEventListener('change',()=>{rows.forEach(closeRow);page=1;render();});
+  prev?.addEventListener('click',()=>{rows.forEach(closeRow);page=Math.max(1,page-1);render();});
+  next?.addEventListener('click',()=>{rows.forEach(closeRow);page+=1;render();});
+  render();
 })();
 </script>
 <?php require __DIR__.'/includes/footer.php'; ?>

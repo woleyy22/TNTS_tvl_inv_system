@@ -41,6 +41,7 @@ $menuGroups = [
 <html lang="en">
 <head>
     <script defer src="<?= e(url('assets/js/ui.js')) ?>"></script>
+    <script defer src="<?= e(url('assets/js/notifications.js')) ?>"></script>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e(APP_NAME) ?></title>
@@ -122,6 +123,20 @@ $menuGroups = [
     <main class="main" id="pageContent" tabindex="-1">
         <header class="workspace-header">
             <div class="workspace-heading"><button type="button" class="menu-btn workspace-toggle" id="menuBtn" aria-label="Collapse sidebar" aria-controls="sidebar" aria-expanded="true" title="Collapse sidebar"><?= icon('menu', 22) ?></button><div class="school-heading"><span class="eyebrow">Tanza National Trade School</span><span>Inventory Management System</span></div></div>
+            <div class="tn-notify-shell" id="tn-notify-shell" data-endpoint="<?= e(url('notification_api.php')) ?>" data-history="<?= e(url('notifications.php')) ?>" data-csrf="<?= e(csrf_token()) ?>" data-user-id="<?= (int)$user['id'] ?>">
+                <button type="button" id="tn-bell" class="tn-bell" aria-haspopup="dialog" aria-expanded="false" aria-controls="tn-notify-popover" aria-label="Notifications" title="Notifications">
+                    <svg class="icon" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                    <span class="tn-bell-count" id="tn-bell-count" hidden>0</span>
+                </button>
+                <div class="tn-notify-popover" id="tn-notify-popover" hidden role="dialog" aria-label="Recent notifications">
+                    <div class="tn-notify-popover-head"><div class="tn-notify-popover-title"><span class="tn-notify-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg></span><strong>Notifications</strong></div><a href="<?= e(url('notifications.php')) ?>">View all</a></div>
+                    <div id="tn-notify-preview" class="tn-notify-preview"><p class="muted">Loading…</p></div>
+                    <div class="tn-notify-popover-foot"><button type="button" id="tn-sound-toggle" class="tn-sound-icon-button" aria-label="Mute notification sounds" aria-pressed="true" title="Sound on">
+                            <svg class="tn-sound-icon-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 9a4 4 0 0 1 0 6"/><path d="M18 6a8 8 0 0 1 0 12"/></svg>
+                            <svg class="tn-sound-icon-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="m17 9 5 6m0-6-5 6"/></svg>
+                        </button><span id="tn-audio-status" class="tn-audio-status" role="status" aria-live="polite" hidden></span><button type="button" id="tn-popover-clear-read" class="tn-clear-read" title="Remove only notifications already marked as read">Clear read</button><button type="button" id="tn-popover-read-all">Mark all as read</button></div>
+                </div>
+            </div>
             <a class="workspace-user account-shortcut" href="<?= e(url('account.php')) ?>" title="Open My Account"><?= profile_avatar($headerProfile) ?><div><strong><?= e(profile_display_name($headerProfile)) ?></strong><small><?= e(role_label($user['role'])) ?></small></div></a>
         </header>
         <?php foreach (get_flashes() as $f): ?>

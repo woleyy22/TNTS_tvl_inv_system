@@ -1432,3 +1432,1797 @@ body.login-page .tnts-login-contact a:hover{text-decoration:none;border-bottom-c
 /* Phase 6 borrowed-pill specificity correction */
 .p34-panel .p34-stat-grid .p34-stat.p34-stat-borrowed{background:#f1ebfc;border:1px solid #d4c2f0;color:#63358e}
 .p34-panel .p34-stat-grid .p34-stat.p34-stat-borrowed .p34-muted,.p34-panel .p34-stat-grid .p34-stat.p34-stat-borrowed strong{color:#63358e}
+
+/* Phase 3.8.1 - shared dashboard panel composition. Scoped to avoid transaction-form regressions. */
+.p38-dashboard{display:grid;grid-template-columns:minmax(190px,235px) minmax(0,1fr);gap:14px;align-items:stretch;margin:18px 0 22px}
+.p38-dashboard-cards{display:grid;grid-template-rows:repeat(4,minmax(100px,1fr));gap:10px;min-width:0}
+.p38-summary{font:inherit;text-align:left;position:relative;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:15px 18px;border:1px solid #dbe1eb;border-radius:15px;background:#fff;cursor:pointer;color:#27354a;min-width:0}
+.p38-summary:hover,.p38-summary:focus-visible{border-color:#811333;box-shadow:0 3px 12px #6c173021;outline:none}
+.p38-summary-label{font-size:13px;font-weight:700}.p38-summary strong{font-size:27px;color:#801433;line-height:1.1}.p38-summary small{font-size:11px;color:#6d7890}.p38-summary-arrow{position:absolute;right:14px;top:13px;color:#851735}.p38-summary[hidden],.p38-panel[hidden]{display:none!important}
+.p38-expanded{min-height:425px;padding:22px!important;overflow:hidden}.p38-panel-head{display:flex;justify-content:space-between;align-items:start;gap:15px;flex-wrap:wrap;margin-bottom:20px}.p38-panel-head h2{margin:0;font-size:23px}.p38-panel-head p{color:#67748a;font-size:12px;margin:6px 0 0}.p38-expanded .table-wrap{max-width:100%;overflow:auto}
+.p38-alert-list{display:grid;gap:9px}.p38-alert-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:14px;padding:13px 15px;border:1px solid #e6eaf1;border-radius:10px;text-decoration:none;color:#27354a}.p38-alert-row:hover{border-color:#801433;background:#fbf6f8}.p38-alert-row strong{color:#861335;font-size:17px}
+@media(max-width:850px){.p38-dashboard{grid-template-columns:1fr}.p38-dashboard-cards{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}.p38-expanded{min-height:300px}}
+@media(max-width:550px){.p38-summary{padding:12px}.p38-summary strong{font-size:22px}.p38-expanded{padding:14px!important}}
+
+.p38-borrow-details{margin-top:8px;min-width:240px;max-width:480px;border:1px solid #e2e6ef;border-radius:10px;padding:9px;background:#fff}.p38-borrow-details summary{cursor:pointer;color:#801433;font-size:12px;font-weight:700}.p38-borrow-details p{font-size:12px;line-height:1.5;margin:8px 0;overflow-wrap:anywhere}.p6-stats:has(>div:nth-child(3):last-child){grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* Phase 3.8.2: dashboard visual refresh — scoped so operational pages remain unchanged. */
+.p382-page-head{text-align:center;margin:25px auto 26px!important;max-width:850px}
+.p382-page-head h1{font-size:clamp(29px,3vw,38px)!important;letter-spacing:-.035em;line-height:1.17;margin:5px 0 7px!important;color:#1d2d44}
+.p382-page-head p{font-size:13px;color:#718096;margin:0}
+.p382-eyebrow,.p382-panel-kicker{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.17em;color:#98183d;text-transform:uppercase}
+.p38-dashboard{grid-template-columns:minmax(195px,245px) minmax(0,1fr);gap:18px}
+.p38-dashboard-cards{gap:12px}
+.p38-summary{padding:15px 17px;border:1px solid #e1e5ee;border-radius:17px;background:linear-gradient(128deg,#fff 0%,#fcfafb 75%,#fbf0f4 100%);box-shadow:0 5px 18px rgba(26,31,55,.045);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease;overflow:hidden}
+.p38-summary:nth-child(2){background:linear-gradient(125deg,#fff,#f4fbf9)}
+.p38-summary:nth-child(3){background:linear-gradient(125deg,#fff,#f5f8ff)}
+.p38-summary:nth-child(4){background:linear-gradient(125deg,#fff,#fff8f0)}
+.p38-summary:nth-child(5){background:linear-gradient(125deg,#fff,#fff4f3)}
+.p38-summary:hover,.p38-summary:focus-visible{transform:translateY(-3px);border-color:#a94d69;box-shadow:0 10px 28px rgba(89,22,47,.13)}
+.p382-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.p382-mini-icon{display:inline-grid;place-items:center;width:29px;height:29px;background:#f8e9ee;color:#8b193d;border-radius:9px;font-size:16px;font-weight:800}
+.p38-summary:nth-child(2) .p382-mini-icon{background:#e4f6ee;color:#147a57}
+.p38-summary:nth-child(3) .p382-mini-icon{background:#e6efff;color:#3662a9}
+.p38-summary:nth-child(4) .p382-mini-icon{background:#fff0d9;color:#976315}
+.p38-summary-label{font-size:13px;font-weight:750}
+.p38-summary strong{font-size:30px;letter-spacing:-.035em}
+.p38-summary small{font-size:11px;line-height:1.4}
+.p38-summary-arrow{position:static;font-size:18px;transition:transform .2s ease}
+.p38-summary:hover .p38-summary-arrow{transform:translate(2px,-2px)}
+.p38-expanded{border:1px solid #e1e5ef!important;border-radius:19px!important;box-shadow:0 12px 32px rgba(31,41,63,.055)!important;min-height:530px;transition:opacity .2s ease,filter .2s ease,transform .2s ease}
+.p382-switch-out{opacity:.25;filter:blur(5px);transform:translateX(-10px)}
+.p382-switch-in{animation:p382-panel-enter .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes p382-panel-enter{from{opacity:.2;filter:blur(5px);transform:translateX(14px)}to{opacity:1;filter:blur(0);transform:translateX(0)}}
+.p38-panel-head{border-bottom:1px solid #eaeef4;padding-bottom:17px}
+.p38-panel-head h2{font-size:23px;color:#243349;margin-top:5px}
+.p38-expanded .table th{color:#69778f;font-size:10px;letter-spacing:.04em}
+.p38-expanded .table tbody tr:hover{background:#faf6f8}
+.p382-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:25px;margin-bottom:12px}
+.p382-section-head h3{font-size:16px;color:#26364d;margin:0 0 4px}
+.p382-section-head p{font-size:11px;color:#718096;margin:0}
+.p382-section-label{font-size:10px;font-weight:700;color:#8b193d;background:#f8eaf0;border-radius:100px;padding:5px 10px}
+.p382-rank{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:8px;background:#f7eaf0;color:#89193d;font-weight:800;font-size:11px}
+.p382-empty{font-size:12px;padding:15px;color:#778299;background:#f8fafc;border-radius:9px}
+.p38-dashboard .p38-panel .table-wrap{border-radius:11px}
+@media(max-width:850px){.p38-dashboard{grid-template-columns:1fr}.p38-dashboard-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.p38-expanded{min-height:370px}}
+@media(max-width:550px){.p382-page-head{margin:18px auto 19px!important}.p38-summary{padding:11px 13px}.p38-summary strong{font-size:25px}.p38-expanded{padding:14px!important}}
+@media(prefers-reduced-motion:reduce){.p38-summary,.p38-expanded,.p38-summary-arrow{transition:none!important}.p382-switch-in{animation:none!important}}
+
+/* Phase 3.8.4 — real two-way card swap. Replaces 3.8.3 transforms and timers. */
+.p38-expanded{position:relative;isolation:isolate;min-height:0;height:clamp(560px,65vh,730px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#dec0cd #fff;transform:none!important;filter:none!important;animation:none!important}
+.p38-expanded::before{content:"";position:sticky;display:block;top:-22px;height:6px;margin:-22px -22px 20px;background:linear-gradient(90deg,#61132f,#a73b61);border-radius:18px 18px 0 0;pointer-events:none;z-index:2}
+.p38-summary{transform:translateZ(0);transform-origin:center;will-change:auto}
+.p38-dashboard:not(.p384-moving) .p38-summary:hover{transform:translateY(-3px)}
+.p384-flight-shell{position:fixed;z-index:9999;pointer-events:none;box-sizing:border-box;overflow:hidden;background:#fff;border:1px solid #e1e5ef;border-radius:19px;box-shadow:0 18px 45px rgba(52,15,35,.20);margin:0;padding:0!important;transform:none!important;filter:none;animation:none!important;contain:layout style paint}
+.p384-flight-shell::before{content:"";position:absolute;inset:0 0 auto;height:6px;background:linear-gradient(90deg,#61132f,#a73b61);z-index:5;pointer-events:none}
+.p384-flight-mini.p38-summary{position:absolute!important;inset:0;display:flex!important;width:100%;height:100%;margin:0;min-width:0;border:0;border-radius:inherit;box-shadow:none!important;transform:none!important;filter:none!important;transition:none!important;animation:none!important;z-index:2;pointer-events:none;cursor:default}
+.p384-flight-content{position:absolute;left:22px;top:22px;min-width:250px;max-width:none;pointer-events:none;z-index:1;filter:none!important;transform:none!important;animation:none!important}
+.p384-flight-out .p384-flight-content{z-index:2}
+.p384-flight-out .p384-flight-mini{z-index:3}
+.p384-flight-in .p384-flight-mini{z-index:3}
+.p384-flight-in .p384-flight-content{z-index:2}
+@media(max-width:850px){.p38-expanded{height:600px;min-height:0}.p384-flight-content{left:16px;top:16px}}
+@media(max-width:550px){.p38-expanded{height:560px}.p38-expanded::before{top:-14px;margin:-14px -14px 14px}}
+@media(prefers-reduced-motion:reduce){.p38-expanded,.p38-summary{animation:none!important;transition:none!important}}
+
+
+/* Phase 3.8.5 — photo header + light card-swap blur. */
+/* Reuse the existing school photo from the login page; no extra image asset. */
+body.desktop-workspace .workspace-header{
+    position:relative;
+    isolation:isolate;
+    min-height:92px;
+    margin:14px 0 28px;
+    padding:14px clamp(15px,2vw,28px);
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:16px;
+    background-color:#52162d;
+    background-image:
+      linear-gradient(105deg,rgba(52,10,32,.93) 0%,rgba(91,17,46,.83) 48%,rgba(77,14,37,.78) 100%),
+      url('../images/login-background.png');
+    background-position:center,center 42%;
+    background-size:cover;
+    background-repeat:no-repeat;
+    box-shadow:0 9px 28px rgba(54,17,36,.13);
+    color:#fff;
+    overflow:hidden;
+}
+body.desktop-workspace .workspace-header::after{
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:linear-gradient(90deg,rgba(40,6,26,.12),transparent 35%,rgba(33,4,22,.16));
+}
+body.desktop-workspace .workspace-header .school-heading .eyebrow{
+    color:#fff;letter-spacing:1.35px;text-shadow:0 1px 3px rgba(0,0,0,.24);
+}
+body.desktop-workspace .workspace-header .school-heading>span:last-child{
+    color:#f7e3eb;font-weight:550;text-shadow:0 1px 3px rgba(0,0,0,.32);
+}
+body.desktop-workspace .workspace-header .account-shortcut{
+    color:#fff;min-width:0;transition:background .18s ease;
+}
+body.desktop-workspace .workspace-header .account-shortcut strong{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+body.desktop-workspace .workspace-header .account-shortcut small{color:#f5dfe8;text-shadow:0 1px 3px rgba(0,0,0,.30)}
+body.desktop-workspace .workspace-header .account-shortcut:hover,
+body.desktop-workspace .workspace-header .account-shortcut:focus-visible{
+    background:rgba(255,255,255,.15);text-decoration:none;
+}
+body.desktop-workspace .workspace-header .user-avatar{border:2px solid rgba(255,255,255,.76);box-shadow:0 3px 12px rgba(0,0,0,.21)}
+body.desktop-workspace .workspace-header .workspace-toggle{
+    color:#fff;background:rgba(255,255,255,.13);
+    border:1px solid rgba(255,255,255,.36);
+    box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+body.desktop-workspace .workspace-header .workspace-toggle:hover,
+body.desktop-workspace .workspace-header .workspace-toggle:focus-visible{
+    color:#fff;background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.7);
+}
+/* The actual card positions are still handled by the Phase 3.8.4 FLIP-like
+   flight animation. Allow a small blur only on those ghost cards. */
+
+@media(max-width:900px){
+ body.desktop-workspace .workspace-header{margin:10px 0 20px;min-height:78px;padding:12px 14px;border-radius:12px;gap:10px}
+ body.desktop-workspace .workspace-header .workspace-heading{gap:10px}
+ body.desktop-workspace .workspace-header .school-heading .eyebrow{font-size:9px;letter-spacing:.8px}
+ body.desktop-workspace .workspace-header .workspace-toggle{width:36px;height:36px;margin:0}
+}
+@media(max-width:480px){
+ body.desktop-workspace .workspace-header .school-heading>span:last-child{font-size:10px}
+ body.desktop-workspace .workspace-header .account-shortcut{padding:4px}
+ body.desktop-workspace .workspace-header .user-avatar{width:32px;height:32px}
+}
+@media print{body.desktop-workspace .workspace-header{display:none!important}}
+
+/* Phase 3.8.6 — full-bleed square shared application banner and lower dashboard accents.
+   CSS-only banner change; leave the sidebar and interaction code untouched. */
+body.desktop-workspace .workspace-header{
+  margin:0 -36px 28px;
+  padding:18px 36px;
+  min-height:104px;
+  border:0;
+  border-radius:0;
+  box-shadow:0 5px 18px rgba(54,17,36,.10);
+  background-position:center,center 42%;
+}
+body.desktop-workspace .workspace-header::after{border-radius:0}
+body.desktop-workspace .main > .p386-accent-panel{position:relative;overflow:hidden}
+body.desktop-workspace .main > .p386-accent-panel::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:5px;
+  background:linear-gradient(90deg,#61132f,#a73b61);pointer-events:none;
+}
+@media(max-width:900px){
+ body.desktop-workspace .workspace-header{margin:0 -18px 20px;padding:14px 18px;min-height:85px;border-radius:0}
+}
+@media print{body.desktop-workspace .main > .p386-accent-panel::before{display:none}}
+
+
+/* Phase 3.8.7 — Dashboard category accents. The colors follow panel identity,
+   not visual position: swapping cards does not change their category colors. */
+.p387-theme-inventory{--p387-accent:#7e1739;--p387-accent-end:#ac4867;--p387-soft:#fbecf2;--p387-light:#f8e5ed;--p387-ink:#751632}
+.p387-theme-ics{--p387-accent:#275cba;--p387-accent-end:#60a5fa;--p387-soft:#eaf2ff;--p387-light:#e4efff;--p387-ink:#244d96}
+.p387-theme-borrow{--p387-accent:#7650be;--p387-accent-end:#b197ec;--p387-soft:#f1eafd;--p387-light:#eee5fc;--p387-ink:#6842a9}
+.p387-theme-deliveries{--p387-accent:#18865a;--p387-accent-end:#5dc6a0;--p387-soft:#e9f9f1;--p387-light:#e0f5e9;--p387-ink:#14734e}
+.p387-theme-attention{--p387-accent:#c36a20;--p387-accent-end:#e5ad55;--p387-soft:#fff5e7;--p387-light:#fff0d9;--p387-ink:#985118}
+
+/* Summary color and left marker; stronger selectors supersede old nth-child tints. */
+.p38-dashboard .p38-summary[class*="p387-theme-"]{
+  background:linear-gradient(125deg,#fff 5%,var(--p387-soft) 100%);
+  border-color:color-mix(in srgb,var(--p387-accent) 17%,#e1e5ee);
+  color:#263247;
+}
+.p38-dashboard .p38-summary[class*="p387-theme-"]::before{
+  content:"";position:absolute;inset:0 auto 0 0;width:4px;
+  border-radius:17px 0 0 17px;background:var(--p387-accent);pointer-events:none;
+}
+.p38-dashboard .p38-summary[class*="p387-theme-"] .p382-mini-icon{
+  color:var(--p387-ink);background:var(--p387-light);
+}
+.p38-dashboard .p38-summary[class*="p387-theme-"] strong,
+.p38-dashboard .p38-summary[class*="p387-theme-"] .p38-summary-arrow{color:var(--p387-ink)}
+.p38-dashboard .p38-summary[class*="p387-theme-"]:hover,
+.p38-dashboard .p38-summary[class*="p387-theme-"]:focus-visible{
+  border-color:var(--p387-accent);
+  box-shadow:0 11px 26px color-mix(in srgb,var(--p387-accent) 14%,transparent);
+}
+/* Main panel and both traveling animation shells share the same keyed accent. */
+.p38-dashboard .p38-expanded[class*="p387-theme-"]::before,
+.p384-flight-shell[class*="p387-theme-"]::before{
+  background:linear-gradient(90deg,var(--p387-accent),var(--p387-accent-end));
+}
+.p38-dashboard .p38-expanded[class*="p387-theme-"] .p382-panel-kicker{
+  color:var(--p387-ink);
+}
+/* The moving miniature retains its color; don't introduce new transform/layout
+   animations here, so the previously approved two-way FLIP swap stays intact. */
+@media (forced-colors:active){
+ .p38-dashboard .p38-summary[class*="p387-theme-"]::before{background:CanvasText}
+}
+/* Clone cards are attached to document.body during the swap, not to the
+   dashboard grid, so carry category styling into those flight layers too. */
+.p384-flight-shell .p384-flight-mini.p38-summary[class*="p387-theme-"]{
+  background:linear-gradient(125deg,#fff 5%,var(--p387-soft) 100%);
+  color:#263247;
+}
+.p384-flight-shell .p384-flight-mini.p38-summary[class*="p387-theme-"] .p382-mini-icon{
+  background:var(--p387-light);color:var(--p387-ink);
+}
+.p384-flight-shell .p384-flight-mini.p38-summary[class*="p387-theme-"] strong,
+.p384-flight-shell .p384-flight-mini.p38-summary[class*="p387-theme-"] .p38-summary-arrow{
+  color:var(--p387-ink);
+}
+
+
+/* Phase 3.8.8 — floating sidebar + responsive photo banner.
+   Built on Phase 3.8.7 dashboard colors without changing dashboard code. */
+body.desktop-workspace {
+    --tnts-page-gutter: clamp(16px, 2.5vw, 48px);
+    overflow-x: clip;
+}
+body.desktop-workspace .main {
+    padding-left:var(--tnts-page-gutter);
+    padding-right:var(--tnts-page-gutter);
+    min-width:0;
+}
+body.desktop-workspace .workspace-header {
+    margin:0 calc(-1 * var(--tnts-page-gutter)) 28px;
+    padding:clamp(14px,1.5vw,22px) var(--tnts-page-gutter);
+    min-height:clamp(86px,9vw,112px);
+    width:auto;
+    max-width:none;
+    border:0;
+    border-radius:0;
+    background-image:
+      linear-gradient(105deg,rgba(46,8,30,.94) 0%,rgba(83,16,45,.79) 48%,rgba(69,13,40,.78) 100%),
+      url('../images/login-background.png');
+    background-repeat:no-repeat;
+    background-size:cover,cover;
+    background-position:center,center 44%;
+}
+body.desktop-workspace .workspace-header .workspace-heading,
+body.desktop-workspace .workspace-header .school-heading { min-width:0; }
+body.desktop-workspace .workspace-header .school-heading .eyebrow,
+body.desktop-workspace .workspace-header .school-heading > span:last-child {
+    overflow-wrap:break-word;
+}
+body.desktop-workspace .workspace-header .account-shortcut { flex-shrink:0; }
+
+/* Popover reuses exact, role-filtered links generated in the sidebar. */
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group > .nav-submenu {
+    display:none!important;
+}
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group {
+    margin:5px 0;
+}
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group > .nav-group-toggle {
+    transition:background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group.tnts-nav-selected > .nav-group-toggle {
+    color:#fff;
+    background:rgba(255,255,255,.15);
+    box-shadow:inset 3px 0 0 #fff;
+    border:1px solid rgba(255,255,255,.42);
+}
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group .nav-chevron {
+    transform:rotate(-90deg);
+}
+body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group.tnts-nav-selected .nav-chevron {
+    transform:rotate(-90deg);
+}
+.tnts-nav-flyout[hidden],.tnts-mobile-shade[hidden]{display:none!important}
+.tnts-nav-flyout {
+    position:fixed;
+    z-index:1100;
+    display:block;
+    box-sizing:border-box;
+    min-width:160px;
+    max-height:calc(100dvh - 24px);
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding:11px;
+    border:1px solid rgba(255,255,255,.24);
+    border-radius:15px;
+    background:linear-gradient(145deg,#79203c,#52142c 78%);
+    box-shadow:0 18px 44px rgba(34,10,26,.27);
+    color:white;
+    animation:tnts-nav-slide-in .18s ease-out both;
+}
+.tnts-nav-flyout-title {
+    padding:6px 9px 12px;
+    margin-bottom:6px;
+    border-bottom:1px solid rgba(255,255,255,.2);
+    color:#f6d5e1;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:1px;
+    text-transform:uppercase;
+}
+.tnts-nav-flyout .nav-submenu{margin:0;padding:0;border:0;animation:none}
+.tnts-nav-flyout .nav-link{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 10px;
+    min-height:38px;
+    margin:2px 0;
+    border:0;
+    border-radius:9px;
+    background:transparent;
+    color:#fff;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:none;
+}
+.tnts-nav-flyout .nav-link:hover,.tnts-nav-flyout .nav-link:focus-visible {
+    background:rgba(255,255,255,.17);
+    color:#fff;
+}
+.tnts-nav-flyout .nav-link.active{
+    background:#fff;
+    color:#741832;
+    font-weight:800;
+}
+.tnts-nav-flyout .nav-link .icon { width:16px;height:16px;flex-shrink:0 }
+.tnts-nav-flyout .p6ui-category-group{margin-left:0;border-color:rgba(255,255,255,.2)}
+.tnts-nav-flyout .p6ui-category-toggle{color:#fcebf2}
+.tnts-nav-flyout .p6ui-category-links { margin-left:10px; }
+@keyframes tnts-nav-slide-in {
+    from {opacity:.5;transform:translateX(-9px) scale(.985)}
+    to {opacity:1;transform:translateX(0) scale(1)}
+}
+/* Adapt to viewport CSS width, including browser zoom. */
+@media(max-width:920px){
+    body.desktop-workspace {min-width:0;overflow-x:hidden;--tnts-page-gutter:clamp(12px,3vw,22px)}
+    body.desktop-workspace .app{width:100%;min-width:0}
+    body.desktop-workspace .main{width:100%;flex:1;min-width:0}
+    body.desktop-workspace .sidebar {
+        position:fixed;
+        z-index:1201;
+        top:0;
+        bottom:0;
+        left:0;
+        height:100dvh;
+        width:min(280px,86vw);
+        transform:translateX(-105%);
+        transition:transform .23s ease;
+        overflow-y:auto;
+        overflow-x:hidden;
+        visibility:hidden;
+    }
+    body.desktop-workspace.tnts-mobile-nav-open .sidebar {
+        transform:translateX(0);
+        visibility:visible;
+    }
+    body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group > .nav-submenu {
+        display:block!important;
+    }
+    body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group:not([open]) > .nav-submenu {display:none!important}
+    body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group[open] .nav-chevron {transform:rotate(180deg)}
+    .tnts-nav-flyout{display:none!important}
+    .tnts-mobile-shade:not([hidden]){
+        display:block;
+        position:fixed;
+        inset:0;
+        z-index:1200;
+        background:rgba(24,11,25,.55);
+        border:0;
+        padding:0;
+        cursor:pointer;
+    }
+    body.desktop-workspace .workspace-header {
+        min-height:84px;
+        margin-bottom:22px;
+        background-position:center,center 52%;
+    }
+}
+@media(max-width:600px){
+    body.desktop-workspace .workspace-header {gap:9px;min-height:78px;padding-block:12px}
+    body.desktop-workspace .workspace-header .workspace-heading{gap:9px}
+    body.desktop-workspace .workspace-header .school-heading .eyebrow{font-size:9px;letter-spacing:.7px}
+    body.desktop-workspace .workspace-header .school-heading > span:last-child{font-size:10px}
+    body.desktop-workspace .workspace-header .account-shortcut {padding:3px;gap:5px}
+    body.desktop-workspace .workspace-header .account-shortcut > div {display:none}
+    body.desktop-workspace .workspace-header .workspace-toggle {width:36px;height:36px}
+}
+@media(max-width:390px){
+    body.desktop-workspace .workspace-header .school-heading .eyebrow{font-size:8px}
+    body.desktop-workspace .workspace-header .workspace-heading{gap:7px}
+    body.desktop-workspace .workspace-header .user-avatar{width:30px;height:30px}
+}
+@media(prefers-reduced-motion:reduce){
+    .tnts-nav-flyout{animation:none!important}
+    body.desktop-workspace .sidebar{transition:none!important}
+}
+@media print {
+    .tnts-nav-flyout,.tnts-mobile-shade{display:none!important}
+}
+
+
+/* Phase 3.8.9 — desktop hover preview + inline expanded section on click. */
+@media (min-width:921px) {
+  body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group[open] > .nav-submenu {
+    display:block!important;
+    margin:5px 0 10px 17px;
+    padding-left:9px;
+    border-left:1px solid rgba(255,255,255,.25);
+    animation:tnts-inline-expand .20s ease-out both;
+  }
+  body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group[open] .nav-chevron {
+    transform:rotate(180deg);
+  }
+  body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group.tnts-nav-preview:not(.tnts-nav-selected) > .nav-group-toggle {
+    background:rgba(255,255,255,.11);
+    color:#fff;
+  }
+  body.desktop-workspace.sidebar-collapsed .sidebar.tnts-nav-ready .tnts-nav-group > .nav-submenu {
+    display:none!important;
+  }
+}
+@keyframes tnts-inline-expand {
+  from {opacity:.35;transform:translateY(-5px)}
+  to {opacity:1;transform:translateY(0)}
+}
+@media (prefers-reduced-motion:reduce) {
+  body.desktop-workspace .sidebar.tnts-nav-ready .tnts-nav-group[open] > .nav-submenu {
+    animation:none!important;
+  }
+}
+
+/* Phase 3.8.10 — page-level, default-zoom responsive data tables. */
+body.desktop-workspace .tnts-table-card{min-width:0;max-width:100%;padding:18px;overflow:hidden}
+.tnts-grid-toolbar{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tnts-grid-title{display:grid;gap:3px}.tnts-grid-title strong{font-size:14px;color:#28344a}.tnts-grid-title small{font-size:11px;color:#687587}
+.tnts-grid-filters{display:flex;align-items:end;flex-wrap:wrap;gap:9px}
+.tnts-grid-filters label{display:grid;gap:5px;font-size:11px;color:#5f6c80;font-weight:700;min-width:0}
+.tnts-grid-filters input,.tnts-grid-filters select{width:100%;border:1px solid #d8dfe9;border-radius:8px;background:#fff;color:#28344a;padding:9px 10px;font-size:12px;min-width:0;max-width:100%}
+.tnts-grid-filters .tnts-grid-search{min-width:180px;max-width:285px;flex:1 1 185px}
+.tnts-grid-filters .tnts-grid-short{width:150px;flex:0 1 150px}
+.tnts-grid-filters .tnts-grid-date{width:145px;flex:0 1 145px}
+.tnts-grid-scroll{max-width:100%;overflow-x:auto;border-radius:10px}
+body.desktop-workspace .tnts-data-table{width:100%;table-layout:fixed;min-width:0;border-collapse:collapse;text-align:left;font-size:12px}
+body.desktop-workspace .tnts-data-table th,body.desktop-workspace .tnts-data-table td{padding:11px 9px;white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
+body.desktop-workspace .tnts-data-table th{background:#f5f6fa;font-size:10px;line-height:1.35;letter-spacing:.035em;text-transform:uppercase;color:#677388}
+.tnts-grid-sort{display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;padding:2px 0;border:0;background:none;color:inherit;cursor:pointer;font:inherit;text-align:left;text-transform:inherit;letter-spacing:inherit;max-width:100%}
+.tnts-grid-sort:hover,.tnts-grid-sort:focus-visible{color:#851533}.tnts-grid-sort:focus-visible{outline:2px solid #851533;outline-offset:3px}
+.tnts-grid-indicator{color:#8b93a2;font-size:14px;line-height:1;flex:none}
+.tnts-grid-sort[data-sort-direction="asc"] .tnts-grid-indicator,.tnts-grid-sort[data-sort-direction="desc"] .tnts-grid-indicator{color:#851533}
+.tnts-grid-main{font-weight:750;color:#25314a}.tnts-grid-muted{font-size:11px;color:#667287;line-height:1.5}.tnts-grid-stack{display:grid;gap:3px}
+.tnts-grid-link{display:inline-block;border:1px solid #e3c8d2;color:#851533;background:#fff;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:750;white-space:normal;text-decoration:none}
+.tnts-grid-link:hover,.tnts-grid-link:focus-visible{background:#fff1f5;border-color:#851533}
+.tnts-grid-pill{display:inline-flex;border-radius:99px;padding:5px 9px;font-size:10px;font-weight:750;line-height:1.3;background:#edf0f5;color:#526071;max-width:100%;text-align:center}
+.tnts-grid-pill--accepted,.tnts-grid-pill--completed{background:#e1f5eb;color:#13663d}
+.tnts-grid-pill--partially_accepted,.tnts-grid-pill--accepted-transfer{background:#e6f0ff;color:#215ca4}
+.tnts-grid-pill--pending_inspection,.tnts-grid-pill--requested,.tnts-grid-pill--awaiting_finalization{background:#fff0d8;color:#955708}
+.tnts-grid-pill--rejected,.tnts-grid-pill--declined,.tnts-grid-pill--cancelled{background:#fce7e9;color:#ab2934}
+.tnts-grid-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}
+.tnts-grid-pager-actions{display:flex;align-items:center;gap:7px}
+.tnts-grid-pager-actions button{border:1px solid #d7dce5;border-radius:8px;background:#fff;color:#791834;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer}
+.tnts-grid-pager-actions button:hover:not(:disabled){background:#fff0f5;border-color:#8a1839}
+.tnts-grid-pager-actions button:disabled{opacity:.44;cursor:not-allowed}
+.tnts-grid-empty{text-align:center;padding:22px!important;color:#667287}
+.tnts-grid-details{max-width:100%}.tnts-grid-details summary{color:#81183a;cursor:pointer;font-size:11px;font-weight:750;list-style-position:inside}
+.tnts-grid-details[open]{background:#faf7f9;border:1px solid #eddce3;padding:8px;border-radius:9px}
+.tnts-grid-details-content{margin-top:10px;font-size:11px;color:#344054;line-height:1.55;overflow-wrap:anywhere}
+.tnts-grid-details-content p{margin:6px 0}
+@media(max-width:1100px){body.desktop-workspace .tnts-table-card{padding:14px}.tnts-grid-filters{justify-content:flex-start}.tnts-grid-filters .tnts-grid-search{min-width:165px}}
+@media(max-width:720px){body.desktop-workspace .tnts-data-table{min-width:620px}.tnts-grid-filters{width:100%}.tnts-grid-filters .tnts-grid-date{flex:1 1 145px}.tnts-grid-filters .tnts-grid-short{flex:1 1 145px}}
+@media(prefers-reduced-motion:reduce){body.desktop-workspace .tnts-data-table tr{transition:none}}
+body.desktop-workspace .tnts-table-card{position:relative}
+body.desktop-workspace .tnts-table-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#69182f,#a7355d);pointer-events:none}
+
+/* Phase 3.8.11: icon-only navigation previews must not inherit hidden inline submenus.
+   Leave existing <=920px mobile drawer rules exactly as they are. */
+@media (min-width:921px) {
+  body.desktop-workspace.sidebar-collapsed .tnts-nav-flyout .nav-submenu{display:block!important;}
+  body.desktop-workspace.sidebar-collapsed .tnts-nav-flyout .nav-link{display:flex!important;justify-content:flex-start;padding:10px;gap:10px;min-height:38px;}
+  body.desktop-workspace.sidebar-collapsed .tnts-nav-flyout .nav-link > span{display:inline!important;}
+  body.desktop-workspace.sidebar-collapsed .tnts-nav-flyout .nav-link .icon{display:inline-flex;}
+  body.desktop-workspace.sidebar-collapsed .sidebar .tnts-nav-group.tnts-nav-preview > .nav-group-toggle,
+  body.desktop-workspace.sidebar-collapsed .sidebar .tnts-nav-group.has-active > .nav-group-toggle{background:rgba(255,255,255,.18);box-shadow:inset 3px 0 #fff;border-radius:9px;color:#fff;}
+}
+
+/* Phase 3.8.11: searchable, compact administration and batch tables. */
+body.desktop-workspace .tnts-admin-card{position:relative;min-width:0;max-width:100%;padding:18px;overflow:hidden;}
+body.desktop-workspace .tnts-admin-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#681830,#a9355e);pointer-events:none;}
+.tnts-admin-heading{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
+.tnts-admin-heading h3{margin:0;color:#26344c;font-size:16px;}
+.tnts-admin-hint{margin:5px 0 12px;color:#66758a;font-size:11px;line-height:1.55;}
+.tnts-admin-toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:9px;margin:12px 0 13px;}
+.tnts-admin-toolbar label{display:grid;gap:5px;min-width:0;color:#5c6a80;font-size:11px;font-weight:700;}
+.tnts-admin-toolbar input,.tnts-admin-toolbar select{min-width:0;max-width:100%;width:100%;padding:9px 10px;border:1px solid #d5dce7;border-radius:8px;font-size:12px;color:#26344c;background:#fff;}
+.tnts-admin-toolbar .tnts-admin-search{flex:1 1 200px;max-width:350px;}
+.tnts-admin-toolbar .tnts-admin-short{flex:0 1 160px;width:160px;}
+.tnts-admin-toolbar .tnts-admin-page-size{flex:0 1 120px;width:120px;}
+.tnts-admin-reset{padding:9px 11px;border:1px solid #e4cdd6;border-radius:8px;background:#fff;color:#831939;font-size:11px;font-weight:750;cursor:pointer;}
+.tnts-admin-reset:hover{background:#fff2f6;}
+.tnts-admin-table-wrap{max-width:100%;overflow-x:auto;border-radius:10px;}
+body.desktop-workspace table.tnts-admin-table{border-collapse:collapse;width:100%;table-layout:fixed;min-width:0;font-size:12px;}
+body.desktop-workspace table.tnts-admin-table thead th{padding:11px 9px;background:#f5f6fa;color:#69758a;font-size:10px;font-weight:800;letter-spacing:.025em;text-transform:uppercase;text-align:left;white-space:normal;}
+body.desktop-workspace table.tnts-admin-table tbody td{padding:11px 9px;vertical-align:middle;border-bottom:1px solid #e9edf3;font-size:12px;overflow-wrap:anywhere;}
+.tnts-admin-table tbody tr:hover{background:#fbf9fa;}
+.tnts-admin-table .tnts-admin-name{font-weight:750;color:#26344c;}
+.tnts-admin-table .tnts-admin-meta{display:block;color:#69778a;font-size:10.5px;margin-top:3px;line-height:1.45;}
+.tnts-admin-sort{border:0;background:none;color:inherit;font:inherit;font-weight:inherit;letter-spacing:inherit;text-align:left;cursor:pointer;padding:2px 0;max-width:100%;} 
+.tnts-admin-sort:hover,.tnts-admin-sort:focus-visible{color:#831939;}
+.tnts-admin-sort:focus-visible{outline:2px solid #831939;outline-offset:3px;}
+.tnts-admin-sort span{color:#8e99a7;padding-left:4px;white-space:nowrap;}
+.tnts-admin-sort[aria-pressed="true"] span{color:#831939;}
+.tnts-admin-table .tnts-admin-input,.tnts-admin-table .tnts-admin-select{width:100%;min-width:0;max-width:100%;border:1px solid #d4dce8;border-radius:8px;padding:9px 8px;font-size:11px;background:#fff;color:#2b3850;box-sizing:border-box;}
+.tnts-admin-table .tnts-admin-save{border:0;border-radius:7px;color:#fff;background:#870706;padding:9px 11px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;}
+.tnts-admin-table .tnts-admin-save:hover{background:#660404;}
+.tnts-admin-table .tnts-admin-palette{display:inline-flex;align-items:center;padding:5px 9px;border-radius:99px;font-weight:750;font-size:10px;white-space:normal;line-height:1.3;}
+.tnts-admin-palette.is-active,.tnts-admin-palette.is-dated{background:#e5f5ec;color:#17633f;}
+.tnts-admin-palette.is-inactive,.tnts-admin-palette.is-unknown{background:#eaedf2;color:#566477;}
+.tnts-admin-palette.is-soon{background:#fff1d9;color:#96590c;}
+.tnts-admin-palette.is-expired{background:#fde8e9;color:#ab2434;}
+.tnts-admin-table .tnts-unit-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.tnts-admin-table .tnts-unit-actions form{margin:0;}
+.tnts-admin-pager{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:13px;color:#667287;font-size:11px;}
+.tnts-admin-pager-buttons{display:flex;gap:7px;align-items:center;}
+.tnts-admin-pager button{border:1px solid #d9dfe8;background:#fff;color:#831939;padding:8px 11px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;}
+.tnts-admin-pager button:disabled{opacity:.4;cursor:not-allowed;}
+.tnts-admin-no-results{padding:20px!important;text-align:center;color:#677589;}
+.tnts-admin-muted{color:#68778a;}
+@media(max-width:1200px){body.desktop-workspace .tnts-admin-card{padding:14px;} body.desktop-workspace table.tnts-admin-table thead th,body.desktop-workspace table.tnts-admin-table tbody td{padding:9px 7px;}}
+@media(max-width:950px){.tnts-admin-toolbar .tnts-admin-short{flex:1 1 145px;}.tnts-admin-toolbar .tnts-admin-search{max-width:none;}}
+@media(max-width:820px){body.desktop-workspace .tnts-admin-table-wrap table.tnts-admin-batch-table{min-width:770px;}body.desktop-workspace .tnts-admin-table-wrap table.tnts-admin-threshold-table{min-width:510px;} }
+@media(max-width:560px){.tnts-admin-toolbar label{width:100%!important;flex:1 1 100%!important;max-width:none!important;} .tnts-admin-pager{align-items:flex-start;} }
+
+
+/* Phase 3.8.14 — Issue ICS compact, responsive desktop table.
+   Retain all source-batch/course/quantity controls and the original posting logic. */
+.p473-issue-table-wrap{min-width:0;overflow-x:auto;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items{width:100%;min-width:0;table-layout:fixed;font-size:12px;margin:0;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th{min-width:0;white-space:normal;font-size:10.5px;padding:11px 8px;overflow-wrap:anywhere;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items td{min-width:0;padding:12px 8px;vertical-align:middle;overflow-wrap:anywhere;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(1){width:16%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(2){width:13%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(3){width:20%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(4){width:20%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(5){width:22%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items th:nth-child(6){width:9%;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;font-size:11px;text-overflow:ellipsis;}
+body.desktop-workspace .p473-issue-table-wrap #p36Items input[type=number]{box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:7px 4px;font-size:12px;}
+.tnts-issue-available strong{color:#167349;font-weight:800;display:block;}
+.tnts-issue-availability-label{display:block;font-size:10px;font-weight:500;color:#69778c;margin:3px 0 6px;}
+.tnts-issue-conditions{display:flex;flex-wrap:wrap;gap:4px;}
+.tnts-issue-conditions .p36-repair,.tnts-issue-conditions .p36-damaged{font-size:10px;padding:4px 6px;margin:0;}
+.p473-issue-table-wrap .p4721-batch-course-label,.p473-issue-table-wrap .p4721-hint{display:block;font-size:10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;}
+.tnts-issue-help{color:#68778c;font-size:11px;margin:5px 0 10px;}
+.p473-issue-wide .p36-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:10px;}
+.p473-issue-wide .p36-filters label{min-width:0;}
+.p473-issue-wide .p36-filters input,.p473-issue-wide .p36-filters select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;}
+@media(max-width:1050px){
+ body.desktop-workspace .p473-issue-table-wrap #p36Items{font-size:11px;}
+ body.desktop-workspace .p473-issue-table-wrap #p36Items th,body.desktop-workspace .p473-issue-table-wrap #p36Items td{padding:9px 5px;}
+}
+@media(max-width:760px){
+ body.desktop-workspace .p473-issue-table-wrap #p36Items{min-width:720px;}
+ .p473-issue-table-wrap{overscroll-behavior-x:contain;}
+}
+
+/* Phase 3.8.20 — Condemnation and Accounts shared record-table styles */
+/* Compact record-table layouts: Condemnation + Accounts.
+   Scoped to these modules so other Phase 3.8 styles and mobile navigation stay unchanged. */
+.record-card, .p451-list-card {min-width:0;}
+.record-section-header {display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:17px;}
+.record-section-header h3 {margin:0 0 4px;color:#223149;font-size:17px;}
+.record-section-header p {margin:0;color:#66758a;font-size:12px;}
+.record-pagesize {display:flex;flex-direction:column;gap:5px;max-width:140px;font-size:11px;color:#526079;}
+.record-pagesize select {height:39px;min-width:120px;width:100%;}
+.record-filters {display:grid;grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) minmax(190px,1fr) auto;gap:11px;align-items:end;margin-bottom:12px;}
+.record-filters .field {min-width:0;margin:0;}
+.record-filters .input {width:100%;max-width:none;min-width:0;}
+.record-filters label {display:block;margin-bottom:5px;font-size:11px;font-weight:650;}
+.record-filter-reset {padding-bottom:1px;}
+.record-filters .btn {min-height:39px;}
+.record-results {font-size:11px;color:#64748b;margin:0 0 12px;}
+.record-table-wrap {max-width:100%;overflow-x:auto;min-width:0;}
+.record-table {width:100%;min-width:0!important;table-layout:fixed;border-collapse:collapse;font-size:12px;}
+.record-table th {font-size:10px!important;letter-spacing:.035em;color:#65748c;padding:12px 10px!important;}
+.record-table td {padding:12px 10px!important;vertical-align:middle!important;overflow-wrap:anywhere;line-height:1.5;font-size:12px!important;}
+.record-table td strong {color:#29394e;}
+.record-table td small,.record-subline {display:block;color:#74839a;margin-top:3px;font-size:11px;overflow-wrap:anywhere;}
+.record-table tbody tr.record-main:hover {background:#fcf9fa;}
+.record-table tbody tr.record-main[hidden],.record-table tbody tr.record-detail[hidden],.p451-main-row[hidden],.p451-detail-row[hidden],.record-empty[hidden] {display:none!important;}
+.condemnation-table th:nth-child(1),.condemnation-table tr.record-main>td:nth-child(1){width:24%;}
+.condemnation-table th:nth-child(2),.condemnation-table tr.record-main>td:nth-child(2){width:29%;}
+.condemnation-table th:nth-child(3),.condemnation-table tr.record-main>td:nth-child(3){width:15%;}
+.condemnation-table th:nth-child(4),.condemnation-table tr.record-main>td:nth-child(4){width:16%;}
+.condemnation-table th:nth-child(5),.condemnation-table tr.record-main>td:nth-child(5){width:16%;}
+.record-expand,.p451-expand{white-space:nowrap;padding:7px 9px!important;font-size:11px!important;max-width:100%;}
+.record-detail td,.p451-detail-row td {padding:0!important;background:#f8f9fc!important;}
+.record-detail-panel {margin:10px;padding:17px 18px;border:1px solid #e4e7ef;border-left:3px solid #89183d;border-radius:11px;background:#fff;min-width:0;}
+.record-detail-head {display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding-bottom:12px;margin-bottom:13px;border-bottom:1px solid #e9edf3;}
+.record-detail-head h4{margin:0;color:#233249;font-size:15px;}
+.record-facts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 24px;margin-bottom:15px;}
+.record-facts>div {display:grid;gap:4px;min-width:0;overflow-wrap:anywhere;}
+.record-facts span {font-size:11px;font-weight:650;color:#68768b;}
+.record-facts strong {font-size:12px;color:#233249;}
+.record-note {background:#f7f8fb;border-radius:9px;padding:12px 14px;margin:12px 0;border-left:2px solid #8b1b42;overflow-wrap:anywhere;}
+.record-note strong {font-size:11px;color:#4c5d77;}
+.record-note p {margin:6px 0 0;font-size:12px;line-height:1.65;color:#2b394e;white-space:normal;}
+.record-audit{font-size:12px;color:#58657a;margin:10px 0;}
+.record-disposition {background:#fff9ef;border:1px solid #f2dbb9;border-radius:9px;padding:12px;margin-bottom:10px;}
+.record-disposition label {display:flex;align-items:flex-start;gap:9px;font-size:12px;font-weight:650;color:#574324;}
+.record-disposition input {margin-top:2px;flex:0 0 auto;}
+.record-disposition p {margin:7px 0 0;font-size:11px;line-height:1.6;color:#805f3e;}
+.record-decision-actions,.record-account-actions {display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:14px 0;}
+.record-decision-actions .btn{min-height:38px;}
+.record-empty {text-align:center;padding:18px;color:#637189;font-size:12px;}
+.record-pagination {display:flex;justify-content:flex-end;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 0 0;color:#65748c;font-size:12px;}
+.record-pagination .btn {min-height:32px;}
+.record-pagination .btn:disabled{opacity:.45;cursor:not-allowed;}
+.accounts-compact-table {min-width:0!important;table-layout:fixed;}
+.accounts-compact-table th:nth-child(1),.accounts-compact-table tr.p451-main-row>td:nth-child(1){width:28%;}
+.accounts-compact-table th:nth-child(2),.accounts-compact-table tr.p451-main-row>td:nth-child(2){width:15%;}
+.accounts-compact-table th:nth-child(3),.accounts-compact-table tr.p451-main-row>td:nth-child(3){width:13%;}
+.accounts-compact-table th:nth-child(4),.accounts-compact-table tr.p451-main-row>td:nth-child(4){width:13%;}
+.accounts-compact-table th:nth-child(5),.accounts-compact-table tr.p451-main-row>td:nth-child(5){width:15%;}
+.accounts-compact-table th:nth-child(6),.accounts-compact-table tr.p451-main-row>td:nth-child(6){width:16%;}
+.p451-table-heading .record-pagesize {margin-left:auto;}
+.p451-expanded.record-detail-panel{background:#fff;border:1px solid #e5e8f0;border-left:3px solid #89183d;}
+.record-account-actions .p451-toggle,.record-account-actions .p451-delete {padding:8px 12px;min-height:35px;}
+.record-edit-section{border:1px solid #e5e8ef;border-radius:10px;overflow:hidden;margin-top:12px;}
+.record-edit-section>summary{padding:13px 15px;cursor:pointer;font-weight:750;font-size:12px;color:#87163b;background:#faf8fa;list-style:none;}
+.record-edit-section>summary::-webkit-details-marker {display:none;}
+.record-edit-section>summary:hover{background:#f8edf2;}
+.record-edit-section>.p451-account-form{padding:16px;}
+/* Keep tables usable at default desktop zoom, and scroll inside the table only on narrow viewports. */
+@media(max-width:1000px){.record-filters{grid-template-columns:repeat(2,minmax(0,1fr));}.record-filter-reset{align-self:end;}.record-table th,.record-table td{padding:9px 7px!important;}.record-expand,.p451-expand{white-space:normal;}}
+@media(max-width:700px){.record-filters{grid-template-columns:1fr;}.record-facts{grid-template-columns:1fr;}.record-table{min-width:650px!important;}.accounts-compact-table{min-width:660px!important;}.record-detail-panel{margin:6px;padding:13px;}.record-pagination{justify-content:center;}.record-section-header{align-items:flex-start;}}
+
+/* Account and review tables: neutral, Inventory-style sorting and compact expanded records. */
+.p451-sort,.p451-sort:visited{color:#4d5c70!important;text-decoration:none!important;gap:7px}
+.p451-sort:hover,.p451-sort:focus-visible{color:#26354c!important;text-decoration:none!important}
+.p451-sort .p451-sort-indicator{font-size:13px;font-weight:700;color:#8a94a5!important;min-width:12px;text-align:center}
+.p451-sort:focus-visible,.tnts-review-toggle:focus-visible,.tnts-review-close:focus-visible{outline:2px solid #6f7c91;outline-offset:3px}
+.tnts-review-table-wrap{max-width:100%;overflow-x:auto;min-width:0}
+.tnts-review-table{width:100%;min-width:0!important;table-layout:fixed;border-collapse:collapse;font-size:12px}
+.tnts-review-table th{font-size:11px;color:#65748c;white-space:normal!important;padding:12px 10px!important}
+.tnts-review-table td{font-size:12px;vertical-align:middle;padding:11px 10px!important;overflow-wrap:anywhere}
+.tnts-review-table th:first-child{width:34%}.tnts-review-table th:nth-child(2){width:23%}.tnts-review-table th:nth-child(3){width:25%}.tnts-review-table th:last-child{width:18%}
+.tnts-review-table .tnts-review-main:hover{background:#fbf9fa}
+.tnts-review-subline{display:block;color:#788398;font-size:11px;margin-top:4px;overflow-wrap:anywhere}
+.tnts-review-detail[hidden]{display:none!important}
+.tnts-review-detail>td{padding:0!important;background:#faf8fa}
+.tnts-review-panel{background:#fff;margin:10px;border:1px solid #e5e7ec;border-radius:10px;padding:20px;min-width:0}
+.tnts-review-panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:16px;border-bottom:1px solid #eaebef}
+.tnts-review-panel-header strong{font-size:14px;color:#273347}
+.tnts-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;margin:0 0 14px}
+.tnts-review-facts>div{min-width:0}.tnts-review-facts dt{color:#738096;font-size:11px;font-weight:650;margin-bottom:4px}
+.tnts-review-facts dd{color:#28354b;font-size:12px;font-weight:600;margin:0;overflow-wrap:anywhere}
+.tnts-review-note{background:#f8f9fb;padding:12px 14px;border-left:3px solid #b4bcc9;border-radius:4px;margin-top:14px}
+.tnts-review-note>span{display:block;color:#63718a;font-size:11px;font-weight:650;margin-bottom:7px}
+.tnts-review-note em{font-size:12px;color:#3d4858;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.tnts-review-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}.tnts-review-actions form{margin:0}
+.tnts-review-action-panel{margin-top:18px;padding:15px;background:#faf8fa;border:1px solid #ece1e6;border-radius:9px}
+.tnts-review-action-panel>strong{display:block;font-size:13px;margin-bottom:10px}
+.tnts-review-decision{display:flex;flex-direction:column;align-items:start;gap:7px}
+.tnts-review-decision .input{width:100%;max-width:none;box-sizing:border-box}
+.tnts-review-decision label{font-size:12px;font-weight:650}
+.tnts-review-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.tnts-review-comparison section{padding:15px;border:1px solid #e9eaf0;border-radius:9px;min-width:0}
+.tnts-review-comparison h4{margin:0 0 12px;font-size:13px;color:#35425a}
+.tnts-review-comparison .tnts-review-facts{grid-template-columns:1fr}
+@media(max-width:700px){.tnts-review-table{min-width:575px!important}.tnts-review-panel{margin:5px;padding:13px}.tnts-review-facts,.tnts-review-comparison{grid-template-columns:1fr}}
+.tnts-review-main[hidden]{display:none!important}
+.tnts-review-pagination{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px;padding:15px 0 5px;font-size:12px;color:#64748b}
+.tnts-review-pagination label{display:flex;align-items:center;gap:7px}
+.tnts-review-pagination select{background:#fff;border:1px solid #d8dfe8;border-radius:7px;padding:6px;color:#334155}
+.tnts-review-pagination button:disabled{opacity:.45;cursor:not-allowed}
+
+/* Accounts: Inventory-inspired compact toolbar and instant, local table browsing. */
+.p3822-account-browser{min-width:0}
+.p3822-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:0 0 16px}
+.p3822-filters>.field{flex:1 1 160px;min-width:135px}
+.p3822-filters>.p451-search{flex:1.4 1 210px}
+.p3822-filters>.field>label{font-size:11px;color:#68758a}
+.p3822-filters .input{min-height:40px}
+.p3822-filters>.p3822-advanced{flex:0 0 auto;min-width:0;align-self:flex-end}
+.p3822-advanced>summary{cursor:pointer;border:1px solid #d5dce7;border-radius:9px;background:#fff;color:#6b2940;padding:12px 13px;min-height:40px;font-size:12px;font-weight:650;white-space:nowrap;list-style:none;display:flex;gap:8px;align-items:center}
+.p3822-advanced>summary::-webkit-details-marker{display:none}
+.p3822-advanced[open]{flex:1 1 100%;order:5}
+.p3822-advanced[open]>summary{width:max-content}
+.p3822-advanced[open]>.p3822-advanced-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px;padding:14px;border:1px solid #e0e5ee;border-radius:12px;background:#f8f9fc}
+.p3822-advanced-grid .field{margin:0;min-width:0}
+.p3822-filters>.p451-filter-actions{flex:0 0 auto;align-self:flex-end;gap:8px;padding:0}
+.p3822-filters .p451-filter-actions .btn{min-height:40px}
+.p3822-list-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0 13px}
+.p3822-heading{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
+.p3822-heading strong{font-size:14px;color:#2e3a4e}
+.p3822-table-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.p3822-table-actions label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:#66758b;white-space:nowrap}
+.p3822-table-actions select{min-height:40px;max-width:195px;min-width:90px;padding:8px 29px 8px 11px;font-size:12px}
+.p3822-table-actions .record-pagesize{margin:0}
+.p3822-account-browser .p451-browser-sort{border:0!important;background:none!important;box-shadow:none!important;padding:4px 0!important;color:#617085!important;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:7px;text-align:left;font-size:11px;line-height:1.3;white-space:normal}
+.p3822-account-browser .p451-browser-sort .p451-sort-indicator{color:#8995a5!important;font-weight:750;font-size:13px}
+.p3822-account-browser .p451-browser-sort:hover{color:#26354c!important}
+.p3822-account-browser .p451-browser-sort:focus-visible{outline:2px solid #8d9caf;outline-offset:3px}
+.p3822-account-browser .p451-main-row:hover{background:#faf9fb}
+.p3822-account-browser .p3822-empty td{padding:20px!important;text-align:center;color:#718097}
+@media(max-width:1100px){.p3822-advanced[open]>.p3822-advanced-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:690px){.p3822-filters>.field{flex:1 1 calc(50% - 10px);min-width:120px}.p3822-filters>.p451-search{flex:1 1 100%}.p3822-advanced[open]>.p3822-advanced-grid{grid-template-columns:1fr}.p3822-list-toolbar{align-items:flex-start}.p3822-table-actions{width:100%;justify-content:space-between}.p3822-table-actions select{max-width:180px}}
+
+.p3822-account-browser .p3822-empty[hidden]{display:none!important}
+
+/* Notification center — same shared stylesheet as every other TNTS page. */
+.tn-notify-shell{position:relative;display:flex;align-items:center;margin-left:auto;flex-shrink:0;z-index:25}
+.tn-bell{position:relative;display:grid;place-items:center;min-width:42px;height:42px;padding:8px;border:1px solid #ffffff5e;border-radius:11px;background:#ffffff14;color:#fff;cursor:pointer;transition:background .18s}
+.tn-bell:hover,.tn-bell[aria-expanded=true]{background:#ffffff2d}
+.tn-bell-count{position:absolute;right:-5px;top:-7px;background:#f5d679;color:#681229;border:2px solid #681229;border-radius:30px;padding:1px 5px;font-size:10px;font-weight:800;min-width:19px;text-align:center}
+.tn-bell-count[hidden],.tn-notify-popover[hidden]{display:none!important}
+.tn-notify-popover{position:absolute;top:calc(100% + 14px);right:0;width:min(390px,calc(100vw - 30px));max-height:min(75vh,570px);overflow:hidden;border-radius:15px;background:white;box-shadow:0 24px 60px #14213a40;border:1px solid #e4e8ef;color:#192941;z-index:101;display:flex;flex-direction:column}
+.tn-notify-popover-head,.tn-notify-popover-foot{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid #e7eaf0}
+.tn-notify-popover-head strong{font-size:14px}
+.tn-notify-popover a,.tn-notify-popover button,.tn-notify-page a{color:#821332}
+.tn-notify-popover a,.tn-notify-popover-foot button{font-size:12px;font-weight:700;text-decoration:none}
+.tn-notify-popover-foot{border-bottom:none;border-top:1px solid #e7eaf0}
+.tn-notify-popover-foot button,.tn-notify-mark{border:0;background:none;cursor:pointer;padding:2px 0;font:inherit}
+.tn-notify-preview{overflow:auto;overscroll-behavior:contain;min-height:65px}
+.tn-notify-entry{display:flex;gap:11px;align-items:flex-start;padding:14px 17px;border-bottom:1px solid #edf0f4;line-height:1.4;background:white}
+.tn-notify-entry.is-unread{background:#fcf7f9}
+.tn-notify-entry-marker{width:7px;height:7px;margin-top:7px;border-radius:50%;flex:0 0 auto;background:transparent}
+.tn-notify-entry.is-unread .tn-notify-entry-marker{background:#a2204c}
+.tn-notify-entry-main{min-width:0;flex:1}
+.tn-notify-entry-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.tn-notify-entry-head strong{font-size:12px;line-height:1.4;color:#25334e}
+.tn-notify-entry-head time{font-size:10px;color:#758198}
+.tn-notify-entry p{margin:5px 0 9px;font-size:12px;line-height:1.55;color:#495b70;overflow-wrap:anywhere}
+.tn-notify-entry-actions{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.tn-notify-entry-actions a,.tn-notify-entry-actions button{font-size:11px;font-weight:700;color:#801332}
+.tn-notify-empty{padding:23px 16px;text-align:center;color:#65728a;font-size:13px}
+.tn-notify-error{color:#a7243d!important;font-size:12px}
+.tn-notify-page{max-width:1090px;margin:auto;min-width:0}
+.tn-notify-page-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.tn-notify-page-heading h1{margin:0 0 5px}
+.tn-notify-history-card{padding:17px 20px}
+.tn-notify-history-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:13px;border-bottom:1px solid #edf0f4;flex-wrap:wrap}
+.tn-notify-toggle{display:flex;gap:8px;align-items:center;font-size:12px}
+.tn-notify-page-nav{display:flex;align-items:center;gap:12px;justify-content:flex-end;padding-top:15px;flex-wrap:wrap}
+.tn-notify-note{margin-top:15px;font-size:12px}
+.workspace-header .workspace-user{flex-shrink:0}
+@media(max-width:650px){.tn-notify-popover{right:-65px;width:min(365px,calc(100vw - 23px))}.tn-notify-history-card{padding:10px}.tn-notify-page-heading{align-items:flex-start}.tn-notify-page-heading h1{font-size:24px}}
+
+/* Accounts quick-sort and Show: equal top baselines and consistent control heights. */
+.p3822-list-toolbar .p3822-table-actions{display:flex;align-items:flex-end;gap:12px}
+.p3822-list-toolbar .p3822-table-actions>label,.p3822-list-toolbar .p3822-table-actions>.record-pagesize{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;gap:5px;margin:0;font-size:11px;font-weight:700;line-height:1.2}
+.p3822-list-toolbar .p3822-table-actions select{height:40px!important;min-height:40px!important;margin:0;box-sizing:border-box}
+.p3822-list-toolbar .p3822-toolbar-select select{min-width:180px;max-width:210px}
+.p3822-list-toolbar .record-pagesize select{min-width:85px;max-width:95px;width:95px}
+@media(max-width:690px){.p3822-list-toolbar .p3822-table-actions{align-items:flex-end;width:100%}}
+
+
+/* Shared notification popover: floating above clipped photo headers on EVERY page.
+   Popup is moved to <body> by notifications.js; keep all styles in style.css. */
+body.desktop-workspace .workspace-header .tn-notify-shell{z-index:auto}
+body.desktop-workspace .workspace-header .tn-bell,
+.tn-notify-shell .tn-bell{
+    width:44px;height:44px;min-width:44px;padding:0;
+    border:1px solid rgba(255,255,255,.96);border-radius:50%;
+    background:#fff;color:#851336;box-shadow:0 3px 12px rgba(32,5,16,.17);
+    transition:transform .16s,background-color .16s,box-shadow .16s;
+}
+body.desktop-workspace .workspace-header .tn-bell:hover,
+body.desktop-workspace .workspace-header .tn-bell[aria-expanded="true"],
+.tn-notify-shell .tn-bell:hover,.tn-notify-shell .tn-bell[aria-expanded="true"]{
+    background:#fff4f7;color:#851336;box-shadow:0 5px 18px rgba(32,5,16,.25);transform:translateY(-1px)
+}
+.tn-bell:focus-visible{outline:3px solid #f9d47c;outline-offset:3px}
+.tn-bell-count{top:-4px;right:-5px;z-index:1}
+.tn-notify-popover.tn-notify-portal{
+    position:fixed;top:auto;left:auto;right:auto;bottom:auto;
+    box-sizing:border-box;margin:0;max-width:calc(100vw - 24px);
+    z-index:2147483000;isolation:isolate;overflow:hidden;
+    width:min(390px,calc(100vw - 24px));
+    border:1px solid #e7e3e8;border-radius:16px;
+    box-shadow:0 20px 54px rgba(24,12,25,.28),0 3px 10px rgba(24,12,25,.09);
+    background:#fff;color:#1d2940;
+}
+.tn-notify-popover-title{display:flex;align-items:center;gap:10px;min-width:0}
+.tn-notify-brand-icon{width:34px;height:34px;display:grid;place-items:center;flex:none;border-radius:50%;background:#890924;color:#fff}
+.tn-notify-popover-head{background:#fff;padding:13px 16px}
+.tn-notify-popover-head strong{font-size:14px;color:#253149;letter-spacing:0}
+.tn-notify-popover-head>a{white-space:nowrap}
+.tn-notify-preview{flex:1;min-height:0;overflow-y:auto}
+.tn-notify-popover-foot{background:#fff;gap:10px;flex-wrap:wrap}
+@media(max-width:650px){
+    .tn-notify-popover.tn-notify-portal{right:auto;width:calc(100vw - 24px);max-width:calc(100vw - 24px)}
+    .tn-notify-popover-head,.tn-notify-popover-foot{padding:12px 13px}
+}
+@media(prefers-reduced-motion:reduce){.tn-bell{transition:none!important}}
+/* TNTS 3.8.24b — circular notification bell across all shared-header pages.
+   Scoped to the shared header; does not change notifications or other buttons. */
+.workspace-header #tn-bell.tn-bell {
+    box-sizing: border-box !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    aspect-ratio: 1 / 1;
+    padding: 0 !important;
+    border-radius: 9999px !important;
+    overflow: visible;
+    background-color: #fff;
+    color: #851336;
+}
+.workspace-header #tn-bell.tn-bell > svg {
+    display: block;
+    flex: none;
+    width: 21px;
+    height: 21px;
+}
+.workspace-header #tn-bell.tn-bell .tn-bell-count {
+    right: -5px;
+    top: -6px;
+}
+
+/* Phase 3.8.25: action-ready Property Transfers notification targets. */
+.p3815-record.t25-target-transfer{outline:2px solid #a02952;outline-offset:-2px;background:#fff8fa}
+.p3815-record.t25-target-transfer>td{background:#fff8fa}
+.t25-awaiting{display:grid;gap:5px;color:#5c4761;font-size:.76rem;line-height:1.5;max-width:260px}
+.t25-awaiting strong{color:#7f2143;font-weight:750}
+.t25-awaiting span{color:#66758b}
+.tn-notify-popover-foot:has(>button:only-child){justify-content:flex-end}
+
+
+/* TNTS Phase 3.8.27: mobile-first account layout and accessible drawer.
+   All account positioning overrides are limited to widths <= 920px.
+   Normal 100% zoom desktop styling is unchanged. */
+.p3827-account-jump{display:none}
+@media (max-width:920px) {
+  html.tnts-drawer-lock,html.tnts-drawer-lock body{overflow:hidden!important;overscroll-behavior:none}
+  body.desktop-workspace:has(.profile-layout) .profile-layout{
+    display:grid;grid-template-columns:minmax(0,1fr);gap:16px;
+    width:100%;max-width:100%;min-width:0;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-overview{
+    position:static;top:auto;max-width:none;min-width:0;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-content,
+  body.desktop-workspace:has(.profile-layout) .profile-content>.card{
+    min-width:0;max-width:100%;width:100%;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-content .guided-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .field,
+  body.desktop-workspace:has(.profile-layout) .profile-content .input,
+  body.desktop-workspace:has(.profile-layout) .profile-content input[type="file"]{
+    min-width:0;max-width:100%;width:100%;box-sizing:border-box;
+  }
+  .p3827-account-jump{display:flex;align-items:stretch;gap:8px;overflow-x:auto;max-width:100%;padding:0 1px 10px;margin:0 0 10px;scrollbar-width:thin}
+  .p3827-account-jump a{flex:0 0 auto;text-decoration:none;color:#791431;border:1px solid #e6cad3;background:#fff;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:700}
+  .p3827-account-jump a:focus-visible{outline:2px solid #831533;outline-offset:2px}
+  .p3827-account-jump a:hover{background:#fbf2f5}
+  body.desktop-workspace .sidebar.tnts-nav-ready{overscroll-behavior:contain}
+}
+@media (max-width:600px) {
+  body.desktop-workspace:has(.profile-layout) .page-head{margin-bottom:15px}
+  body.desktop-workspace:has(.profile-layout) .profile-layout{gap:13px}
+  body.desktop-workspace:has(.profile-layout) .profile-layout>.card,
+  body.desktop-workspace:has(.profile-layout) .profile-content>.card{padding:16px!important;border-radius:13px}
+  body.desktop-workspace:has(.profile-layout) .profile-overview{
+    display:grid;grid-template-columns:76px minmax(0,1fr);column-gap:13px;
+    text-align:left;align-items:center;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.profile-avatar-large{
+    grid-column:1;grid-row:1 / span 3;width:76px;height:76px;border-radius:17px;font-size:29px;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-overview>h2{grid-column:2;grid-row:1;margin:0;font-size:18px;line-height:1.25}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.pill{grid-column:2;grid-row:2;justify-self:start;margin:3px 0;max-width:100%}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.profile-email{grid-column:2;grid-row:3;margin:0;font-size:12px;min-width:0;overflow-wrap:anywhere}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.account-specialization,
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.profile-facts,
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.field-help{grid-column:1 / -1;min-width:0}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.account-specialization{margin:14px 0 0}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.profile-facts{margin:14px 0 8px;padding:12px 0;gap:8px}
+  body.desktop-workspace:has(.profile-layout) .profile-overview>.field-help{margin:0}
+  body.desktop-workspace:has(.profile-layout) .profile-content .guided-form-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-section-heading{margin-bottom:16px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-section-heading h2{font-size:18px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-photo-field{
+    display:grid;grid-template-columns:66px minmax(0,1fr);align-items:start;
+    gap:12px;margin-bottom:16px;padding-bottom:16px;
+  }
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-photo-preview,
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-photo-preview .profile-avatar-large{width:66px;height:66px;border-radius:13px;font-size:25px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-photo-field .field{width:100%;min-width:0}
+  body.desktop-workspace:has(.profile-layout) .profile-content input[type=file]{font-size:12px;line-height:1.4}
+  body.desktop-workspace:has(.profile-layout) .profile-content input[type=file]::file-selector-button{display:block;margin:0 0 7px;max-width:100%}
+  body.desktop-workspace:has(.profile-layout) .profile-content .p451-course-grid{grid-template-columns:1fr;gap:11px}
+  body.desktop-workspace:has(.profile-layout) .profile-content .p451-course-grid .check{padding:9px 6px;margin:0;min-width:0}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-form-actions{justify-content:stretch}
+  body.desktop-workspace:has(.profile-layout) .profile-content .profile-form-actions>.btn{width:100%;min-height:44px;justify-content:center}
+  body.desktop-workspace:has(.profile-layout) .profile-content .check{overflow-wrap:anywhere}
+  body.desktop-workspace:has(.profile-layout) .profile-content :is(input,select,textarea){font-size:16px} /* Avoid iOS automatic zoom */
+  body.desktop-workspace:has(.profile-layout) .profile-content .p45-review-summary{min-width:0;overflow-wrap:anywhere}
+}
+@media (prefers-reduced-motion:reduce) {
+  body.desktop-workspace .sidebar{transition:none!important}
+}
+
+/* Notification sound and motion: no sound on hover, only new received alerts.
+   CSS variables stay on :root for easy customization of the unread count. */
+:root {--tn-badge-bg:#f5d679;--tn-badge-ink:#681229;--tn-badge-ring:#681229}
+.tn-bell-count{background:var(--tn-badge-bg);color:var(--tn-badge-ink);border-color:var(--tn-badge-ring)}
+body.desktop-workspace .workspace-header #tn-bell.tn-bell,
+body.desktop-workspace .workspace-header #tn-bell.tn-bell:hover,
+body.desktop-workspace .workspace-header #tn-bell.tn-bell[aria-expanded="true"]{
+  transform:none;transition:background-color .2s,color .2s,scale .2s,box-shadow .2s;
+}
+body.desktop-workspace .workspace-header #tn-bell.tn-bell:hover,
+body.desktop-workspace .workspace-header #tn-bell.tn-bell[aria-expanded="true"]{
+  scale:1.055;background:#861537;color:#fff;box-shadow:0 5px 18px rgba(32,5,16,.24);
+}
+@keyframes tn3827-bell-arrived{
+  0%,100%{rotate:0deg}18%{rotate:-13deg}35%{rotate:11deg}54%{rotate:-8deg}72%{rotate:5deg}
+}
+#tn-bell.tn-bell-new-alert>svg{animation:tn3827-bell-arrived .7s ease-in-out 1;transform-origin:50% 10%}
+.tn-notify-popover-foot #tn-sound-toggle{color:#53617a;font-size:12px;font-weight:650}
+.tn-notify-popover-foot #tn-sound-toggle[aria-pressed="false"]{color:#8e314d}
+.tn-notify-popover-foot:has(#tn-sound-toggle){justify-content:space-between}
+@keyframes tn3827-tray-reveal{
+  0%{opacity:.48;transform:scaleY(.72);filter:blur(4px)}
+  65%{opacity:1;filter:blur(1px)}
+  100%{opacity:1;transform:scaleY(1);filter:blur(0)}
+}
+.tn-notify-popover.tn-notify-portal:not([hidden]){
+  transform-origin:top center;animation:tn3827-tray-reveal .22s ease-out both;
+}
+@media(prefers-reduced-motion:reduce){
+  .tn-notify-popover.tn-notify-portal:not([hidden]),#tn-bell.tn-bell-new-alert>svg{animation:none!important}
+  body.desktop-workspace .workspace-header #tn-bell.tn-bell{transition:none!important}
+}
+
+
+/* TNTS 3.8.27b — Sound icon and responsive tab-resume safety.
+   All new layout rules are MOBILE ONLY. Keep 100%-zoom desktop unchanged. */
+.tn-notify-popover-foot #tn-sound-toggle.tn-sound-icon-button{
+  display:inline-grid;place-items:center;flex:0 0 34px;
+  width:34px;height:34px;min-width:34px;padding:6px;border-radius:50%;
+  background:transparent;border:1px solid transparent;cursor:pointer;
+  color:#861537;transition:background-color .18s,color .18s,border-color .18s;
+}
+.tn-notify-popover-foot #tn-sound-toggle.tn-sound-icon-button:hover{
+  background:#faedf1;border-color:#edd2db;
+}
+.tn-notify-popover-foot #tn-sound-toggle.tn-sound-icon-button[aria-pressed="false"]{
+  color:#657184;
+}
+.tn-sound-icon-button svg{display:block;width:20px;height:20px}
+.tn-sound-icon-button svg[hidden]{display:none!important}
+.tn-sound-icon-button:focus-visible{outline:2px solid #861537;outline-offset:2px}
+@media(max-width:920px){
+  /* CSS backstop: if a browser restores desktop collapsed state in a phone
+     viewport, never leave an 80px rail or hide the mobile navigation labels. */
+  body.desktop-workspace.sidebar-collapsed .sidebar{
+    position:fixed!important;top:0;bottom:0;left:0;z-index:1201;
+    height:100dvh;width:min(280px,86vw)!important;padding:12px!important;
+    transform:translateX(-105%);visibility:hidden;
+  }
+  body.desktop-workspace.sidebar-collapsed.tnts-mobile-nav-open .sidebar{
+    transform:translateX(0);visibility:visible;
+  }
+  body.desktop-workspace.sidebar-collapsed .brand{
+    justify-content:flex-start;padding:20px 10px 24px;
+  }
+  body.desktop-workspace.sidebar-collapsed .brand>div,
+  body.desktop-workspace.sidebar-collapsed .nav-caption,
+  body.desktop-workspace.sidebar-collapsed .nav-link>span,
+  body.desktop-workspace.sidebar-collapsed .nav-group-label,
+  body.desktop-workspace.sidebar-collapsed .nav-chevron,
+  body.desktop-workspace.sidebar-collapsed .who{
+    display:revert!important;
+  }
+  body.desktop-workspace.sidebar-collapsed .sidebar .nav-group[open]>.nav-submenu{
+    display:block!important;
+  }
+  body.desktop-workspace.sidebar-collapsed .sidebar .nav-group:not([open])>.nav-submenu{
+    display:none!important;
+  }
+  body.desktop-workspace.sidebar-collapsed .nav-link,
+  body.desktop-workspace.sidebar-collapsed .nav-group-toggle{
+    justify-content:flex-start;padding:10px 12px;gap:10px;
+  }
+  body.desktop-workspace.sidebar-collapsed .sidebar-foot .nav-link{justify-content:flex-start}
+  body.desktop-workspace .main{min-width:0;width:100%}
+}
+@media(prefers-reduced-motion:reduce){
+  .tn-notify-popover-foot #tn-sound-toggle.tn-sound-icon-button{transition:none}
+}
+
+
+/* ========================================================================
+   TNTS 3.8.28 — inventory / ICS / receiving / borrowing / transfer MOBILE
+   The entire desktop (including 1920x1080 at 100% zoom) is unaffected.
+   Layout-only: no transaction rules, stock numbers or form names are changed.
+   ======================================================================== */
+.tnts-m28-sort { display:none; }
+@media (max-width: 600px) {
+  /* In the mobile workspace, no nested layout is allowed to expand the page. */
+  .p34-wrap,.p6-screen,.p6-panel,.p51-shell,.p51-shell .card,
+  .p3810-inventory,.t18-history-card,.ics12-wrap,.ics12-browser,
+  .ics12-selected,.ics12-filter-card,.p473-issue-wide,
+  .tnts-table-card,.p3816-browser,.p3816-item,.p3816-holder-list,
+  .p3816-holder,.p511-form,.p511-step,.p511-columns,
+  .p6-scroll,.p51-scroll,.p51-scroll .table-wrap,.ics12-scroll,.ics31-table-wrap,
+  .p3817-iar-wrap,
+  .t18-history-scroll,.p473-issue-table-wrap,.tnts-grid-scroll {
+    min-width:0!important; max-width:100%; box-sizing:border-box;
+  }
+  .p6-panel,.p51-shell .card,.t18-history-card,.ics12-selected,
+  .p473-issue-wide,.tnts-table-card { padding:14px!important; }
+  /* Keep table structural elements in the DOM; only change presentation. */
+  table.tnts-m28-cards {
+    display:block!important; width:100%!important; min-width:0!important;
+    max-width:100%!important; table-layout:auto!important;
+    border-collapse:separate!important; border-spacing:0;
+    background:transparent; overflow:visible;
+  }
+  table.tnts-m28-cards thead,table.tnts-m28-cards .tnts-m28-header-row { display:none!important; }
+  table.tnts-m28-cards tbody { display:grid!important; width:100%; gap:12px; min-width:0; }
+  table.tnts-m28-cards tbody > tr[hidden] { display:none!important; }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record:not([hidden]) {
+    display:grid!important; grid-template-columns:minmax(0,1fr);
+    width:100%; max-width:100%; min-width:0; box-sizing:border-box;
+    border:1px solid #dfe4ed; border-radius:13px; padding:12px 13px;
+    background:#fff; box-shadow:0 3px 10px rgba(20,35,53,.045);
+    overflow:visible; gap:0;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record:not([hidden]) > td {
+    display:flex!important; align-items:flex-start; justify-content:space-between;
+    flex-wrap:wrap; gap:7px 10px; min-height:35px;
+    box-sizing:border-box; width:100%; max-width:100%; min-width:0;
+    padding:9px 0!important; margin:0!important; text-align:right;
+    border:0!important; border-bottom:1px solid #eff1f5!important;
+    white-space:normal!important; overflow-wrap:anywhere; word-break:normal;
+    font-size:13px; line-height:1.5; background:transparent!important;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td::before {
+    content:attr(data-tnts-mobile-label); display:block;
+    flex:0 0 38%; max-width:42%; min-width:0;
+    font-size:11.5px; font-weight:750; line-height:1.5;
+    color:#60718b; letter-spacing:.01em; text-align:left;
+    text-transform:none; align-self:center;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td > * {
+    min-width:0; max-width:100%; overflow-wrap:anywhere;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record:not([hidden]) > td:first-child {
+    display:block!important; text-align:left; padding:4px 0 11px!important;
+    margin-bottom:2px!important; border-bottom:1px solid #e4e8ee!important;
+    font-weight:700; font-size:15px;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:first-child::before {display:none!important;}
+  table.tnts-m28-cards tbody > tr.tnts-m28-record:not([hidden]) > td:last-child {
+    border-bottom:0!important; padding-bottom:2px!important;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child:has(button, a) {
+    display:flex!important; justify-content:flex-end; align-items:center;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child:has(button, a)::before {display:none!important;}
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child > button,
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child > a,
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child > .p3813-toggle {
+    width:100%; max-width:100%; min-height:41px; display:inline-flex;
+    align-items:center; justify-content:center; text-align:center;
+    border-radius:9px; white-space:normal; box-sizing:border-box;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-details:not([hidden]) {
+    display:block!important; width:100%; min-width:0; max-width:100%;
+    margin-top:-12px; margin-bottom:4px;
+    border:1px solid #e6dae0; border-top:0;
+    border-radius:0 0 13px 13px; background:#fafbfe;
+    overflow:visible;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-details > td {
+    display:block!important; width:100%!important; max-width:100%!important;
+    min-width:0!important; padding:12px!important; box-sizing:border-box;
+    border:0!important; white-space:normal!important;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-details > td::before {content:none!important;}
+  /* Make the currently open card visually join its expanded details panel. */
+  table.tnts-m28-cards tbody > tr.tnts-m28-record:has(+ tr.tnts-m28-details:not([hidden])) {
+    border-radius:13px 13px 0 0; border-bottom-color:#e6dae0;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record .p34-cell-main,
+  table.tnts-m28-cards tbody > tr.tnts-m28-record .p34-pills,
+  table.tnts-m28-cards tbody > tr.tnts-m28-record .tnts-grid-stack {
+    display:flex; flex-direction:column; gap:5px; align-items:flex-end;
+    text-align:right; overflow-wrap:anywhere;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td:first-child .p34-cell-main {
+    align-items:flex-start;text-align:left;
+  }
+  table.tnts-m28-cards tbody > tr.tnts-m28-record .p34-badge,
+  table.tnts-m28-cards tbody > tr.tnts-m28-record .p473-status-pill {
+    max-width:100%; white-space:normal; overflow-wrap:anywhere;
+  }
+  /* Remove the legacy min-widths that made the earlier phone screenshots clip. */
+  .p6-scroll,.p51-scroll,.p51-scroll .table-wrap,.ics12-scroll,.ics31-table-wrap,
+  .p3817-iar-wrap,
+  .t18-history-scroll,.p473-issue-table-wrap,.tnts-grid-scroll {
+    width:100%!important; overflow-x:visible!important; overflow-y:visible!important;
+  }
+  .p34-wrap,.p3810-inventory {overflow:visible!important;}
+  /* Original source batches, dates, edit and amount controls remain functional. */
+  .p3817-iar-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select),
+  #p36Items.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select),
+  .ics31-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select) {
+    display:grid!important; grid-template-columns:minmax(0,1fr);
+    text-align:left; align-items:start;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select)::before,
+  #p36Items.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select)::before,
+  .ics31-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:has(input, select)::before {
+    max-width:none; width:100%; font-size:11px; margin-bottom:3px;
+  }
+  .p3817-iar-table.tnts-m28-cards input,.p3817-iar-table.tnts-m28-cards select,
+  #p36Items.tnts-m28-cards input, #p36Items.tnts-m28-cards select,
+  .ics31-table.tnts-m28-cards input, .ics31-table.tnts-m28-cards select {
+    box-sizing:border-box; width:100%!important; max-width:100%!important;
+    min-width:0!important; min-height:42px;
+  }
+  .p3817-iar-table.tnts-m28-cards td:last-child::before,
+  #p36Items.tnts-m28-cards td:last-child::before,
+  .ics31-table.tnts-m28-cards td:last-child::before {display:block!important;}
+  .p3817-iar-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child,
+  #p36Items.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child,
+  .ics31-table.tnts-m28-cards tbody > tr.tnts-m28-record > td:last-child {
+    border-top:1px solid #e7eaf0!important; margin-top:5px!important;
+  }
+  /* Selected ICS detail and transfer/borrow action panels are full-width. */
+  .p34-panel,.p3813-detail-inner,.t18-detail-panel,.ics31-content,
+  .p3817-iar-details,.p3817-iar-details-grid,
+  .ics12-selected,.ics12-selected-head,.ics31-form,.p6-details,
+  .p511-form,.p511-step,.p3816-item-toggle,.p3816-holder,
+  .p6-holder-grid,.t18-detail-grid,.p3813-detail-grid,.p34-stat-grid {
+    min-width:0!important;max-width:100%!important;
+  }
+  .p34-stat-grid,.t18-detail-grid,.p3813-detail-grid,
+  .p3817-iar-details-grid,
+  .ics31-entry-grid,.p6-holder-grid {grid-template-columns:minmax(0,1fr)!important;}
+  .p34-dl,.p34-dl > div,.ics12-selected-head,
+  .p3816-item-toggle,.p3816-holder {
+    min-width:0;overflow-wrap:anywhere;
+  }
+  .legacy-161 .legacy-162,.legacy-161 .legacy-061,
+  .p511-columns,.p511-form,.p411-recipient-grid,
+  .legacy-149,.legacy-060 {grid-template-columns:minmax(0,1fr)!important;}
+  .p511-columns,.p3816-holder,.p3816-item-toggle,
+  .p3816-item-metrics,.t18-history-head,.ics12-selected-head {flex-wrap:wrap!important;}
+  .p3816-item-toggle,.p3816-holder {gap:10px!important;}
+  .p3816-search,.p3816-list,.p3816-browser {width:100%; max-width:100%;}
+  .p36-filters,.p6-filters,.p3813-controls,
+  .p3815-tools,.tnts-grid-filters,.ics12-filters {
+    display:grid!important; grid-template-columns:minmax(0,1fr)!important;
+    align-items:stretch; gap:11px;
+  }
+  .p36-filters label,.p6-filters label,.p3813-controls label,
+  .p3815-tools label,.ics12-filters label,
+  .tnts-grid-filters label {width:100%!important;min-width:0;max-width:100%;}
+  .p36-filters input,.p36-filters select,
+  .p6-filters input,.p6-filters select,
+  .p3813-controls input,.p3813-controls select,
+  .p3815-tools input,.p3815-tools select,
+  .ics12-filters input,.ics12-filters select,
+  .tnts-grid-filters input,.tnts-grid-filters select,
+  .t18-teacher-picker input,#p3816TeacherSearch,#p51Allocation {
+    box-sizing:border-box;width:100%!important;min-width:0!important;max-width:100%!important;
+    min-height:42px;
+  }
+  .p3810-toolbar,.p3810-toolbar-controls {min-width:0!important;}
+  .p3810-toolbar-controls {display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important; gap:8px!important;align-items:end;}
+  .p3810-toolbar-controls label{align-self:end;overflow-wrap:anywhere;}
+  .p3810-toolbar-controls select{width:100%!important;min-width:0!important;max-width:100%!important;}
+  .p3810-toolbar-controls label:nth-of-type(3),
+  .p3810-toolbar-controls select:nth-of-type(3){grid-column:auto;}
+  .p3810-pager,.p3813-footer,.p3815-footer,
+  .t18-history-pages,.tnts-grid-pager,.ics12-pager,
+  .ics31-summary {display:flex!important; flex-wrap:wrap!important;gap:10px!important; min-width:0;}
+  .p3810-pager button,.p3813-footer button,.p3815-footer button,
+  .t18-history-pages button,.tnts-grid-pager button {min-height:40px;}
+  .p3816-search {display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px;}
+  .p3816-search input,.p3816-search select {min-width:0!important;width:100%!important;box-sizing:border-box;}
+  .t18-action-dialog {box-sizing:border-box;width:calc(100vw - 24px)!important;max-height:88dvh;padding:15px!important;}
+  .legacy-161 input,.legacy-161 select,.legacy-161 button,
+  .p511-step input,.p511-step select,.p511-step textarea,
+  .t18-action-dialog textarea {max-width:100%;min-width:0;box-sizing:border-box;}
+  .tnts-m28-sort {display:flex!important;flex-wrap:wrap;align-items:center;gap:8px;
+    justify-content:space-between;margin:5px 0 11px;color:#53637b;
+    font-size:11px;font-weight:750;}
+  .tnts-m28-sort select {min-width:0;max-width:65%;padding:9px 10px;
+    border:1px solid #d3dbe7;border-radius:8px;background:#fff;color:#26364e;}
+  .p6-stats {grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+  .p6-panel-title,.p6-heading {align-items:flex-start!important;}
+  .p6-screen button,.p511-step button {max-width:100%;}
+}
+@media (max-width:360px) {
+  table.tnts-m28-cards tbody > tr.tnts-m28-record > td::before {
+    flex-basis:44%;max-width:44%;
+  }
+  .p3810-toolbar-controls {grid-template-columns:minmax(0,1fr)!important;}
+}
+
+/* ======================================================================
+   TNTS 3.8.28b — focused mobile finishing work.
+   Keep the approved 100%-zoom desktop interface exactly as it was.
+   Scoped only to notification header, delivery view, IAR, transfer requests.
+   ====================================================================== */
+@media (max-width: 900px) {
+  /* The delivery overview and attachment uploader must not compete for width.
+     This replaces only this page's old 60% / 30% flex constraints. */
+  .tnts-m28b-delivery-layout {
+    display:grid !important;grid-template-columns:minmax(0,1fr) !important;
+    gap:16px !important; width:100%;min-width:0;max-width:100%;
+  }
+  .tnts-m28b-delivery-layout > .tnts-m28b-delivery-main,
+  .tnts-m28b-delivery-layout > .tnts-m28b-delivery-attachments {
+    display:block;flex:none;min-width:0!important;max-width:100%;width:100%;
+    box-sizing:border-box;
+  }
+  .tnts-m28b-delivery-layout .card {min-width:0;max-width:100%;box-sizing:border-box;}
+  /* Tablet: two fields if there is truly room, one field on phones. */
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields {
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:12px!important;align-items:end!important;
+  }
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields > .legacy-049 {
+    min-width:0;max-width:100%;width:100%;box-sizing:border-box;
+  }
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields .legacy-047 {
+    display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;
+    min-height:43px;
+  }
+}
+@media (max-width: 650px) {
+  /* The bell uses the same proportional sizing as the header avatar.
+     Larger desktop trigger (44px) remains entirely unchanged. */
+  body.desktop-workspace .workspace-header #tn-bell.tn-bell {
+    --tn-mobile-bell-size:clamp(30px,8vw,36px);
+    box-sizing:border-box!important;
+    width:var(--tn-mobile-bell-size)!important;height:var(--tn-mobile-bell-size)!important;
+    min-width:var(--tn-mobile-bell-size)!important;max-width:var(--tn-mobile-bell-size)!important;
+    min-height:var(--tn-mobile-bell-size)!important;max-height:var(--tn-mobile-bell-size)!important;
+    flex:0 0 var(--tn-mobile-bell-size)!important;padding:0!important;
+    aspect-ratio:1;border-radius:50%!important;
+  }
+  body.desktop-workspace .workspace-header #tn-bell.tn-bell > svg {
+    width:clamp(16px,4.2vw,19px)!important;height:clamp(16px,4.2vw,19px)!important;
+  }
+  body.desktop-workspace .workspace-header #tn-bell.tn-bell .tn-bell-count {
+    min-width:16px;min-height:16px;box-sizing:border-box;padding:0 3px;
+    top:-6px;right:-6px;font-size:9px;line-height:14px;border-width:1px;
+  }
+  /* Receiving delivery: keep action buttons, attachments, and item creation usable. */
+  .tnts-m28b-delivery-layout {gap:13px!important;}
+  .tnts-m28b-delivery-layout .card {padding:15px!important;border-radius:12px;}
+  .tnts-m28b-delivery-item-form .legacy-162,
+  .tnts-m28b-delivery-item-form .legacy-061 {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;min-width:0!important;max-width:100%;
+  }
+  .tnts-m28b-delivery-item-form .legacy-162 > *,
+  .tnts-m28b-delivery-item-form .legacy-061 > * {
+    width:100%!important;min-width:0!important;max-width:100%!important;
+    min-height:43px;box-sizing:border-box;flex:none;
+  }
+  .tnts-m28b-delivery-item-form .legacy-165,
+  .tnts-m28b-receipt-upload .legacy-174 {
+    display:flex!important;align-items:center;justify-content:center;
+    width:100%!important;min-height:44px!important;
+    white-space:normal!important;text-align:center!important;
+  }
+  .tnts-m28b-receipt-upload {display:grid;grid-template-columns:minmax(0,1fr);gap:10px;}
+  .tnts-m28b-receipt-upload input[type=file] {
+    box-sizing:border-box;display:block;width:100%!important;min-width:0!important;
+    max-width:100%!important;margin:0!important;min-height:42px;
+    overflow:hidden;white-space:normal;
+  }
+  .tnts-m28b-delivery-attachments .legacy-176,
+  .tnts-m28b-delivery-attachments .legacy-177 {min-width:0;max-width:100%;overflow-wrap:anywhere;}
+  /* Delivery item table is read-only. Its column data must not disappear. */
+  .tnts-m28b-delivery-lines {width:100%;max-width:100%;table-layout:fixed;}
+  .tnts-m28b-delivery-lines th,.tnts-m28b-delivery-lines td {
+    padding:8px 5px!important;font-size:11px!important;
+    overflow-wrap:anywhere;white-space:normal;
+  }
+  .tnts-m28b-delivery-lines th:first-child,.tnts-m28b-delivery-lines td:first-child{width:27%;}
+  .tnts-m28b-delivery-lines th:last-child,.tnts-m28b-delivery-lines td:last-child{width:19%;}
+  .tnts-m28b-delivery-lines th:nth-child(2),.tnts-m28b-delivery-lines td:nth-child(2){width:16%;}
+
+  /* Receiving item list: do not squeeze five desktop headings onto one phone.
+     The very same read-only values are shown in stacked labeled cards. */
+  table.tnts-m28b-delivery-lines {
+    display:block!important;width:100%!important;min-width:0!important;
+    max-width:100%!important;table-layout:auto!important;
+  }
+  table.tnts-m28b-delivery-lines tbody {
+    display:grid!important;grid-template-columns:minmax(0,1fr);gap:10px;
+    width:100%;min-width:0;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr:first-child:not(:only-child),
+  table.tnts-m28b-delivery-lines tbody > tr:first-child:has(th) {
+    display:none!important;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr:not(:first-child),
+  table.tnts-m28b-delivery-lines tbody > tr:only-child:not(:has(th)) {
+    display:block!important;min-width:0!important;width:100%!important;
+    border:1px solid #e0e6ef;border-radius:10px;padding:11px;
+    box-sizing:border-box;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr > td {
+    display:flex!important;align-items:flex-start!important;
+    justify-content:space-between!important;gap:10px;
+    text-align:right!important;box-sizing:border-box;width:100%!important;
+    min-width:0!important;max-width:100%!important;
+    padding:8px 0!important;font-size:12px!important;
+    border-bottom:1px solid #edf0f4!important;overflow-wrap:anywhere;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr > td:last-child{border-bottom:0!important;}
+  table.tnts-m28b-delivery-lines tbody > tr > td:first-child {
+    display:block!important;text-align:left!important;font-size:14px!important;
+    padding:3px 0 10px!important;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr > td:not(:first-child)::before {
+    content:attr(data-tnts-mobile-label);display:block;flex:0 0 45%;
+    text-align:left;color:#617086;font-size:11px;font-weight:750;
+  }
+  table.tnts-m28b-delivery-lines tbody > tr > td:first-child::before {content:none;}
+  table.tnts-m28b-delivery-lines tbody > tr > td[colspan] {
+    display:block!important;text-align:center!important;padding:14px!important;
+  }
+
+  /* IAR header should never shrink a date picker or result select into a sliver. */
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields {
+    grid-template-columns:minmax(0,1fr)!important;gap:13px!important;
+  }
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields label {
+    display:block;margin-bottom:6px!important;font-size:13px;font-weight:700;
+  }
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields select,
+  .tnts-m28b-inspection .tnts-m28b-iar-header-fields input {font-size:16px!important;}
+  .tnts-m28b-inspection .p3817-toggle {
+    max-width:100%!important;white-space:normal!important;
+  }
+  /* Property transfer requests: table -> one clean vertical record with
+     labels ABOVE values, rather than a squeezed left/right flex pair. */
+  .tnts-m28b-transfer-requests .p51-scroll {width:100%!important;min-width:0!important;overflow:visible!important;}
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record:not([hidden]) {
+    padding:13px!important;gap:0;border-radius:13px!important;overflow:visible;
+  }
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record > td {
+    display:block!important;text-align:left!important;
+    width:100%!important;min-width:0!important;max-width:100%!important;
+    padding:10px 0!important;line-height:1.5!important;
+    overflow-wrap:anywhere;
+  }
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record > td::before {
+    display:block!important;content:attr(data-tnts-mobile-label)!important;
+    max-width:100%;width:auto;float:none;
+    font-size:11px!important;font-weight:750!important;color:#66738a;
+    margin:0 0 5px!important;text-align:left!important;
+  }
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record > td:first-child {
+    font-size:13px!important;color:#26354d;font-weight:750;
+    border-bottom:1px solid #e8edf3!important;
+  }
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record > td:first-child::before{
+    content:'Requested'!important;display:block!important;
+  }
+  .tnts-m28b-transfer-requests table.tnts-m28-cards tbody > tr.p3815-record > td:nth-child(2) strong {
+    display:inline-block;font-size:15px;margin-bottom:3px;
+  }
+  .tnts-m28b-transfer-requests .p3815-info {
+    display:block;min-width:0;max-width:100%;margin:8px 0 0;
+    overflow-wrap:anywhere;
+  }
+  .tnts-m28b-transfer-requests .p3815-info > summary {
+    white-space:normal;overflow-wrap:anywhere;cursor:pointer;
+  }
+  .tnts-m28b-transfer-requests .p3815-info > p {overflow-wrap:anywhere;}
+  .tnts-m28b-transfer-requests .t18-open-actions,
+  .tnts-m28b-transfer-requests .p3815-record td:last-child > form > button {
+    width:100%!important;max-width:100%!important;min-height:43px!important;
+    display:inline-flex!important;align-items:center;justify-content:center;
+  }
+  .tnts-m28b-transfer-requests .p3815-record td:last-child > form {min-width:0;max-width:100%;}
+  .tnts-m28b-transfer-requests .t25-awaiting,
+  .tnts-m28b-transfer-requests .t18-waiting {display:block;max-width:100%!important;}
+  .tnts-m28b-transfer-requests .p3815-footer {
+    display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;
+    align-items:center!important;justify-content:stretch!important;
+    gap:8px!important;min-width:0;
+  }
+  .tnts-m28b-transfer-requests .p3815-footer > :first-child {
+    grid-column:1 / -1;text-align:left;
+  }
+  .tnts-m28b-transfer-requests .p3815-footer button {
+    min-width:0!important;max-width:100%;min-height:41px;
+  }
+  .tnts-m28b-transfer-requests .p3815-footer > :nth-child(3){text-align:center;min-width:0;}
+  .tnts-m28b-transfer-requests .p3815-tools > button {
+    width:100%!important;min-height:43px!important;
+  }
+}
+@media (max-width:650px) {
+
+  /* Inspection: keep the original editable fields and per-row details, but show
+     one complete inspection card per item on narrow screens. The fixed 700px
+     table declared in inspection.php must not clip the controls. */
+  .p3817-iar-wrap {width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important;}
+  .p3817-iar-table.tnts-m28-cards {display:block!important;min-width:0!important;width:100%!important;}
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row:not([hidden]) {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    width:100%!important;min-width:0!important;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td {
+    width:100%!important;max-width:100%!important;min-width:0!important;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td.p3817-qty-cell,
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td.p3817-category-cell {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    gap:6px!important;text-align:left!important;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td.p3817-qty-cell::before,
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td.p3817-category-cell::before {
+    display:block!important;max-width:100%!important;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td:last-child {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    gap:7px!important;text-align:left!important;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-summary-row > td:last-child::before{content:'Inspection'!important;display:block!important;}
+  .p3817-iar-table.tnts-m28-cards .p3817-toggle {width:100%!important;max-width:100%!important;min-height:43px;}
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-inspect-details:not([hidden]) {
+    display:block!important;width:100%!important;max-width:100%!important;
+    min-width:0!important;box-sizing:border-box;
+  }
+  .p3817-iar-table.tnts-m28-cards tbody > tr.p3817-inspect-details > td {
+    display:block!important;width:100%!important;min-width:0!important;
+    padding:12px!important;
+  }
+  .p3817-iar-table.tnts-m28-cards .p3817-iar-details,
+  .p3817-iar-table.tnts-m28-cards .p3817-iar-details-grid {
+    display:grid;grid-template-columns:minmax(0,1fr)!important;
+    max-width:100%!important;min-width:0!important;
+  }
+
+}
+
+
+/* Phase 3.8.29 — administrative/reports mobile layout only.
+   Intentional breakpoint: none of these rules affect 100%-zoom desktop. */
+@media (max-width: 900px) {
+  body.tnts-m29-administration .page-head,
+  body.tnts-m29-administration .content-header,
+  body.tnts-m29-administration .legacy-121 {
+    min-width:0;max-width:100%;flex-wrap:wrap;gap:12px;
+  }
+  body.tnts-m29-administration .card {min-width:0;max-width:100%;}
+  body.tnts-m29-administration .p442-filters,
+  body.tnts-m29-administration .p451-filters {
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;
+  }
+  body.tnts-m29-administration .p45-filter .field {
+    flex:1 1 220px;min-width:0;
+  }
+  body.tnts-m29-administration .legacy-123 > div {
+    min-width:0;flex:1 1 190px;
+  }
+  body.tnts-m29-administration .legacy-123 .legacy-125 {max-width:100%;width:100%;box-sizing:border-box;}
+}
+@media (max-width: 650px) {
+  body.tnts-m29-administration .page-head h1,
+  body.tnts-m29-administration .content-header h2 {font-size:clamp(22px,6vw,28px);line-height:1.2;overflow-wrap:anywhere;}
+  body.tnts-m29-administration .p442-filters,
+  body.tnts-m29-administration .p451-filters,
+  body.tnts-m29-administration .p3822-filters,
+  body.tnts-m29-administration .p45-filter,
+  body.tnts-m29-administration .p451-form-grid {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;
+  }
+  body.tnts-m29-administration .p451-filters > *,
+  body.tnts-m29-administration .p3822-filters > *,
+  body.tnts-m29-administration .p442-filters > *,
+  body.tnts-m29-administration .p45-filter > * {width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box;}
+  body.tnts-m29-administration .p45-filter .field {min-width:0;}
+  body.tnts-m29-administration .p45-filter .input,
+  body.tnts-m29-administration .p442-field .input,
+  body.tnts-m29-administration .p451-filters .input {width:100%;min-width:0;box-sizing:border-box;min-height:44px;}
+  body.tnts-m29-administration .p442-filter-actions,
+  body.tnts-m29-administration .p451-filter-actions,
+  body.tnts-m29-administration .p451-form-actions,
+  body.tnts-m29-administration .p3822-table-actions,
+  body.tnts-m29-administration .tnts-review-actions,
+  body.tnts-m29-administration .record-account-actions {
+    display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;
+  }
+  body.tnts-m29-administration .p3822-table-actions > *,
+  body.tnts-m29-administration .p451-filter-actions > *,
+  body.tnts-m29-administration .p442-filter-actions > * {flex:1 1 120px;min-width:0;}
+  body.tnts-m29-administration .p3822-table-actions select {width:100%;min-width:0;}
+  body.tnts-m29-administration .p3822-list-toolbar {display:flex;flex-direction:column;align-items:stretch;gap:11px;}
+  body.tnts-m29-administration .p3822-table-actions {justify-content:space-between;}
+  body.tnts-m29-administration .record-pagesize {margin-left:0!important;}
+  body.tnts-m29-administration .p451-expanded,
+  body.tnts-m29-administration .tnts-review-panel {margin:0!important;padding:12px!important;min-width:0!important;max-width:100%;}
+  body.tnts-m29-administration .record-facts,
+  body.tnts-m29-administration .tnts-review-comparison,
+  body.tnts-m29-administration .tnts-review-facts {display:grid;grid-template-columns:minmax(0,1fr)!important;gap:10px;}
+  body.tnts-m29-administration .p451-expanded-header,
+  body.tnts-m29-administration .tnts-review-panel-header {display:flex;flex-wrap:wrap;gap:8px;}
+  body.tnts-m29-administration .record-edit-section input,
+  body.tnts-m29-administration .record-edit-section select,
+  body.tnts-m29-administration .record-edit-section textarea,
+  body.tnts-m29-administration .tnts-review-decision textarea {max-width:100%;width:100%;min-width:0;box-sizing:border-box;}
+
+  /* Readable record cards; all values remain the original table cells.
+     Inline details form and buttons are untouched. */
+  body.tnts-m29-administration .table-wrap:has(> table.tnts-m29-table) {
+    min-width:0!important;width:100%;max-width:100%;overflow:visible!important;
+  }
+  body.tnts-m29-administration table.tnts-m29-table {
+    display:block!important;min-width:0!important;max-width:100%!important;width:100%!important;
+    table-layout:auto!important;border-collapse:separate!important;
+  }
+  body.tnts-m29-administration table.tnts-m29-table > thead {display:none!important;}
+  body.tnts-m29-administration table.tnts-m29-table > tbody {
+    display:grid!important;grid-template-columns:minmax(0,1fr);gap:12px;
+    min-width:0;width:100%;
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr[hidden] {display:none!important;}
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item:not([hidden]) {
+    display:grid!important;grid-template-columns:minmax(0,1fr);gap:0;
+    min-width:0!important;width:100%;max-width:100%;box-sizing:border-box;
+    border:1px solid #dfe5ee;border-radius:13px;padding:10px 13px;
+    background:#fff;box-shadow:0 2px 7px rgba(26,37,58,.035);
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td {
+    display:block!important;min-width:0!important;width:100%!important;max-width:100%!important;
+    box-sizing:border-box;padding:10px 0!important;border:0!important;
+    border-bottom:1px solid #edf0f5!important;overflow-wrap:anywhere;
+    text-align:left!important;font-size:13px!important;vertical-align:top;
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td:last-child {border-bottom:0!important;}
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td::before {
+    content:attr(data-tnts-m29-label);display:block;margin:0 0 5px;
+    color:#61718a;font-size:11px;line-height:1.3;font-weight:750;text-align:left;
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td:first-child {font-weight:650;}
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td:first-child::before {display:none;}
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td:last-child .btn,
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-item > td:last-child a[class^="legacy-"] {
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:41px;max-width:100%;white-space:normal;overflow-wrap:anywhere;
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-expanded:not([hidden]),
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-wide-row:not([hidden]) {
+    display:block!important;min-width:0;width:100%;max-width:100%;box-sizing:border-box;
+    background:#fff;border:1px solid #eadde3;border-radius:12px;padding:0;
+  }
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-expanded > td,
+  body.tnts-m29-administration table.tnts-m29-table tbody > tr.tnts-m29-wide-row > td {
+    display:block!important;box-sizing:border-box;width:100%!important;max-width:100%!important;
+    border:0!important;padding:8px!important;min-width:0!important;
+    text-align:left!important;overflow-wrap:anywhere;
+  }
+  body.tnts-m29-administration .record-pagination {gap:7px;justify-content:space-between;}
+  body.tnts-m29-administration .record-pagination .btn {min-height:42px;}
+
+  /* Reports: tabs are horizontally scrollable, while filters stack and
+     the original PDF / print links remain in each record. */
+  body.tnts-m29-administration .legacy-120 {
+    display:flex!important;gap:9px!important;max-width:100%;min-width:0;
+    overflow-x:auto;overscroll-behavior-inline:contain;
+    padding-bottom:10px;scrollbar-width:thin;
+  }
+  body.tnts-m29-administration .legacy-120 > a {
+    flex:0 0 auto;min-height:43px;display:inline-flex;align-items:center;
+    white-space:nowrap;padding:8px 13px!important;
+  }
+  body.tnts-m29-administration .legacy-030 {min-width:0;max-width:100%;padding:14px!important;}
+  body.tnts-m29-administration .legacy-123 {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    gap:13px!important;padding:13px!important;
+  }
+  body.tnts-m29-administration .legacy-123 > div,
+  body.tnts-m29-administration .legacy-123 .legacy-079,
+  body.tnts-m29-administration .legacy-123 .legacy-081,
+  body.tnts-m29-administration .legacy-123 .legacy-082,
+  body.tnts-m29-administration .legacy-123 .legacy-130 {
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box;
+  }
+  body.tnts-m29-administration .legacy-123 input,
+  body.tnts-m29-administration .legacy-123 select {width:100%!important;min-height:44px;min-width:0!important;max-width:100%;box-sizing:border-box;}
+  body.tnts-m29-administration .legacy-123 .legacy-126,
+  body.tnts-m29-administration .legacy-123 .legacy-127 {min-height:42px;}
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="reports"] tbody > tr.tnts-m29-item > td:last-child a {
+    display:inline-flex;min-height:42px;align-items:center;justify-content:center;
+    max-width:100%;white-space:normal;
+  }
+  /* Audit and history comparisons: retain tabular context and scroll locally. */
+  body.tnts-m29-administration .table-wrap:not(:has(.tnts-m29-table)) {
+    max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;
+  }
+
+  /* Audio diagnostics are accessible without noise from hover or bell clicks. */
+  .tn-notify-popover-foot {flex-wrap:wrap;gap:6px;}
+  .tn-sound-test {
+    background:transparent;border:1px solid #e9d5df;border-radius:8px;
+    color:#861638;font:inherit;font-size:11px;font-weight:700;
+    min-height:32px;padding:5px 9px;cursor:pointer;
+  }
+  .tn-audio-status {flex-basis:100%;font-size:11px;line-height:1.35;color:#46645a;}
+  .tn-audio-status.is-problem {color:#a6334b;}
+}
+/* Test Sound is also available from the desktop bell tray; it is not a
+   layout change to any existing desktop record/page. */
+.tn-notify-popover-foot {flex-wrap:wrap;gap:6px;}
+.tn-sound-test {background:transparent;border:1px solid #e9d5df;border-radius:8px;color:#861638;font:inherit;font-size:11px;font-weight:700;min-height:32px;padding:5px 9px;cursor:pointer;}
+.tn-sound-test:hover,.tn-sound-test:focus-visible {background:#fbf1f5;}
+.tn-audio-status {flex-basis:100%;font-size:11px;line-height:1.35;color:#46645a;}
+.tn-audio-status.is-problem {color:#a6334b;}
+
+@media (max-width: 650px) {
+  /* Administration forms and lists: the same existing input controls remain
+     editable inside one-column mobile records. */
+  body.tnts-m29-administration .filters,
+  body.tnts-m29-administration .inline-edit,
+  body.tnts-m29-administration .p473-add,
+  body.tnts-m29-administration .tnts-admin-card > form,
+  body.tnts-m29-administration .tnts-admin-card form:not(.inline) {
+    max-width:100%;min-width:0;flex-wrap:wrap;gap:10px;
+  }
+  body.tnts-m29-administration .filters > input,
+  body.tnts-m29-administration .filters > select,
+  body.tnts-m29-administration .inline-edit > input,
+  body.tnts-m29-administration .inline-edit > select,
+  body.tnts-m29-administration .p473-add > input {
+    box-sizing:border-box;min-width:0;max-width:100%;width:100%;min-height:42px;
+  }
+  body.tnts-m29-administration table.tnts-m29-table input,
+  body.tnts-m29-administration table.tnts-m29-table select,
+  body.tnts-m29-administration table.tnts-m29-table textarea {
+    min-width:0;max-width:100%;box-sizing:border-box;
+  }
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="tracks"] tr.tnts-m29-item > td[colspan]::before {content:'Course / track'!important;display:block!important;}
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="tracks"] .inline-edit {display:flex;flex-wrap:wrap;align-items:stretch;gap:9px;}
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="tracks"] .inline-edit > input,
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="tracks"] .inline-edit > select {flex:1 1 100%;}
+  body.tnts-m29-administration .tnts-admin-table-wrap {max-width:100%;min-width:0;overflow-x:auto;}
+  body.tnts-m29-administration table.tnts-m29-table[data-tnts-m29-kind="units"] {font-size:13px;}
+}
+
+
+/* Phase 3.8.30 — Teacher / TVL Head dashboard ONLY.
+   Do not modify Supply Officer dashboard geometry or 100% desktop styling. */
+.p3830-role-dashboard .p38-expanded .p382-empty{padding:22px 3px;color:#718096}
+.p3830-role-dashboard .p38-expanded .table-wrap{min-width:0;max-width:100%;overflow-x:auto}
+.p3830-role-dashboard .p38-expanded .table{min-width:460px}
+.p3830-role-dashboard .p38-summary-label{line-height:1.35}
+.p3830-role-dashboard .p38-panel-head{gap:12px;flex-wrap:wrap}
+.p3830-role-dashboard .p38-panel-head .btn{max-width:100%;white-space:normal;text-align:center}
+.p3830-role-dashboard .p38-alert-row{gap:12px}
+.p3830-head-note{margin-top:18px}
+.p3830-head-note p{color:#64748b;line-height:1.65}
+@media(max-width:550px){
+ .p3830-role-dashboard .p38-dashboard-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .p3830-role-dashboard .p38-summary{min-height:98px;gap:4px}
+ .p3830-role-dashboard .p38-summary strong{font-size:23px}
+ .p3830-role-dashboard .p38-summary small{font-size:10px;line-height:1.3}
+ .p3830-role-dashboard .p38-panel-head .btn{width:100%}
+ .p3830-role-dashboard .p38-alert-row{grid-template-columns:minmax(0,1fr) auto auto}
+}
+@media(prefers-reduced-motion:reduce){
+ .p3830-role-dashboard .p38-summary{transition:none}
+}
+
+/* Role-only lower sections. Existing Supply Officer sections are untouched. */
+.p3830-below{margin-top:20px}
+.p3830-below .table-wrap{max-width:100%;overflow-x:auto}
+.p3830-below .table{min-width:420px}
+.p3830-quicklinks{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}
+.p3830-quicklinks .btn{white-space:normal;text-align:center}
+.p3830-role-dashboard[data-dashboard-role="teacher"] .p387-theme-deliveries{
+  --p387-accent:#c36a20;--p387-accent-end:#e5ad55;--p387-soft:#fff5e7;
+  --p387-light:#fff0d9;--p387-ink:#985118;
+}
+.p3830-role-dashboard[data-dashboard-role="teacher"] .p387-theme-ics{
+  --p387-accent:#7650be;--p387-accent-end:#b197ec;--p387-soft:#f1eafd;
+  --p387-light:#eee5fc;--p387-ink:#6842a9;
+}
+@media(max-width:550px){
+ .p3830-quicklinks{display:grid;grid-template-columns:1fr}
+ .p3830-quicklinks .btn{width:100%}
+}
+
+/* Keep the teacher color key during the flying-card swap. */
+.p3830-flight-teacher.p387-theme-deliveries{
+ --p387-accent:#c36a20;--p387-accent-end:#e5ad55;--p387-soft:#fff5e7;
+ --p387-light:#fff0d9;--p387-ink:#985118;
+}
+.p3830-flight-teacher.p387-theme-ics{
+ --p387-accent:#7650be;--p387-accent-end:#b197ec;--p387-soft:#f1eafd;
+ --p387-light:#eee5fc;--p387-ink:#6842a9;
+}
+
+/* Mobile-only labelled detail cards and content-height overview for role dashboards. */
+@media(max-width:550px){
+ .p3830-role-dashboard .p38-expanded{
+   height:auto!important;max-height:none!important;min-height:0!important;
+   overflow:visible!important;padding-bottom:16px!important;
+ }
+ .p3830-role-dashboard .p38-expanded .table-wrap{overflow:visible}
+ .p3830-role-dashboard .p38-expanded .table{display:block;min-width:0!important;width:100%}
+ .p3830-role-dashboard .p38-expanded .table thead{display:none}
+ .p3830-role-dashboard .p38-expanded .table tbody{display:grid;gap:10px}
+ .p3830-role-dashboard .p38-expanded .table tbody tr{
+   display:grid;gap:0;border:1px solid #e6e9f0;border-radius:12px;
+   padding:6px 12px;background:#fbfcfe;min-width:0;
+ }
+ .p3830-role-dashboard .p38-expanded .table tbody td{
+   display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+   min-width:0;max-width:100%;padding:9px 0;border-bottom:1px solid #eef0f5;
+   text-align:right;overflow-wrap:anywhere;
+ }
+ .p3830-role-dashboard .p38-expanded .table tbody td:last-child{border-bottom:0}
+ .p3830-role-dashboard .p38-expanded .table tbody td::before{
+   content:attr(data-label);flex:0 0 42%;text-align:left;color:#65728a;font-size:11px;font-weight:700;
+ }
+}
+
+/* TNTS 3.8.30b: Prevent the legacy 760px transfer table rule from overriding
+   Phase 3.8.28 mobile cards. Desktop table geometry is never changed. */
+@media (max-width: 650px) {
+  body.desktop-workspace .tnts-m28b-transfer-requests,
+  body.desktop-workspace .tnts-m28b-transfer-requests .p51-scroll {
+    box-sizing:border-box!important;
+    width:100%!important;max-width:100%!important;min-width:0!important;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests .p51-scroll {
+    overflow-x:visible!important;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests .p51-scroll > table.tnts-m28-cards {
+    display:block!important;box-sizing:border-box!important;
+    width:100%!important;min-width:0!important;max-width:100%!important;
+    table-layout:auto!important;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests table.tnts-m28-cards > tbody,
+  body.desktop-workspace .tnts-m28b-transfer-requests table.tnts-m28-cards > tbody > tr.p3815-record:not([hidden]) {
+    box-sizing:border-box!important;
+    width:100%!important;min-width:0!important;max-width:100%!important;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests table.tnts-m28-cards > tbody > tr.p3815-record > td,
+  body.desktop-workspace .tnts-m28b-transfer-requests table.tnts-m28-cards > tbody > tr.p3815-record > td > * {
+    box-sizing:border-box;min-width:0!important;max-width:100%!important;
+    overflow-wrap:anywhere;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests table.tnts-m28-cards > tbody > tr.p3815-record > td:last-child {
+    display:flex!important;flex-direction:column!important;align-items:stretch!important;
+    justify-content:flex-start!important;gap:8px!important;
+  }
+  body.desktop-workspace .tnts-m28b-transfer-requests .p3815-record .t18-open-actions {
+    flex:0 0 auto;max-width:100%!important;width:100%!important;
+    margin:0!important;min-height:43px;
+  }
+}
+/* Keep the notification controls readable after introducing Clear read. */
+.tn-notify-page-heading .tn-notify-page-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tn-notify-popover-foot .tn-clear-read,
+.tn-notify-page-heading .tn-clear-read {
+  cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+  color:#7b1835;background:transparent;border:0;
+  padding:8px 6px;min-height:36px;white-space:normal;
+}
+.tn-notify-popover-foot .tn-clear-read:hover,
+.tn-notify-page-heading .tn-clear-read:hover {text-decoration:underline;}
+.tn-notify-popover-foot .tn-clear-read:focus-visible,
+.tn-notify-page-heading .tn-clear-read:focus-visible {outline:2px solid #8d1940;outline-offset:2px;}
+@media (max-width: 650px) {
+  .tn-notify-popover-foot {flex-wrap:wrap;gap:6px;}
+  .tn-notify-page-heading .tn-clear-read {padding:9px 12px;}
+}

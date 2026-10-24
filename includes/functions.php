@@ -182,7 +182,7 @@ function nav_items(string $role): array
         ['condemnation.php', 'Condemnation', 'alert', ['supply_officer', 'tvl_head', 'teacher']],
         ['transfers.php', 'Property Transfers', 'repeat', ['supply_officer','teacher','tvl_head']],
         ['transfer_history.php', 'Transfer History', 'clock', ['supply_officer','teacher','tvl_head']],
-        ['transfer_audit.php', 'Transfer Audit', 'check', ['supply_officer','tvl_head']], // Phase 5.1 request workflow
+        ['transfer_audit.php', 'Transfer Check', 'check', ['supply_officer','tvl_head']], // Phase 5.1 request workflow
         ['reports.php', 'Reports & Docs', 'file',   ['supply_officer', 'tvl_head', 'teacher']],
         ['courses.php',   'Academic Tracks',      'book',   ['supply_officer', 'tvl_head']],
         ['history.php',   'History Logs', 'clock',  ['supply_officer', 'tvl_head']],

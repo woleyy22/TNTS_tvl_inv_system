@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('Receiving create failed: '.$error->getMessage());
         http_response_code(500);
-        die('Could not save delivery. Verify the Phase 2.1 database migration is installed and try again.');
+        die('Could not save delivery. Check that the receiving database tables are installed and try again.');
     }
 
     // Redirect to the view page where they will add individual items to this delivery
@@ -86,62 +86,70 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <?php if ($action === 'list'): ?>
-    <div class="card legacy-054">
-        <table class="legacy-031 js-sortable-table">
-            <thead>
-                <tr class="legacy-055">
-                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Record No.: default order. Activate for ascending." title="Sort Record No.: default order" aria-pressed="false"><span class="tnts-sort-title">Record No.</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
-                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Supplier: default order. Activate for ascending." title="Sort Supplier: default order" aria-pressed="false"><span class="tnts-sort-title">Supplier</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
-                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Date Received: default order. Activate for ascending." title="Sort Date Received: default order" aria-pressed="false"><span class="tnts-sort-title">Date Received</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
-                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort PO / DR #: default order. Activate for ascending." title="Sort PO / DR #: default order" aria-pressed="false"><span class="tnts-sort-title">PO / DR #</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
-                    <th class="legacy-033"><button type="button" class="tnts-sort-toggle" data-sort-state="none" aria-label="Sort Status: default order. Activate for ascending." title="Sort Status: default order" aria-pressed="false"><span class="tnts-sort-title">Status</span><span class="tnts-sort-icon" aria-hidden="true">−</span></button></th>
-                    <th class="legacy-033">Action</th>
-                </tr>
-            </thead>
+    <div class="card legacy-054 tnts-table-card" data-tnts-grid>
+        <div class="tnts-grid-toolbar">
+            <div class="tnts-grid-title"><strong>Receiving records</strong><small data-grid-count aria-live="polite"></small></div>
+            <div class="tnts-grid-filters">
+                <label class="tnts-grid-search">Search
+                    <input type="search" data-grid-filter="search" placeholder="Record, supplier, PO or DR" autocomplete="off">
+                </label>
+                <label class="tnts-grid-short">Status
+                    <select data-grid-filter="status">
+                        <option value="">All statuses</option>
+                        <option value="pending_inspection">Pending inspection</option>
+                        <option value="partially_accepted">Partially accepted</option>
+                        <option value="accepted">Accepted</option>
+                    </select>
+                </label>
+                <label class="tnts-grid-date">Received from<input type="date" data-grid-filter="from"></label>
+                <label class="tnts-grid-date">Received through<input type="date" data-grid-filter="to"></label>
+                <label class="tnts-grid-short">Show
+                    <select data-grid-filter="size"><option value="10">10 rows</option><option value="25">25 rows</option><option value="50">50 rows</option><option value="all">All rows</option></select>
+                </label>
+            </div>
+        </div>
+        <div class="tnts-grid-scroll">
+        <table class="tnts-data-table" data-grid-table aria-label="Receiving and deliveries">
+            <thead><tr>
+                <th style="width:18%"><button type="button" class="tnts-grid-sort" data-grid-sort="record" data-grid-type="text" data-sort-direction="none">Record No. <span class="tnts-grid-indicator" data-grid-indicator aria-hidden="true">–</span></button></th>
+                <th style="width:23%"><button type="button" class="tnts-grid-sort" data-grid-sort="supplier" data-grid-type="text" data-sort-direction="none">Supplier <span class="tnts-grid-indicator" data-grid-indicator aria-hidden="true">–</span></button></th>
+                <th style="width:15%"><button type="button" class="tnts-grid-sort" data-grid-sort="date" data-grid-type="date" data-sort-direction="none">Received <span class="tnts-grid-indicator" data-grid-indicator aria-hidden="true">–</span></button></th>
+                <th style="width:17%"><button type="button" class="tnts-grid-sort" data-grid-sort="reference" data-grid-type="text" data-sort-direction="none">PO / DR <span class="tnts-grid-indicator" data-grid-indicator aria-hidden="true">–</span></button></th>
+                <th style="width:15%"><button type="button" class="tnts-grid-sort" data-grid-sort="status" data-grid-type="text" data-sort-direction="none">Status <span class="tnts-grid-indicator" data-grid-indicator aria-hidden="true">–</span></button></th>
+                <th style="width:12%">Details</th>
+            </tr></thead>
             <tbody>
-                <?php
-                // Fetch all deliveries, newest first
-                $stmt = db()->query("
-                    SELECT d.*, u.full_name as receiver_name 
-                    FROM deliveries d 
-                    JOIN users u ON d.received_by = u.user_id 
-                    ORDER BY d.created_at DESC
-                ");
-                $deliveries = $stmt->fetchAll();
-
-                if (empty($deliveries)): ?>
-                    <tr>
-                        <td colspan="6" class="legacy-035">No deliveries logged yet.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($deliveries as $d): ?>
-                        <tr class="legacy-036">
-                            <td class="legacy-033"><?= e($d['receiving_number']) ?></td>
-                            <td class="legacy-033"><strong><?= e($d['supplier_name']) ?></strong></td>
-                            <td class="legacy-033"><?= e(date('M d, Y', strtotime($d['date_received']))) ?></td>
-                            <td class="legacy-033">
-                                PO: <?= e($d['po_number'] ?: 'N/A') ?><br>
-                                DR: <?= e($d['dr_number'] ?: 'N/A') ?>
-                            </td>
-                            <td class="legacy-033">
-                                <?php
-                                    $badgeColor = '#f59e0b'; // yellow for pending
-                                    if ($d['status'] === 'accepted') $badgeColor = '#10b981'; // green
-                                    if ($d['status'] === 'partially_accepted') $badgeColor = '#3b82f6'; // blue
-                                ?>
-                                <span class="legacy-056 status-badge status-<?= e($d['status']) ?>">
-                                    <?= e(str_replace('_', ' ', $d['status'])) ?>
-                                </span>
-                            </td>
-                            <td class="legacy-033">
-                                <a href="delivery_view.php?id=<?= $d['delivery_id'] ?>" class="legacy-057">View / Inspect &rarr;</a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+            <?php
+            // Existing receiving query and navigation remain unchanged.
+            $stmt=db()->query("SELECT d.*,u.full_name AS receiver_name FROM deliveries d JOIN users u ON d.received_by=u.user_id ORDER BY d.created_at DESC,d.delivery_id DESC");
+            $deliveries=$stmt->fetchAll(PDO::FETCH_ASSOC);
+            ?>
+            <?php foreach($deliveries as $d): ?>
+                <tr data-grid-record
+                    data-record="<?= e($d['receiving_number']) ?>"
+                    data-supplier="<?= e($d['supplier_name']??'') ?>"
+                    data-date="<?= e($d['date_received']) ?>"
+                    data-reference="<?= e(trim(($d['po_number']??'').' '.($d['dr_number']??''))) ?>"
+                    data-status="<?= e($d['status']) ?>"
+                    data-search="<?= e(implode(' ',[$d['receiving_number'],$d['supplier_name']??'',$d['po_number']??'',$d['dr_number']??'',$d['receiver_name']??''])) ?>">
+                    <td><span class="tnts-grid-main"><?= e($d['receiving_number']) ?></span></td>
+                    <td><span class="tnts-grid-main"><?= e($d['supplier_name']?:'–') ?></span></td>
+                    <td><?= e(date('M d, Y',strtotime($d['date_received']))) ?></td>
+                    <td><div class="tnts-grid-stack"><span class="tnts-grid-muted">PO: <?= e($d['po_number']?:'–') ?></span><span class="tnts-grid-muted">DR: <?= e($d['dr_number']?:'–') ?></span></div></td>
+                    <td><span class="tnts-grid-pill tnts-grid-pill--<?= e($d['status']) ?>"><?= e(ucwords(str_replace('_',' ',$d['status']))) ?></span></td>
+                    <td><a class="tnts-grid-link" href="delivery_view.php?id=<?= (int)$d['delivery_id'] ?>">View / Inspect →</a></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if(!$deliveries): ?><tr><td colspan="6" class="tnts-grid-empty">No deliveries logged yet.</td></tr><?php endif; ?>
             </tbody>
         </table>
+        </div>
+        <div class="tnts-grid-pager">
+            <span data-grid-page-info class="tnts-grid-muted" aria-live="polite"></span>
+            <div class="tnts-grid-pager-actions"><button type="button" data-grid-prev>← Previous</button><button type="button" data-grid-next>Next →</button></div>
+        </div>
     </div>
+    <script defer src="<?= e(url('assets/js/table_ui.js')) ?>"></script>
 
 <?php elseif ($action === 'add' && $user['role'] === 'supply_officer'): ?>
     <div class="card legacy-058">
